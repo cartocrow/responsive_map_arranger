@@ -10,6 +10,10 @@
 #include <cartocrow/renderer/geometry_painting.h>
 #include <cartocrow/renderer/geometry_widget.h>
 
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
+
 
 using namespace cartocrow;
 using namespace cartocrow::renderer;
@@ -19,9 +23,13 @@ using namespace cartocrow::renderer;
 class RectangularCartogramDemo : public QMainWindow {
     Q_OBJECT
 
+    json m_projectData;
+
+
     GeometryWidget* m_renderer;
 
-
+    void loadData(const std::filesystem::path &dataPath);
+    void processData();
 public:
     RectangularCartogramDemo();
 };

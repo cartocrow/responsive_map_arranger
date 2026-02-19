@@ -1,0 +1,13 @@
+//
+// Created by arjen on 2/19/26.
+//
+
+#ifndef CARTOCROW_MODULENAME_REGULAR_EDGE_LABELING_H
+#define CARTOCROW_MODULENAME_REGULAR_EDGE_LABELING_H
+
+
+class regular_edge_labeling {
+};
+
+
+#endif //CARTOCROW_MODULENAME_REGULAR_EDGE_LABELING_H
