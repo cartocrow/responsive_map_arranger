@@ -14,13 +14,15 @@ set(CARTOCROW_INSTALL_DIR "${CMAKE_INSTALL_SOURCE_DIR}/cartocrow")
 
 project(cartocrow-modulename
     VERSION 0.0.1
-    DESCRIPTION "CartoCrow TemplateModule"
+    DESCRIPTION "CartoCrow Rectangular Cartogram"
     LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(CartoCrow REQUIRED)
+find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+
 
 if (NOT EMSCRIPTEN)
     # Let CMake automatically handle Qt's "Meta-Object Compiler" preprocessor
@@ -31,8 +33,8 @@ endif()
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(library)
+add_subdirectory(frontend)
 if (NOT EMSCRIPTEN)
-    add_subdirectory(frontend)
     add_subdirectory(test)
 endif()
 

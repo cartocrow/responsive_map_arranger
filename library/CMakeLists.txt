@@ -1,15 +1,15 @@
 set(SOURCES
-	<source>.cpp
+	map_painting.cpp
 )
 set(HEADERS
-	<header>.h
+	map_painting.h
 )
 
-add_library(<module_name> ${SOURCES})
-target_link_libraries(<module_name>
+add_library(rectangular_cartogram ${SOURCES})
+target_link_libraries(rectangular_cartogram
 	PUBLIC 
-	cartocrow::core	
+	cartocrow::core
 )
 
 #cartocrow_install_module(<module_name>)
-install(FILES ${HEADERS} DESTINATION ${CARTOCROW_INSTALL_DIR}/<module_name>)
+install(FILES ${HEADERS} DESTINATION ${CARTOCROW_INSTALL_DIR}/rectangular_cartogram)
