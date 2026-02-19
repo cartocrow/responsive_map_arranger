@@ -10,7 +10,10 @@
 #include <cartocrow/renderer/geometry_painting.h>
 #include <cartocrow/renderer/geometry_widget.h>
 
+
 #include <nlohmann/json.hpp>
+
+#include "library/rel_map.h"
 
 using json = nlohmann::json;
 
@@ -24,7 +27,7 @@ class RectangularCartogramDemo : public QMainWindow {
     Q_OBJECT
 
     json m_projectData;
-
+    RELmap m_RELmap;
 
     GeometryWidget* m_renderer;
 

@@ -1,8 +1,10 @@
 set(SOURCES
 	map_painting.cpp
+		rel_map.cpp
 )
 set(HEADERS
 	map_painting.h
+		rel_map.h
 )
 
 add_library(rectangular_cartogram ${SOURCES})

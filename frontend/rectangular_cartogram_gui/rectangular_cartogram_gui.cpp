@@ -28,6 +28,27 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
 
 void RectangularCartogramDemo::processData() {
     std::cout << "processing data" << std::endl;
+
+    // ---- PASS 1: create nodes ----
+    for (const auto& r : m_projectData.at("regions"))
+    {
+        m_RELmap.addRegion(
+            r.at("label").get<std::string>(),
+            r.at("weight").get<int>()
+        );
+    }
+
+    // ---- PASS 2: create edges ----
+    for (const auto& r : j.at("regions"))
+    {
+        std::string label = r.at("label");
+
+        for (const auto& dst : r.at("red_out"))
+            m_RELmap.addRedEdge(label, dst.get<std::string>());
+
+        for (const auto& dst : r.at("blue_out"))
+            m_RELmap.addBlueEdge(label, dst.get<std::string>());
+    }
 }
 
 RectangularCartogramDemo::RectangularCartogramDemo() {
