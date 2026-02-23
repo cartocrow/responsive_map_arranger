@@ -1,9 +1,9 @@
 set(SOURCES
-	map_painting.cpp
+        rel_painting.cpp
 		rel_map.cpp
 )
 set(HEADERS
-	map_painting.h
+		rel_painting.h
 		rel_map.h
 )
 

@@ -64,6 +64,8 @@ public:
     const std::vector<RegionId>& horizontalOrder() const { return horizontal_order; }
     const std::vector<RegionId>& verticalOrder() const { return vertical_order; }
 
+    std::size_t size() const noexcept { return regions.size(); }
+
 private:
     std::vector<Region> regions;
     std::unordered_map<std::string, RegionId> name_to_id;

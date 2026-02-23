@@ -24,11 +24,22 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     std::ifstream f(dataPath);
     m_projectData = json::parse(f);
     processData();
+
+    m_RELmap_ptr = std::make_shared<RELmap>(m_RELmap);
+
+    rel_vis::RELPainting::Options relDrawingOptions;
+    relDrawingOptions.drawLabels = true;
+    relDrawingOptions.drawREL = m_showREL->isChecked();
+
+    m_relPainting = std::make_shared<rel_vis::RELPainting>(m_RELmap_ptr, std::move(relDrawingOptions));
+
+    //    m_renderer->addPainting(m_debugPainting, "Debugging");
+
+    m_renderer->addPainting(m_relPainting, "REL");
 }
 
 void RectangularCartogramDemo::processData() {
     std::cout << "processing data" << std::endl;
-
 
     try {
         m_RELmap = RELmap(m_projectData); // will validate & throw if errors found
@@ -56,6 +67,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     vLayout->addWidget(inputSettings);
     vLayout->addWidget(loadDataButton);
 
+    auto* debugSettings = new QLabel("<h3>Debug settings</h3>", vWidget);
+    m_showREL = new QCheckBox("Show REL");
+    m_showREL->setChecked(true);
+    vLayout->addWidget(debugSettings);
+    vLayout->addWidget(m_showREL);
+
+
     connect(loadDataButton, &QPushButton::clicked, [this, loadDataButton]() {
         QString startDir = "data";
         std::filesystem::path filePath = QFileDialog::getOpenFileName(this, tr("Select region data file"), startDir).toStdString();
@@ -64,7 +82,10 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         loadDataButton->setText(QString::fromStdString(filePath.filename().string()));
     });
 
-
+    connect(m_showREL, &QCheckBox::toggled, [this, loadDataButton]() {
+        m_relPainting->drawREL(m_showREL->isChecked());
+        m_renderer->update();
+    });
 }
 
 int main(int argc, char* argv[]) {
