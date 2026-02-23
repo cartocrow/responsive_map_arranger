@@ -13,6 +13,7 @@ target_link_libraries(
     cartocrow::reader
     cartocrow::renderer
     CGAL::CGAL
+    rectangular_cartogram
     nlohmann_json::nlohmann_json
 )
 
