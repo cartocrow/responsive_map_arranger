@@ -1,8 +1,12 @@
 set(SOURCES
+		rectangular_cartogram_painting.cpp
+		rectangular_dual.cpp
         rel_painting.cpp
 		rel_map.cpp
 )
 set(HEADERS
+		rectangular_cartogram_painting.h
+		rectangular_dual.h
 		rel_painting.h
 		rel_map.h
 )

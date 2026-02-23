@@ -5,162 +5,88 @@
 #include <sstream>
 #include <algorithm>
 #include <iostream>
-#include <optional>
 
 using namespace cartocrow::rel_vis;
 
-// helper: is this one of the outer frame labels?
-static bool isFrameLabel(const std::string &s) {
-    return s == "North" || s == "South" || s == "West" || s == "East";
-}
+RELPainting::RELPainting(std::shared_ptr<RELmap> relmap,
+                         std::shared_ptr<RectangularDual> dual)
+    : m_relmap(std::move(relmap)), m_dual(std::move(dual)), m_options() {}
 
-// find a region id by exact label, return optional RegionId
-static std::optional<RegionId> findRegionIdByLabel(const RELmap &m, const std::string &label) {
-    const size_t n = m.size();
-    for (RegionId i = 0; i < static_cast<RegionId>(n); ++i) {
-        if (m.get(i).label == label) return i;
-    }
-    return std::nullopt;
-}
-
-RELPainting::RELPainting(std::shared_ptr<RELmap> relmap, Options &&opts)
-    : m_relmap(std::move(relmap)), m_options(std::move(opts)) { }
-
-cartocrow::Polygon<Inexact> RELPainting::makeCirclePolygon(const PointI &p, Number<Inexact> r, int n) const {
-    Polygon<Inexact> poly;
-    poly.reserve(n);
-    const double rd = static_cast<double>(r);
-    for (int i = 0; i < n; ++i) {
-        const double a = 2.0 * M_PI * double(i) / double(n);
-        const double x = static_cast<double>(p.x()) + rd * std::cos(a);
-        const double y = static_cast<double>(p.y()) + rd * std::sin(a);
-        poly.push_back(PointI(x, y));
-    }
-    return poly;
-}
+RELPainting::RELPainting(std::shared_ptr<RELmap> relmap,
+                         std::shared_ptr<RectangularDual> dual,
+                         Options opts)
+    : m_relmap(std::move(relmap)), m_dual(std::move(dual)), m_options(std::move(opts)) {}
 
 void RELPainting::paint(Renderer &renderer) const {
     if (!m_relmap) return;
-    if (!options().drawREL) return;
+    if (!m_options.drawREL) return;
 
-    // 1) number of regions
     const size_t nRegions = m_relmap->size();
     if (nRegions == 0) return;
 
-    // 2) build x/y indices from orders (if present)
-    std::vector<int> xIdx(nRegions, -1), yIdx(nRegions, -1);
-
-    int x = 0;
-    for (auto id : m_relmap->horizontalOrder()) {
-        if (id < static_cast<RegionId>(nRegions)) xIdx[id] = x++;
-    }
-    int y = 0;
-    for (auto id : m_relmap->verticalOrder()) {
-        if (id < static_cast<RegionId>(nRegions)) yIdx[id] = y++;
-    }
-
-    // Assign remaining indices sequentially
-    int nextX = x, nextY = y;
-    for (size_t id = 0; id < nRegions; ++id) {
-        if (xIdx[id] == -1) xIdx[id] = nextX++;
-        if (yIdx[id] == -1) yIdx[id] = nextY++;
-    }
-
-    // compute current minima/maxima
-    const int minX = *std::min_element(xIdx.begin(), xIdx.end());
-    const int maxX = *std::max_element(xIdx.begin(), xIdx.end());
-    const int minY = *std::min_element(yIdx.begin(), yIdx.end());
-    const int maxY = *std::max_element(yIdx.begin(), yIdx.end());
-
-    // mid positions (integer)
-    const int midX = (minX + maxX) / 2;
-    const int midY = (minY + maxY) / 2;
-
-    // helper to find occupant of a coordinate (xv,yv)
-    auto findOccupant = [&](int xv, int yv) -> std::optional<RegionId> {
-        for (RegionId i = 0; i < static_cast<RegionId>(nRegions); ++i) {
-            if (xIdx[i] == xv && yIdx[i] == yv) return i;
-        }
-        return std::nullopt;
-    };
-
-    // helper to swap coordinates between two ids
-    auto swapCoords = [&](RegionId a, RegionId b) {
-        std::swap(xIdx[a], xIdx[b]);
-        std::swap(yIdx[a], yIdx[b]);
-    };
-
-    // For each frame node, compute target (tx,ty). If occupant exists, swap; else set.
-    // West -> (minX, midY)
-    if (auto w = findRegionIdByLabel(*m_relmap, "West"); w) {
-        RegionId rid = *w;
-        const int tx = minX, ty = midY;
-        if (!(xIdx[rid] == tx && yIdx[rid] == ty)) {
-            if (auto occ = findOccupant(tx, ty)) swapCoords(rid, *occ);
-            else { xIdx[rid] = tx; yIdx[rid] = ty; }
-        }
-    }
-
-    // East -> (maxX, midY)
-    if (auto e = findRegionIdByLabel(*m_relmap, "East"); e) {
-        RegionId rid = *e;
-        const int tx = maxX, ty = midY;
-        if (!(xIdx[rid] == tx && yIdx[rid] == ty)) {
-            if (auto occ = findOccupant(tx, ty)) swapCoords(rid, *occ);
-            else { xIdx[rid] = tx; yIdx[rid] = ty; }
-        }
-    }
-
-    // South -> (midX, minY)
-    if (auto s = findRegionIdByLabel(*m_relmap, "South"); s) {
-        RegionId rid = *s;
-        const int tx = midX, ty = minY;
-        if (!(xIdx[rid] == tx && yIdx[rid] == ty)) {
-            if (auto occ = findOccupant(tx, ty)) swapCoords(rid, *occ);
-            else { xIdx[rid] = tx; yIdx[rid] = ty; }
-        }
-    }
-
-    // North -> (midX, maxY)
-    if (auto n = findRegionIdByLabel(*m_relmap, "North"); n) {
-        RegionId rid = *n;
-        const int tx = midX, ty = maxY;
-        if (!(xIdx[rid] == tx && yIdx[rid] == ty)) {
-            if (auto occ = findOccupant(tx, ty)) swapCoords(rid, *occ);
-            else { xIdx[rid] = tx; yIdx[rid] = ty; }
-        }
-    }
-
-    // 3) compute positions (world coordinates)
+    // compute positions: either from dual centroids or from fall-back grid
     std::vector<PointI> pos(nRegions);
-    for (size_t id = 0; id < nRegions; ++id) {
-        const double px = static_cast<double>(xIdx[id]) * static_cast<double>(m_options.horizontalSpacing);
-        const double py = static_cast<double>(yIdx[id]) * static_cast<double>(m_options.verticalSpacing);
-        pos[id] = PointI(px, py);
+
+    bool usingDual = false;
+    if (m_dual && m_dual->rectangles().size() == nRegions) {
+        usingDual = true;
+        for (size_t i = 0; i < nRegions; ++i) {
+            const auto &r = m_dual->getRect(static_cast<unsigned int>(i));
+            const double cx = 0.5 * (r.left + r.right);
+            const double cy = 0.5 * (r.bottom + r.top);
+            pos[i] = PointI(cx, cy);
+        }
+    } else {
+        // fall back to grid layout using horizontal / vertical order if available
+        std::vector<int> xIdx(nRegions, -1), yIdx(nRegions, -1);
+
+        int x = 0;
+        for (auto id : m_relmap->horizontalOrder()) {
+            if (id < static_cast<RegionId>(nRegions)) xIdx[id] = x++;
+        }
+        int y = 0;
+        for (auto id : m_relmap->verticalOrder()) {
+            if (id < static_cast<RegionId>(nRegions)) yIdx[id] = y++;
+        }
+        int nextX = x, nextY = y;
+        for (size_t id = 0; id < nRegions; ++id) {
+            if (xIdx[id] == -1) xIdx[id] = nextX++;
+            if (yIdx[id] == -1) yIdx[id] = nextY++;
+        }
+        for (size_t id = 0; id < nRegions; ++id) {
+            const double px = static_cast<double>(xIdx[id]) * static_cast<double>(m_options.horizontalSpacing);
+            const double py = static_cast<double>(yIdx[id]) * static_cast<double>(m_options.verticalSpacing);
+            pos[id] = PointI(px, py);
+        }
     }
 
-    // convenience numbers
-    const double nodeRadius = static_cast<double>(m_options.nodeRadius);
-    const double arrowSize  = static_cast<double>(m_options.arrowSize);
+    const double arrowSize = static_cast<double>(m_options.arrowSize);
+    const double strokeW = static_cast<double>(m_options.strokeWidth);
 
-    // 4) draw red edges (frame edges overridden to black undirected)
+    // draw red edges (vertical constraints — in your project red means bottom->top)
     for (RegionId u = 0; u < static_cast<RegionId>(nRegions); ++u) {
         const auto &ru = m_relmap->get(u);
         for (auto v : ru.red_out) {
             if (v >= static_cast<RegionId>(nRegions)) continue;
             const auto &rv = m_relmap->get(v);
 
-            // frame edges: both endpoints are in {N,S,W,E} => draw thick black undirected line
+            // frame edges: both endpoints are frame labels => thick black undirected line
             if (isFrameLabel(ru.label) && isFrameLabel(rv.label)) {
                 renderer.setMode(Renderer::stroke);
-                renderer.setStroke({0,0,0}, std::max(2.5, nodeRadius / 3.0));
+                renderer.setStroke({ m_options.colorEdgeFrame[0],
+                                     m_options.colorEdgeFrame[1],
+                                     m_options.colorEdgeFrame[2] },
+                                    std::max(2.0, strokeW * 2.0));
                 renderer.draw(Segment<Inexact>(pos[u], pos[v]));
                 continue;
             }
 
-            // normal red directed edge with optional arrow
+            // normal red directed edge
             renderer.setMode(Renderer::stroke);
-            renderer.setStroke({220,0,0}, std::max(1.0, nodeRadius / 5.0));
+            renderer.setStroke({ m_options.colorRedEdge[0],
+                                 m_options.colorRedEdge[1],
+                                 m_options.colorRedEdge[2] },
+                                std::max(1.0, strokeW));
             renderer.draw(Segment<Inexact>(pos[u], pos[v]));
 
             if (m_options.drawEdgeArrowheads) {
@@ -171,31 +97,32 @@ void RELPainting::paint(Renderer &renderer) const {
                     const double ux = static_cast<double>(dir.x()) / len;
                     const double uy = static_cast<double>(dir.y()) / len;
 
-                    // tip slightly before node v so arrow doesn't overlap circle
-                    const double offset = nodeRadius + arrowSize * 0.3;
+                    // tip stops a bit before centroid v
+                    const double offset = arrowSize * 0.6;
                     const double tipx = static_cast<double>(pos[v].x()) - ux * offset;
                     const double tipy = static_cast<double>(pos[v].y()) - uy * offset;
                     const PointI tip(tipx, tipy);
 
-                    // perpendicular
                     const double perpx = -uy;
                     const double perpy = ux;
 
-                    // base points
-                    const double p1x = tipx - ux * arrowSize + perpx * (arrowSize * 0.5);
-                    const double p1y = tipy - uy * arrowSize + perpy * (arrowSize * 0.5);
-                    const double p2x = tipx - ux * arrowSize - perpx * (arrowSize * 0.5);
-                    const double p2y = tipy - uy * arrowSize - perpy * (arrowSize * 0.5);
+                    const double half = arrowSize * 0.5;
+                    const double p1x = tipx - ux * arrowSize + perpx * half;
+                    const double p1y = tipy - uy * arrowSize + perpy * half;
+                    const double p2x = tipx - ux * arrowSize - perpx * half;
+                    const double p2y = tipy - uy * arrowSize - perpy * half;
 
                     PointI p1(p1x, p1y);
                     PointI p2(p2x, p2y);
 
-                    Polygon<Inexact> arrow;
+                    cartocrow::Polygon<Inexact> arrow;
                     arrow.push_back(tip);
                     arrow.push_back(p1);
                     arrow.push_back(p2);
 
-                    renderer.setFill({220,0,0});
+                    renderer.setFill({ m_options.colorRedEdge[0],
+                                       m_options.colorRedEdge[1],
+                                       m_options.colorRedEdge[2] });
                     renderer.setMode(Renderer::fill | Renderer::stroke);
                     renderer.draw(arrow);
                 }
@@ -203,24 +130,30 @@ void RELPainting::paint(Renderer &renderer) const {
         }
     }
 
-    // 5) draw blue edges (frame edges again treated as black undirected)
+    // draw blue edges (horizontal constraints — blue means left->right in your setup)
     for (RegionId u = 0; u < static_cast<RegionId>(nRegions); ++u) {
         const auto &ru = m_relmap->get(u);
         for (auto v : ru.blue_out) {
             if (v >= static_cast<RegionId>(nRegions)) continue;
             const auto &rv = m_relmap->get(v);
 
-            // frame edge
+            // frame edges: both endpoints are frame labels => thick black undirected line
             if (isFrameLabel(ru.label) && isFrameLabel(rv.label)) {
                 renderer.setMode(Renderer::stroke);
-                renderer.setStroke({0,0,0}, std::max(2.5, nodeRadius / 3.0));
+                renderer.setStroke({ m_options.colorEdgeFrame[0],
+                                     m_options.colorEdgeFrame[1],
+                                     m_options.colorEdgeFrame[2] },
+                                    std::max(2.0, strokeW * 2.0));
                 renderer.draw(Segment<Inexact>(pos[u], pos[v]));
                 continue;
             }
 
-            // normal blue directed edge with optional arrow
+            // normal blue directed edge
             renderer.setMode(Renderer::stroke);
-            renderer.setStroke({0,100,220}, std::max(1.0, nodeRadius / 5.0));
+            renderer.setStroke({ m_options.colorBlueEdge[0],
+                                 m_options.colorBlueEdge[1],
+                                 m_options.colorBlueEdge[2] },
+                                std::max(1.0, strokeW));
             renderer.draw(Segment<Inexact>(pos[u], pos[v]));
 
             if (m_options.drawEdgeArrowheads) {
@@ -230,7 +163,7 @@ void RELPainting::paint(Renderer &renderer) const {
                     const double ux = static_cast<double>(dir.x()) / len;
                     const double uy = static_cast<double>(dir.y()) / len;
 
-                    const double offset = nodeRadius + arrowSize * 0.3;
+                    const double offset = arrowSize * 0.6;
                     const double tipx = static_cast<double>(pos[v].x()) - ux * offset;
                     const double tipy = static_cast<double>(pos[v].y()) - uy * offset;
                     const PointI tip(tipx, tipy);
@@ -238,20 +171,23 @@ void RELPainting::paint(Renderer &renderer) const {
                     const double perpx = -uy;
                     const double perpy = ux;
 
-                    const double p1x = tipx - ux * arrowSize + perpx * (arrowSize * 0.5);
-                    const double p1y = tipy - uy * arrowSize + perpy * (arrowSize * 0.5);
-                    const double p2x = tipx - ux * arrowSize - perpx * (arrowSize * 0.5);
-                    const double p2y = tipy - uy * arrowSize - perpy * (arrowSize * 0.5);
+                    const double half = arrowSize * 0.5;
+                    const double p1x = tipx - ux * arrowSize + perpx * half;
+                    const double p1y = tipy - uy * arrowSize + perpy * half;
+                    const double p2x = tipx - ux * arrowSize - perpx * half;
+                    const double p2y = tipy - uy * arrowSize - perpy * half;
 
                     PointI p1(p1x, p1y);
                     PointI p2(p2x, p2y);
 
-                    Polygon<Inexact> arrow;
+                    cartocrow::Polygon<Inexact> arrow;
                     arrow.push_back(tip);
                     arrow.push_back(p1);
                     arrow.push_back(p2);
 
-                    renderer.setFill({0,100,220});
+                    renderer.setFill({ m_options.colorBlueEdge[0],
+                                       m_options.colorBlueEdge[1],
+                                       m_options.colorBlueEdge[2] });
                     renderer.setMode(Renderer::fill | Renderer::stroke);
                     renderer.draw(arrow);
                 }
@@ -259,36 +195,16 @@ void RELPainting::paint(Renderer &renderer) const {
         }
     }
 
-    // 6) draw nodes on top
-    for (RegionId u = 0; u < static_cast<RegionId>(nRegions); ++u) {
-        const PointI &p = pos[u];
-        if (m_options.drawNodeFill) {
-            renderer.setFill({ m_options.colorNodeFill[0],
-                               m_options.colorNodeFill[1],
-                               m_options.colorNodeFill[2] });
-        }
-        if (m_options.drawNodeStroke) {
-            renderer.setStroke({ m_options.colorNodeStroke[0],
-                                 m_options.colorNodeStroke[1],
-                                 m_options.colorNodeStroke[2] },
-                                std::max(1.0, nodeRadius / 6.0));
-        }
-        renderer.setMode(Renderer::fill | Renderer::stroke);
-        renderer.draw(makeCirclePolygon(p, m_options.nodeRadius));
-
-        if (m_options.drawLabels) {
+    // draw labels at centroids if requested (nodes themselves are not drawn)
+    if (m_options.drawLabels) {
+        for (RegionId u = 0; u < static_cast<RegionId>(nRegions); ++u) {
             const std::string &label = m_relmap->get(u).label;
-            // If your renderer supports text, replace the cross below with, e.g.:
-            // renderer.drawText(label, p);
-            // Otherwise we draw a small cross (guaranteed to compile)
-            const double w = nodeRadius * 0.6;
-            renderer.setMode(Renderer::stroke);
-            renderer.setStroke({ m_options.colorNodeStroke[0],
-                                 m_options.colorNodeStroke[1],
-                                 m_options.colorNodeStroke[2] },
-                                std::max(1.0, nodeRadius / 8.0));
-            renderer.draw(Segment<Inexact>(PointI(p.x() - w, p.y() - w), PointI(p.x() + w, p.y() + w)));
-            renderer.draw(Segment<Inexact>(PointI(p.x() - w, p.y() + w), PointI(p.x() + w, p.y() - w)));
+            const PointI &p = pos[u];
+            renderer.setFill({ m_options.colorText[0],
+                               m_options.colorText[1],
+                               m_options.colorText[2] });
+            // Use your renderer's text API. Typical: renderer.drawText(label, p);
+            renderer.drawText(p, label);
         }
     }
 }

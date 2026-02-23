@@ -26,16 +26,39 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     processData();
 
     m_RELmap_ptr = std::make_shared<RELmap>(m_RELmap);
+    m_rectangularDual = std::make_shared<RectangularDual>();
 
+    // CREATE RECTANGULAR DUAL
+    if (!m_rectangularDual->initializeFromREL(m_RELmap)) {
+        std::cerr << "Failed to compute rectangular dual. You might want to check for cycles" << std::endl;
+    }
+    // else {
+    //     for (std::size_t i = 0; i < m_rectangularDual.size(); ++i) {
+    //         const auto &r = m_rectangularDual.getRect(i);
+    //         std::cout << "Region " << i << ": [" << r.left << "," << r.right << "] x [" << r.bottom << "," << r.top << "]\n";
+    //     }
+    // }
+
+
+
+
+    // RENDERING
     rel_vis::RELPainting::Options relDrawingOptions;
     relDrawingOptions.drawLabels = true;
     relDrawingOptions.drawREL = m_showREL->isChecked();
 
-    m_relPainting = std::make_shared<rel_vis::RELPainting>(m_RELmap_ptr, std::move(relDrawingOptions));
+
+    rectangular_cartogram::RectangularCartogramPainting::Options rectCartogramOptions;
+
+    m_rectPainting = std::make_shared<rectangular_cartogram::RectangularCartogramPainting>(m_rectangularDual, m_RELmap_ptr, rectCartogramOptions);
+    m_relPainting = std::make_shared<rel_vis::RELPainting>(m_RELmap_ptr, m_rectangularDual);
+
 
     //    m_renderer->addPainting(m_debugPainting, "Debugging");
 
+    m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
     m_renderer->addPainting(m_relPainting, "REL");
+
 }
 
 void RectangularCartogramDemo::processData() {

@@ -6,23 +6,20 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QMainWindow>
-#include <cartocrow/core/core.h>
-#include <cartocrow/renderer/geometry_painting.h>
 #include <cartocrow/renderer/geometry_widget.h>
 
 
 #include <nlohmann/json.hpp>
 
+#include "library/rectangular_dual.h"
+#include "library/rectangular_cartogram_painting.h"
 #include "library/rel_map.h"
 #include "library/rel_painting.h"
 
 using json = nlohmann::json;
 
-
 using namespace cartocrow;
 using namespace cartocrow::renderer;
-
-
 
 class RectangularCartogramDemo : public QMainWindow {
     Q_OBJECT
@@ -30,9 +27,11 @@ class RectangularCartogramDemo : public QMainWindow {
     json m_projectData;
     RELmap m_RELmap;
     std::shared_ptr<RELmap> m_RELmap_ptr;
+    std::shared_ptr<RectangularDual> m_rectangularDual;
 
     GeometryWidget* m_renderer;
     std::shared_ptr<rel_vis::RELPainting> m_relPainting;
+    std::shared_ptr<rectangular_cartogram::RectangularCartogramPainting> m_rectPainting;
 
     QCheckBox* m_showREL = nullptr;
 
