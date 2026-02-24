@@ -13,6 +13,7 @@
 
 #include "library/rectangular_dual.h"
 #include "library/rectangular_cartogram_painting.h"
+#include "library/regular_edge_labeling.h"
 #include "library/rel_map.h"
 #include "library/rel_painting.h"
 
@@ -25,13 +26,13 @@ class RectangularCartogramDemo : public QMainWindow {
     Q_OBJECT
 
     json m_projectData;
-    RELmap m_RELmap;
-    std::shared_ptr<RELmap> m_RELmap_ptr;
+    RegularEdgeLabeling m_rel;
+    std::shared_ptr<RegularEdgeLabeling> m_relPtr;
     std::shared_ptr<RectangularDual> m_rectangularDual;
 
     GeometryWidget* m_renderer;
-    std::shared_ptr<rel_vis::RELPainting> m_relPainting;
-    std::shared_ptr<rectangular_cartogram::RectangularCartogramPainting> m_rectPainting;
+    std::shared_ptr<RELPainting> m_relPainting;
+    std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
 
     QCheckBox* m_showREL = nullptr;
 

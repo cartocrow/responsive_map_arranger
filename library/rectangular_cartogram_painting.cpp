@@ -1,16 +1,18 @@
+// rectangular_cartogram_painting.cpp
 #include "rectangular_cartogram_painting.h"
 
 #include <sstream>
 #include <iomanip>
 
-using namespace cartocrow::rectangular_cartogram;
+#include "regular_edge_labeling.h"
+
 
 RectangularCartogramPainting::RectangularCartogramPainting(std::shared_ptr<RectangularDual> dual,
-                                                           std::shared_ptr<RELmap> relmap)
+                                                           std::shared_ptr<RegularEdgeLabeling> relmap)
     : RectangularCartogramPainting(std::move(dual), std::move(relmap), Options{}) { }
 
 RectangularCartogramPainting::RectangularCartogramPainting(std::shared_ptr<RectangularDual> dual,
-                                                           std::shared_ptr<RELmap> relmap,
+                                                           std::shared_ptr<RegularEdgeLabeling> relmap,
                                                            Options opts)
     : m_dual(std::move(dual)), m_relmap(std::move(relmap)), m_options(std::move(opts))
 { }
@@ -50,9 +52,11 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
             // determine label string: prefer relmap labels if provided, otherwise use numeric id
             std::string label;
             if (m_relmap) {
-                try {
-                    label = m_relmap->get(static_cast<RegionId>(id)).label;
-                } catch (...) {
+                // safe bounds check: ensure rel has enough vertices and id is valid
+                const auto &verts = m_relmap->getVertices();
+                if (id < verts.size()) {
+                    label = verts[id].label;
+                } else {
                     std::ostringstream ss;
                     ss << "R" << id;
                     label = ss.str();
@@ -71,9 +75,7 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
             // set text color
             renderer.setFill({ m_options.colorText[0], m_options.colorText[1], m_options.colorText[2] });
 
-            // draw text using renderer's text API - update this if your renderer uses a different signature
-            // Typical project pattern: renderer.drawText(label, center);
-            // If your renderer requires (string, x, y) adapt accordingly.
+            // draw text using renderer's text API
             renderer.drawText(center, label);
         }
     }

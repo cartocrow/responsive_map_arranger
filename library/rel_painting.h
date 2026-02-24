@@ -1,6 +1,3 @@
-#ifndef CARTOCROW_REL_PAINTING
-#define CARTOCROW_REL_PAINTING
-
 #include <functional>
 #include <memory>
 #include <array>
@@ -10,61 +7,53 @@
 #include <cartocrow/core/core.h>
 #include <cartocrow/renderer/geometry_painting.h>
 #include <cartocrow/renderer/geometry_renderer.h>
-
-#include "rel_map.h"
 #include "rectangular_dual.h" // optional dependency for centroids
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 
-namespace cartocrow::rel_vis {
-
 using Inexact = CGAL::Exact_predicates_inexact_constructions_kernel;
 using PointI  = cartocrow::Point<Inexact>;
 using PolygonI = cartocrow::Polygon<Inexact>;
-using Renderer = renderer::GeometryRenderer;
+using Renderer = cartocrow::renderer::GeometryRenderer;
+#include "regular_edge_labeling.h" // new dependency
 
-/// Geometry painting for visualizing an REL graph using rectangle centroids (optional).
-class RELPainting : public renderer::GeometryPainting {
+
+class RELPainting : public cartocrow::renderer::GeometryPainting {
 public:
     struct Options {
         bool drawREL = true;
-
-        // layout spacing used when RectangularDual is not provided
-        Number<Inexact> horizontalSpacing = 140.0;
-        Number<Inexact> verticalSpacing   = 120.0;
-
-        // appearance
-        Number<Inexact> arrowSize  = 12.0;
-        Number<Inexact> strokeWidth = 1.0;
-
-        bool drawLabels = true;
         bool drawEdgeArrowheads = true;
-
-        // colors (RGB)
-        std::array<int,3> colorRedEdge   = {220, 0, 0};
-        std::array<int,3> colorBlueEdge  = {0, 100, 220};
-        std::array<int,3> colorEdgeFrame = {0, 0, 0};
-        std::array<int,3> colorText      = { 32, 32, 32 };
+        bool drawLabels = true;
+        double horizontalSpacing = 120.0;
+        double verticalSpacing = 120.0;
+        double arrowSize = 8.0;
+        double strokeWidth = 1.0;
+        double colorRedEdge[3] = { 200, 30, 45 };
+        double colorBlueEdge[3] = { 41, 128, 185 };
+        double colorEdgeFrame[3] = { 44, 62, 80 };
+        double colorText[3] = { 34, 34, 34 };
     };
 
-    // Constructors: overload pattern to avoid default-arg with nested type
-    RELPainting(std::shared_ptr<RELmap> relmap,
+
+    // New constructors: takes RegularEdgeLabeling (required) and optional dual + options
+    RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                 std::shared_ptr<RectangularDual> dual = nullptr);
 
-    RELPainting(std::shared_ptr<RELmap> relmap,
+    RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                 std::shared_ptr<RectangularDual> dual,
                 Options opts);
 
-    void paint(Renderer &renderer) const override;
+    // setter if you prefer to construct first and set later
+    void setRegularEdgeLabeling(std::shared_ptr<RegularEdgeLabeling> rel);
 
-    // setters/getters
-    void setOptions(Options o) { m_options = std::move(o); }
-    void drawREL(bool draw) { m_options.drawREL = draw; }
-    void setRectangularDual(std::shared_ptr<RectangularDual> dual) { m_dual = std::move(dual); }
+    void drawRel(bool draw) { m_options.drawREL = draw; }
+
+    // main paint entry
+    void paint(Renderer &renderer) const;
 
 private:
-    std::shared_ptr<RELmap> m_relmap;
-    std::shared_ptr<RectangularDual> m_dual; // optional
+    std::shared_ptr<RegularEdgeLabeling> m_rel;
+    std::shared_ptr<RectangularDual> m_dual;
     Options m_options;
 
     // helpers
@@ -72,7 +61,3 @@ private:
         return s == "North" || s == "South" || s == "West" || s == "East";
     }
 };
-
-} // namespace cartocrow::rel_vis
-
-#endif // CARTOCROW_REL_PAINTING

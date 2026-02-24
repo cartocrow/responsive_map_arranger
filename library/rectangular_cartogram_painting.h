@@ -14,15 +14,14 @@
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 
-namespace cartocrow::rectangular_cartogram {
 
 using Inexact = CGAL::Exact_predicates_inexact_constructions_kernel;
 using PointI  = cartocrow::Point<Inexact>;
 using PolygonI = cartocrow::Polygon<Inexact>;
-using Renderer = renderer::GeometryRenderer;
+using Renderer = cartocrow::renderer::GeometryRenderer;
 
 /// Paint a rectangular dual / initial rectangular cartogram.
-class RectangularCartogramPainting : public renderer::GeometryPainting {
+class RectangularCartogramPainting : public cartocrow::renderer::GeometryPainting {
 public:
     struct Options {
         // colors (RGB 0..255)
@@ -37,10 +36,10 @@ public:
     };
 
     RectangularCartogramPainting(std::shared_ptr<RectangularDual> dual,
-                             std::shared_ptr<RELmap> relmap = nullptr);
+                             std::shared_ptr<RegularEdgeLabeling> relmap = nullptr);
 
     RectangularCartogramPainting(std::shared_ptr<RectangularDual> dual,
-                                 std::shared_ptr<RELmap> relmap,
+                                 std::shared_ptr<RegularEdgeLabeling> relmap,
                                  Options opts);
 
     void paint(Renderer &renderer) const override;
@@ -49,10 +48,9 @@ public:
 
 private:
     std::shared_ptr<RectangularDual> m_dual;
-    std::shared_ptr<RELmap> m_relmap; // optional - used to fetch labels, colors, weights
+    std::shared_ptr<RegularEdgeLabeling> m_relmap; // optional - used to fetch labels, colors, weights
     Options m_options;
 };
 
-} // namespace cartocrow::rectangular_cartogram
 
 #endif // CARTOCROW_RECTANGULAR_CARTOGRAM_PAINTING

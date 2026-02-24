@@ -2,208 +2,196 @@
 #include "rel_painting.h"
 
 #include <cmath>
-#include <sstream>
 #include <algorithm>
 #include <iostream>
+#include <array>
 
-using namespace cartocrow::rel_vis;
+// If RegularEdgeLabeling and the nested types are in a namespace (e.g. rel::),
+// either add `using namespace rel;` here, or qualify them below (e.g. rel::RegularEdgeLabeling).
+// The code below assumes the class is visible as `RegularEdgeLabeling` and the types
+// `RegularEdgeLabeling::HalfEdge` and `RegularEdgeLabeling::Vertex` exist.
 
-RELPainting::RELPainting(std::shared_ptr<RELmap> relmap,
+RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                          std::shared_ptr<RectangularDual> dual)
-    : m_relmap(std::move(relmap)), m_dual(std::move(dual)), m_options() {}
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_options() {}
 
-RELPainting::RELPainting(std::shared_ptr<RELmap> relmap,
+RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                          std::shared_ptr<RectangularDual> dual,
                          Options opts)
-    : m_relmap(std::move(relmap)), m_dual(std::move(dual)), m_options(std::move(opts)) {}
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_options(std::move(opts)) {}
+
+void RELPainting::setRegularEdgeLabeling(std::shared_ptr<RegularEdgeLabeling> rel) {
+    m_rel = std::move(rel);
+}
+
 
 void RELPainting::paint(Renderer &renderer) const {
-    if (!m_relmap) return;
+    if (!m_rel) return;
     if (!m_options.drawREL) return;
 
-    const size_t nRegions = m_relmap->size();
+    const auto &vertices = m_rel->getVertices();
+    const size_t nRegions = vertices.size();
     if (nRegions == 0) return;
 
-    // compute positions: either from dual centroids or from fall-back grid
-    std::vector<PointI> pos(nRegions);
+    // ---------- positions: ALWAYS use RectangularDual (user requested) ----------
+    if (!m_dual) {
+        std::cerr << "RELPainting::paint: expected RectangularDual but m_dual is null\n";
+        return;
+    }
+    if (m_dual->rectangles().size() != nRegions) {
+        std::cerr << "RELPainting::paint: RectangularDual size (" << m_dual->rectangles().size()
+                  << ") does not match number of REL vertices (" << nRegions << ")\n";
+        return;
+    }
 
-    bool usingDual = false;
-    if (m_dual && m_dual->rectangles().size() == nRegions) {
-        usingDual = true;
-        for (size_t i = 0; i < nRegions; ++i) {
-            const auto &r = m_dual->getRect(static_cast<unsigned int>(i));
-            const double cx = 0.5 * (r.left + r.right);
-            const double cy = 0.5 * (r.bottom + r.top);
-            pos[i] = PointI(cx, cy);
-        }
-    } else {
-        // fall back to grid layout using horizontal / vertical order if available
-        std::vector<int> xIdx(nRegions, -1), yIdx(nRegions, -1);
-
-        int x = 0;
-        for (auto id : m_relmap->horizontalOrder()) {
-            if (id < static_cast<RegionId>(nRegions)) xIdx[id] = x++;
-        }
-        int y = 0;
-        for (auto id : m_relmap->verticalOrder()) {
-            if (id < static_cast<RegionId>(nRegions)) yIdx[id] = y++;
-        }
-        int nextX = x, nextY = y;
-        for (size_t id = 0; id < nRegions; ++id) {
-            if (xIdx[id] == -1) xIdx[id] = nextX++;
-            if (yIdx[id] == -1) yIdx[id] = nextY++;
-        }
-        for (size_t id = 0; id < nRegions; ++id) {
-            const double px = static_cast<double>(xIdx[id]) * static_cast<double>(m_options.horizontalSpacing);
-            const double py = static_cast<double>(yIdx[id]) * static_cast<double>(m_options.verticalSpacing);
-            pos[id] = PointI(px, py);
-        }
+    // compute centroids as PointI-compatible doubles then construct PointI when calling renderer
+    std::vector<std::pair<double,double>> pos(nRegions);
+    for (size_t i = 0; i < nRegions; ++i) {
+        const auto &r = m_dual->getRect(static_cast<unsigned int>(i));
+        const double cx = 0.5 * (r.left + r.right);
+        const double cy = 0.5 * (r.bottom + r.top);
+        pos[i] = { cx, cy };
     }
 
     const double arrowSize = static_cast<double>(m_options.arrowSize);
     const double strokeW = static_cast<double>(m_options.strokeWidth);
 
-    // draw red edges (vertical constraints — in your project red means bottom->top)
-    for (RegionId u = 0; u < static_cast<RegionId>(nRegions); ++u) {
-        const auto &ru = m_relmap->get(u);
-        for (auto v : ru.red_out) {
-            if (v >= static_cast<RegionId>(nRegions)) continue;
-            const auto &rv = m_relmap->get(v);
+    // convenience lambdas for drawing with your renderer API
+    auto draw_segment = [&](double ax, double ay, double bx, double by,
+                            const std::array<double,3> &strokeColor, double width) {
+        renderer.setMode(Renderer::stroke);
+        renderer.setStroke({ static_cast<int>(strokeColor[0]), static_cast<int>(strokeColor[1]), static_cast<int>(strokeColor[2]) }, width);
+        PointI A(ax, ay);
+        PointI B(bx, by);
+        renderer.draw(cartocrow::Segment<Inexact>(A, B));
+    };
 
-            // frame edges: both endpoints are frame labels => thick black undirected line
-            if (isFrameLabel(ru.label) && isFrameLabel(rv.label)) {
-                renderer.setMode(Renderer::stroke);
-                renderer.setStroke({ m_options.colorEdgeFrame[0],
-                                     m_options.colorEdgeFrame[1],
-                                     m_options.colorEdgeFrame[2] },
-                                    std::max(2.0, strokeW * 2.0));
-                renderer.draw(Segment<Inexact>(pos[u], pos[v]));
-                continue;
-            }
+    auto draw_arrow_triangle = [&](double tipx, double tipy,
+                                   double p1x, double p1y,
+                                   double p2x, double p2y,
+                                   const std::array<double,3> &fillColor) {
+        PolygonI arrow;
+        arrow.push_back(PointI(tipx, tipy));
+        arrow.push_back(PointI(p1x, p1y));
+        arrow.push_back(PointI(p2x, p2y));
+        renderer.setFill({ static_cast<int>(fillColor[0]), static_cast<int>(fillColor[1]), static_cast<int>(fillColor[2]) });
+        renderer.setMode(Renderer::fill | Renderer::stroke);
+        renderer.draw(arrow);
+    };
 
-            // normal red directed edge
-            renderer.setMode(Renderer::stroke);
-            renderer.setStroke({ m_options.colorRedEdge[0],
-                                 m_options.colorRedEdge[1],
-                                 m_options.colorRedEdge[2] },
-                                std::max(1.0, strokeW));
-            renderer.draw(Segment<Inexact>(pos[u], pos[v]));
+    // iterate half-edges and draw explicit outgoing ones (one per directed edge)
+    const auto &halfedges = m_rel->getHalfEdges();
+    for (int hi = 0; hi < (int)halfedges.size(); ++hi) {
+        const auto &h = halfedges[hi];
+        if (!h.outgoing) continue;             // draw only outgoing halfedges
+        //if (!h.is_explicit) continue;          // draw only explicit edges (from input outgoing lists)
+
+        const int u = h.vertex;
+        const int twin = h.twin;
+        if (u < 0 || u >= (int)nRegions) continue;
+        if (twin < 0 || twin >= (int)halfedges.size()) continue;
+        const int v = halfedges[twin].vertex;
+        if (v < 0 || v >= (int)nRegions) continue;
+
+        const double ax = pos[u].first;
+        const double ay = pos[u].second;
+        const double bx = pos[v].first;
+        const double by = pos[v].second;
+
+        // frame edges: both endpoints are frame labels => thick black undirected line
+        const std::string &alabel = vertices[u].label;
+        const std::string &blabel = vertices[v].label;
+        if (isFrameLabel(alabel) && isFrameLabel(blabel)) {
+            draw_segment(ax, ay, bx, by,
+                         { m_options.colorEdgeFrame[0],
+                           m_options.colorEdgeFrame[1],
+                           m_options.colorEdgeFrame[2] },
+                         std::max(2.0, strokeW * 2.0));
+            continue;
+        }
+
+        // choose color & draw
+        if (h.color == RED) {
+            draw_segment(ax, ay, bx, by,
+                         { m_options.colorRedEdge[0],
+                           m_options.colorRedEdge[1],
+                           m_options.colorRedEdge[2] },
+                         std::max(1.0, strokeW));
 
             if (m_options.drawEdgeArrowheads) {
-                // compute direction unit vector
-                const Inexact::Vector_2 dir = pos[v] - pos[u];
-                const double len = std::sqrt(static_cast<double>(dir.squared_length()));
+                double dx = bx - ax;
+                double dy = by - ay;
+                double len = std::sqrt(dx*dx + dy*dy);
                 if (len > 1e-9) {
-                    const double ux = static_cast<double>(dir.x()) / len;
-                    const double uy = static_cast<double>(dir.y()) / len;
-
-                    // tip stops a bit before centroid v
+                    double ux = dx / len;
+                    double uy = dy / len;
                     const double offset = arrowSize * 0.6;
-                    const double tipx = static_cast<double>(pos[v].x()) - ux * offset;
-                    const double tipy = static_cast<double>(pos[v].y()) - uy * offset;
-                    const PointI tip(tipx, tipy);
-
+                    const double tipx = bx - ux * offset;
+                    const double tipy = by - uy * offset;
                     const double perpx = -uy;
                     const double perpy = ux;
-
                     const double half = arrowSize * 0.5;
                     const double p1x = tipx - ux * arrowSize + perpx * half;
                     const double p1y = tipy - uy * arrowSize + perpy * half;
                     const double p2x = tipx - ux * arrowSize - perpx * half;
                     const double p2y = tipy - uy * arrowSize - perpy * half;
 
-                    PointI p1(p1x, p1y);
-                    PointI p2(p2x, p2y);
-
-                    cartocrow::Polygon<Inexact> arrow;
-                    arrow.push_back(tip);
-                    arrow.push_back(p1);
-                    arrow.push_back(p2);
-
-                    renderer.setFill({ m_options.colorRedEdge[0],
-                                       m_options.colorRedEdge[1],
-                                       m_options.colorRedEdge[2] });
-                    renderer.setMode(Renderer::fill | Renderer::stroke);
-                    renderer.draw(arrow);
+                    draw_arrow_triangle(tipx, tipy, p1x, p1y, p2x, p2y,
+                                        { m_options.colorRedEdge[0],
+                                          m_options.colorRedEdge[1],
+                                          m_options.colorRedEdge[2] });
                 }
             }
-        }
-    }
-
-    // draw blue edges (horizontal constraints — blue means left->right in your setup)
-    for (RegionId u = 0; u < static_cast<RegionId>(nRegions); ++u) {
-        const auto &ru = m_relmap->get(u);
-        for (auto v : ru.blue_out) {
-            if (v >= static_cast<RegionId>(nRegions)) continue;
-            const auto &rv = m_relmap->get(v);
-
-            // frame edges: both endpoints are frame labels => thick black undirected line
-            if (isFrameLabel(ru.label) && isFrameLabel(rv.label)) {
-                renderer.setMode(Renderer::stroke);
-                renderer.setStroke({ m_options.colorEdgeFrame[0],
-                                     m_options.colorEdgeFrame[1],
-                                     m_options.colorEdgeFrame[2] },
-                                    std::max(2.0, strokeW * 2.0));
-                renderer.draw(Segment<Inexact>(pos[u], pos[v]));
-                continue;
-            }
-
-            // normal blue directed edge
-            renderer.setMode(Renderer::stroke);
-            renderer.setStroke({ m_options.colorBlueEdge[0],
-                                 m_options.colorBlueEdge[1],
-                                 m_options.colorBlueEdge[2] },
-                                std::max(1.0, strokeW));
-            renderer.draw(Segment<Inexact>(pos[u], pos[v]));
+        } else if (h.color == BLUE) {
+            draw_segment(ax, ay, bx, by,
+                         { m_options.colorBlueEdge[0],
+                           m_options.colorBlueEdge[1],
+                           m_options.colorBlueEdge[2] },
+                         std::max(1.0, strokeW));
 
             if (m_options.drawEdgeArrowheads) {
-                const Inexact::Vector_2 dir = pos[v] - pos[u];
-                const double len = std::sqrt(static_cast<double>(dir.squared_length()));
+                double dx = bx - ax;
+                double dy = by - ay;
+                double len = std::sqrt(dx*dx + dy*dy);
                 if (len > 1e-9) {
-                    const double ux = static_cast<double>(dir.x()) / len;
-                    const double uy = static_cast<double>(dir.y()) / len;
-
+                    double ux = dx / len;
+                    double uy = dy / len;
                     const double offset = arrowSize * 0.6;
-                    const double tipx = static_cast<double>(pos[v].x()) - ux * offset;
-                    const double tipy = static_cast<double>(pos[v].y()) - uy * offset;
-                    const PointI tip(tipx, tipy);
-
+                    const double tipx = bx - ux * offset;
+                    const double tipy = by - uy * offset;
                     const double perpx = -uy;
                     const double perpy = ux;
-
                     const double half = arrowSize * 0.5;
                     const double p1x = tipx - ux * arrowSize + perpx * half;
                     const double p1y = tipy - uy * arrowSize + perpy * half;
                     const double p2x = tipx - ux * arrowSize - perpx * half;
                     const double p2y = tipy - uy * arrowSize - perpy * half;
 
-                    PointI p1(p1x, p1y);
-                    PointI p2(p2x, p2y);
-
-                    cartocrow::Polygon<Inexact> arrow;
-                    arrow.push_back(tip);
-                    arrow.push_back(p1);
-                    arrow.push_back(p2);
-
-                    renderer.setFill({ m_options.colorBlueEdge[0],
-                                       m_options.colorBlueEdge[1],
-                                       m_options.colorBlueEdge[2] });
-                    renderer.setMode(Renderer::fill | Renderer::stroke);
-                    renderer.draw(arrow);
+                    draw_arrow_triangle(tipx, tipy, p1x, p1y, p2x, p2y,
+                                        { m_options.colorBlueEdge[0],
+                                          m_options.colorBlueEdge[1],
+                                          m_options.colorBlueEdge[2] });
                 }
             }
+        } else {
+            // BLACK or other
+            draw_segment(ax, ay, bx, by,
+                         { m_options.colorEdgeFrame[0],
+                           m_options.colorEdgeFrame[1],
+                           m_options.colorEdgeFrame[2] },
+                         std::max(1.0, strokeW));
         }
-    }
+    } // end halfedge loop
 
-    // draw labels at centroids if requested (nodes themselves are not drawn)
+    // draw labels
     if (m_options.drawLabels) {
-        for (RegionId u = 0; u < static_cast<RegionId>(nRegions); ++u) {
-            const std::string &label = m_relmap->get(u).label;
-            const PointI &p = pos[u];
-            renderer.setFill({ m_options.colorText[0],
-                               m_options.colorText[1],
-                               m_options.colorText[2] });
-            // Use your renderer's text API. Typical: renderer.drawText(label, p);
+        for (size_t i = 0; i < nRegions; ++i) {
+            const auto &label = vertices[i].label;
+            const auto &pc = pos[i];
+            PointI p(pc.first, pc.second);
+            renderer.setFill({ static_cast<int>(m_options.colorText[0]),
+                               static_cast<int>(m_options.colorText[1]),
+                               static_cast<int>(m_options.colorText[2]) });
             renderer.drawText(p, label);
         }
     }

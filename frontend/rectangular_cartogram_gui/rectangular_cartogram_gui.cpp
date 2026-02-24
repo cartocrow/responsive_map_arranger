@@ -27,42 +27,23 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     m_projectData = json::parse(f);
     processData();
 
-    m_RELmap_ptr = std::make_shared<RELmap>(m_RELmap);
+
     m_rectangularDual = std::make_shared<RectangularDual>();
 
     // CREATE RECTANGULAR DUAL
-    if (!m_rectangularDual->initializeFromREL(m_RELmap)) {
+    if (!m_rectangularDual->initializeFromREL(m_rel)) {
         std::cerr << "Failed to compute rectangular dual. You might want to check for cycles" << std::endl;
     }
-    // else {
-    //     for (std::size_t i = 0; i < m_rectangularDual.size(); ++i) {
-    //         const auto &r = m_rectangularDual.getRect(i);
-    //         std::cout << "Region " << i << ": [" << r.left << "," << r.right << "] x [" << r.bottom << "," << r.top << "]\n";
-    //     }
-    // }
-
-    RegularEdgeLabeling rel;
-
-    try {
-        rel.buildFromJson(m_projectData);
-    } catch (const std::exception &e) {
-        cerr << "Error building REL: " << e.what() << endl;
-    }
-
-    rel.printSummary();
-
-
 
     // RENDERING
-    rel_vis::RELPainting::Options relDrawingOptions;
+    RELPainting::Options relDrawingOptions;
     relDrawingOptions.drawLabels = true;
     relDrawingOptions.drawREL = m_showREL->isChecked();
 
+    RectangularCartogramPainting::Options rectCartogramOptions;
 
-    rectangular_cartogram::RectangularCartogramPainting::Options rectCartogramOptions;
-
-    m_rectPainting = std::make_shared<rectangular_cartogram::RectangularCartogramPainting>(m_rectangularDual, m_RELmap_ptr, rectCartogramOptions);
-    m_relPainting = std::make_shared<rel_vis::RELPainting>(m_RELmap_ptr, m_rectangularDual);
+    m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
+    m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual);
 
 
     //    m_renderer->addPainting(m_debugPainting, "Debugging");
@@ -76,10 +57,15 @@ void RectangularCartogramDemo::processData() {
     std::cout << "processing data" << std::endl;
 
     try {
-        m_RELmap = RELmap(m_projectData); // will validate & throw if errors found
+        m_rel.buildFromJson(m_projectData); // will validate & throw if errors found
     } catch (const std::exception& e) {
-        std::cerr << "Failed to load RELmap: " << e.what() << std::endl;
+        std::cerr << "Failed to load REL: " << e.what() << std::endl;
     }
+
+    m_rel.printSummary();
+
+    m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
+
 }
 
 RectangularCartogramDemo::RectangularCartogramDemo() {
@@ -117,7 +103,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     });
 
     connect(m_showREL, &QCheckBox::toggled, [this, loadDataButton]() {
-        m_relPainting->drawREL(m_showREL->isChecked());
+        m_relPainting->drawRel(m_showREL->isChecked());
         m_renderer->update();
     });
 }
