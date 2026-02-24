@@ -1,7 +1,4 @@
-// RegularEdgeLabeling.cpp
-// Implements RegularEdgeLabeling declared in the header you provided.
-// Requires nlohmann::json single-header available in include path.
-
+// regular_edge_labeling.cpp
 #include "regular_edge_labeling.h"
 #include <nlohmann/json.hpp>
 #include <iostream>
@@ -197,6 +194,11 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
             auto itIn = incomingMap[vIdx].find(nbr);
             if (itIn != incomingMap[vIdx].end()) incident.push_back(itIn->second);
         }
+
+        // NOTE: Previously this edges list was considered CLOCKWISE. User requested COUNTERCLOCKWISE.
+        // To convert: reverse the order so incident[0]..incident[k-1] is counterclockwise.
+        std::reverse(incident.begin(), incident.end());
+
         m_vertices[vIdx].edges.swap(incident);
     }
 }
@@ -211,12 +213,45 @@ string RegularEdgeLabeling::otherLabelOfHalfEdge(int h) const {
     return m_vertices[other].label;
 }
 
+// ---------------- getFirst* helpers ----------------
+static int find_first_edge_of_type(const RegularEdgeLabeling &rel,
+                                   int vertexIdx,
+                                   EdgeColor color,
+                                   bool wantOutgoing) {
+    if (vertexIdx < 0 || vertexIdx >= (int)rel.getVertices().size()) return -1;
+    const auto &verts = rel.getVertices();
+    const auto &hes  = rel.getHalfEdges();
+    const auto &incident = verts[vertexIdx].edges;
+    for (int heIdx : incident) {
+        if (heIdx < 0 || heIdx >= (int)hes.size()) continue;
+        const auto &h = hes[heIdx];
+        if (h.color != color) continue;
+        // wantOutgoing==true -> we want half-edge that is outgoing at this vertex (h.outgoing == true)
+        // wantOutgoing==false -> incoming at this vertex (h.outgoing == false)
+        if (h.outgoing == wantOutgoing) return heIdx;
+    }
+    return -1;
+}
+
+int RegularEdgeLabeling::getFirstOutgoingBlue(int vertexIdx) const {
+    return find_first_edge_of_type(*this, vertexIdx, BLUE, true);
+}
+int RegularEdgeLabeling::getFirstIncomingBlue(int vertexIdx) const {
+    return find_first_edge_of_type(*this, vertexIdx, BLUE, false);
+}
+int RegularEdgeLabeling::getFirstOutgoingRed(int vertexIdx) const {
+    return find_first_edge_of_type(*this, vertexIdx, RED, true);
+}
+int RegularEdgeLabeling::getFirstIncomingRed(int vertexIdx) const {
+    return find_first_edge_of_type(*this, vertexIdx, RED, false);
+}
+
 // ---------------- printSummary ----------------
 void RegularEdgeLabeling::printSummary() const {
     cout << "Vertices: " << m_vertices.size() << ", HalfEdges: " << m_halfEdges.size() << "\n";
     for (int i = 0; i < (int)m_vertices.size(); ++i) {
         const Vertex &v = m_vertices[i];
-        cout << "V["<<i<<"] '"<<v.label<<"' incident:";
+        cout << "V["<<i<<"] '"<<v.label<<"' incident (CCW):";
         for (int heIdx : v.edges) {
             const HalfEdge &h = m_halfEdges[heIdx];
             cout << " {#" << heIdx << " " << h.id_str
