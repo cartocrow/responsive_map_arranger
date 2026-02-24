@@ -46,13 +46,22 @@ public:
 
     void printSummary() const;
 
-    // New API: return the first half-edge index at vertex 'vertexIdx' (scanning
-    // edges in counterclockwise order) that matches the given color & direction.
-    // Returns -1 if no matching half-edge is found.
-    int getFirstOutgoingBlue(int vertexIdx) const;
-    int getFirstIncomingBlue(int vertexIdx) const;
-    int getFirstOutgoingRed(int vertexIdx) const;
-    int getFirstIncomingRed(int vertexIdx) const;
+    int getPreviousCyclicEdge(const int edgeId) const;
+    int getNextCyclicEdge(const int edgeId) const;
+
+    int getVertexDegree(const int vertexId) const { return m_vertices[vertexId].edges.size(); }
+    int getFirstOutgoingBlue(int vertexId) const;
+    int getFirstIncomingBlue(int vertexId) const;
+    int getFirstOutgoingRed(int vertexId) const;
+    int getFirstIncomingRed(int vertexId) const;
+    int getlastOutgoingBlue(int vertexId) const;
+    int getlastIncomingBlue(int vertexId) const;
+    int getlastOutgoingRed(int vertexId) const;
+    int getlastIncomingRed(int vertexId) const;
+
+    bool flipEdgeColor(const int edgeId);
+    bool flipEdgeDiagonally(int edgeId, bool clockwise);
+    void debugCheckAfterFlip(int edgeId) const;
 
 private:
     vector<Vertex> m_vertices;
@@ -61,5 +70,8 @@ private:
 
     static string dirKey(const std::string &a, const std::string &b);
     static string undirKey(const std::string &a, const std::string &b);
+
+    int findFirstEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const;
+    int findLastEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const;
 
 };

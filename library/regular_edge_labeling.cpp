@@ -177,30 +177,68 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
         if (!found) incomingOnly[bIdx].insert(a);
     }
 
-    // 7) assemble final incident list per vertex: for each neighbor in outNeighbors (in that order),
-    //    append incoming from neighbor->v (if present), then outgoing v->neighbor (if present).
-    //    Then append incoming-only neighbors (sorted) at the end.
-    for (int vIdx = 0; vIdx < (int)m_vertices.size(); ++vIdx) {
-        vector<int> incident;
-        // primary sequence: outNeighbors
-        for (const string &nbr : outNeighbors[vIdx]) {
-            auto itIn = incomingMap[vIdx].find(nbr);
-            if (itIn != incomingMap[vIdx].end()) incident.push_back(itIn->second);
-            auto itOut = directedMap.find( dirKey(m_vertices[vIdx].label, nbr) );
-            if (itOut != directedMap.end()) incident.push_back(itOut->second);
-        }
-        // incoming-only neighbors
-        for (const string &nbr : incomingOnly[vIdx]) {
-            auto itIn = incomingMap[vIdx].find(nbr);
-            if (itIn != incomingMap[vIdx].end()) incident.push_back(itIn->second);
+    // 7) assemble final incident list per vertex into 4 REL blocks (preserve neighbor ordering within each block)
+    //
+    // Assemble incident edges into REL blocks (preserve neighbor order inside each block)
+// Desired CCW order (user request): [ incoming blue ] [ incoming red ] [ outgoing blue ] [ outgoing red ]
+for (int vIdx = 0; vIdx < (int)m_vertices.size(); ++vIdx) {
+    vector<int> incomingBlue;
+    vector<int> incomingRed;
+    vector<int> outgoingBlue;
+    vector<int> outgoingRed;
+
+    // primary sequence: iterate outNeighbors in the recorded order so outgoing order is preserved
+    for (const string &nbr : outNeighbors[vIdx]) {
+        // incoming from neighbor -> v (if present)
+        auto itIn = incomingMap[vIdx].find(nbr);
+        if (itIn != incomingMap[vIdx].end()) {
+            int inHe = itIn->second;
+            if (inHe >= 0 && inHe < (int)m_halfEdges.size()) {
+                const HalfEdge &hIn = m_halfEdges[inHe];
+                if (hIn.color == BLUE) incomingBlue.push_back(inHe);
+                else if (hIn.color == RED) incomingRed.push_back(inHe);
+                else incomingRed.push_back(inHe); // fallback for unknown color
+            }
         }
 
-        // NOTE: Previously this edges list was considered CLOCKWISE. User requested COUNTERCLOCKWISE.
-        // To convert: reverse the order so incident[0]..incident[k-1] is counterclockwise.
-        std::reverse(incident.begin(), incident.end());
-
-        m_vertices[vIdx].edges.swap(incident);
+        // outgoing v -> neighbor (if present)
+        auto itOut = directedMap.find(dirKey(m_vertices[vIdx].label, nbr));
+        if (itOut != directedMap.end()) {
+            int outHe = itOut->second;
+            if (outHe >= 0 && outHe < (int)m_halfEdges.size()) {
+                const HalfEdge &hOut = m_halfEdges[outHe];
+                if (hOut.color == BLUE) outgoingBlue.push_back(outHe);
+                else if (hOut.color == RED) outgoingRed.push_back(outHe);
+                else outgoingRed.push_back(outHe); // fallback
+            }
+        }
     }
+
+    // incoming-only neighbors (neighbors that send to v but v did not list them)
+    // incomingOnly[vIdx] is a set<string> (sorted deterministic)
+    for (const string &nbr : incomingOnly[vIdx]) {
+        auto itIn = incomingMap[vIdx].find(nbr);
+        if (itIn != incomingMap[vIdx].end()) {
+            int inHe = itIn->second;
+            if (inHe >= 0 && inHe < (int)m_halfEdges.size()) {
+                const HalfEdge &hIn = m_halfEdges[inHe];
+                if (hIn.color == BLUE) incomingBlue.push_back(inHe);
+                else if (hIn.color == RED) incomingRed.push_back(inHe);
+                else incomingRed.push_back(inHe);
+            }
+        }
+    }
+
+    // final concatenation in requested order: IB | IR | OB | OR
+    vector<int> incident;
+    incident.reserve(incomingBlue.size() + incomingRed.size() + outgoingBlue.size() + outgoingRed.size());
+    incident.insert(incident.end(), incomingBlue.begin(), incomingBlue.end());
+    incident.insert(incident.end(), incomingRed.begin(), incomingRed.end());
+    incident.insert(incident.end(), outgoingBlue.begin(), outgoingBlue.end());
+    incident.insert(incident.end(), outgoingRed.begin(), outgoingRed.end());
+
+    m_vertices[vIdx].edges.swap(incident);
+}
 }
 
 // ---------------- otherLabelOfHalfEdge ----------------
@@ -213,37 +251,228 @@ string RegularEdgeLabeling::otherLabelOfHalfEdge(int h) const {
     return m_vertices[other].label;
 }
 
-// ---------------- getFirst* helpers ----------------
-static int find_first_edge_of_type(const RegularEdgeLabeling &rel,
-                                   int vertexIdx,
-                                   EdgeColor color,
-                                   bool wantOutgoing) {
-    if (vertexIdx < 0 || vertexIdx >= (int)rel.getVertices().size()) return -1;
-    const auto &verts = rel.getVertices();
-    const auto &hes  = rel.getHalfEdges();
-    const auto &incident = verts[vertexIdx].edges;
-    for (int heIdx : incident) {
-        if (heIdx < 0 || heIdx >= (int)hes.size()) continue;
-        const auto &h = hes[heIdx];
-        if (h.color != color) continue;
-        // wantOutgoing==true -> we want half-edge that is outgoing at this vertex (h.outgoing == true)
-        // wantOutgoing==false -> incoming at this vertex (h.outgoing == false)
-        if (h.outgoing == wantOutgoing) return heIdx;
+static int find_position_in_vertex_incident(const std::vector<Vertex> &verts, int vIdx, int heIdx) {
+    if (vIdx < 0 || vIdx >= verts.size()) return -1;
+    const auto &edges = verts[vIdx].edges;
+    for (int i = 0; i < edges.size(); ++i) if (edges[i] == heIdx) return i;
+    return -1;
+}
+
+int RegularEdgeLabeling::getPreviousCyclicEdge(const int edgeId) const {
+    const int vertexID = m_halfEdges[edgeId].vertex;
+    const Vertex &v = m_vertices[vertexID];
+    const int vDegree = getVertexDegree(vertexID);
+    const int i = find_position_in_vertex_incident(m_vertices, vertexID, edgeId);
+
+    return v.edges[(i + vDegree - 1) % vDegree];
+}
+
+int RegularEdgeLabeling::getNextCyclicEdge(const int edgeId) const {
+    const int vertexID = m_halfEdges[edgeId].vertex;
+    const Vertex &v = m_vertices[vertexID];
+    const int vDegree = getVertexDegree(vertexID);
+    const int i = find_position_in_vertex_incident(m_vertices, vertexID, edgeId);
+
+    return v.edges[(i+1) % vDegree];
+}
+
+int RegularEdgeLabeling::findFirstEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const {
+    const Vertex &v = m_vertices[vertexId];
+
+    int vDegree = getVertexDegree(vertexId);
+
+    for (int i = 0; i < vDegree; i++) {
+        const HalfEdge &edge = m_halfEdges[v.edges[i]];
+        const HalfEdge &prevEdge = m_halfEdges[v.edges[(i + vDegree - 1) % vDegree]];
+
+        if (edge.color == edge_color && edge.outgoing == outgoing && prevEdge.color != edge_color) {
+            return v.edges[i];
+        }
     }
     return -1;
 }
 
-int RegularEdgeLabeling::getFirstOutgoingBlue(int vertexIdx) const {
-    return find_first_edge_of_type(*this, vertexIdx, BLUE, true);
+int RegularEdgeLabeling::findLastEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const {
+    const Vertex &v = m_vertices[vertexId];
+
+    int vDegree = getVertexDegree(vertexId);
+
+    for (int i = 0; i < vDegree; i++) {
+        const HalfEdge &edge = m_halfEdges[v.edges[i]];
+        const HalfEdge &nextEdge = m_halfEdges[v.edges[(i+1) % vDegree]];
+
+        if (edge.color == edge_color && edge.outgoing == outgoing && nextEdge.color != edge_color) {
+            return v.edges[i];
+        }
+    }
+    return -1;
 }
-int RegularEdgeLabeling::getFirstIncomingBlue(int vertexIdx) const {
-    return find_first_edge_of_type(*this, vertexIdx, BLUE, false);
+
+
+int RegularEdgeLabeling::getFirstOutgoingBlue(const int vertexId) const {
+    return findFirstEdgeOfType(vertexId, BLUE, true);
 }
-int RegularEdgeLabeling::getFirstOutgoingRed(int vertexIdx) const {
-    return find_first_edge_of_type(*this, vertexIdx, RED, true);
+int RegularEdgeLabeling::getFirstIncomingBlue(const int vertexId) const {
+    return findFirstEdgeOfType(vertexId, BLUE, false);
 }
-int RegularEdgeLabeling::getFirstIncomingRed(int vertexIdx) const {
-    return find_first_edge_of_type(*this, vertexIdx, RED, false);
+int RegularEdgeLabeling::getFirstOutgoingRed(const int vertexId) const {
+    return findFirstEdgeOfType(vertexId, RED, true);
+}
+int RegularEdgeLabeling::getFirstIncomingRed(const int vertexId) const {
+    return findFirstEdgeOfType(vertexId, RED, false);
+}
+int RegularEdgeLabeling::getlastOutgoingBlue(const int vertexId) const {
+    return findLastEdgeOfType(vertexId, BLUE, true);
+}
+int RegularEdgeLabeling::getlastIncomingBlue(const int vertexId) const {
+    return findLastEdgeOfType(vertexId, BLUE, false);
+}
+int RegularEdgeLabeling::getlastOutgoingRed(const int vertexId) const {
+    return findLastEdgeOfType(vertexId, RED, true);
+}
+int RegularEdgeLabeling::getlastIncomingRed(const int vertexId) const {
+    return findLastEdgeOfType(vertexId, RED, false);
+}
+
+bool RegularEdgeLabeling::flipEdgeColor(const int edgeId) {
+    if (edgeId < 0 || edgeId >= m_halfEdges.size()) return false;
+    HalfEdge &halfEdge = m_halfEdges[edgeId];
+    if (halfEdge.twin < 0 || halfEdge.twin >= m_halfEdges.size()) return false;
+    HalfEdge &twin = m_halfEdges[halfEdge.twin];
+
+    if (halfEdge.color == BLUE) {
+        halfEdge.color = RED;
+        twin.color = RED;
+        return true;
+    } else if (halfEdge.color == RED) {
+        halfEdge.color = BLUE;
+        twin.color = BLUE;
+        return true;
+    }
+
+    return false;
+}
+
+bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
+    if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
+        cerr << "Invalid edgeId " << edgeId << endl;
+        return false;
+    }
+    const int twinId = m_halfEdges[edgeId].twin;
+    if (twinId < 0 || twinId >= m_halfEdges.size()){
+        cerr << "Invalid twinEdge id " << twinId << endl;
+        return false;
+    }
+
+    int a = m_halfEdges[edgeId].vertex; // origin of half-edge id
+    int b = m_halfEdges[twinId].vertex; // other edge id (of twin)
+    if (a < 0 || b < 0 || a >= m_vertices.size() || b >= m_vertices.size()) return false;
+
+    const int posA = find_position_in_vertex_incident(m_vertices, a, edgeId);
+    const int posB = find_position_in_vertex_incident(m_vertices, b, twinId);
+    if (posA == -1 || posB == -1) return false;
+
+    // previous or next half-edge around a and b in ccw order
+    int cEdge = -1;
+    int dEdge = -1;
+    if (clockwise) {
+        cEdge = getNextCyclicEdge(edgeId);
+        dEdge = getNextCyclicEdge(twinId);
+    } else {
+        cEdge = getPreviousCyclicEdge(edgeId);
+        dEdge = getPreviousCyclicEdge(twinId);
+    }
+
+    int cVertex = m_halfEdges[m_halfEdges[cEdge].twin].vertex;
+    int dVertex = m_halfEdges[m_halfEdges[dEdge].twin].vertex;
+
+    cout << "c edges: " << endl;
+
+    for (auto edge : m_vertices[cVertex].edges) {
+        cout << edge << endl;
+    }
+    cout << "d edges: " << endl;
+
+    for (auto edge : m_vertices[dVertex].edges) {
+        cout << edge << endl;
+    }
+    cout << m_vertices[a].label << " " << m_vertices[b].label << endl;
+    cout << edgeId << " " << twinId << endl;
+    cout << m_vertices[cVertex].label << " " << m_vertices[dVertex].label << endl;
+
+    cout << cEdge << " " << dEdge << endl;
+
+    // PERFORM FLIP
+    // 1) erase a and b from lists
+    {
+        auto &elistA = m_vertices[a].edges;
+        elistA.erase(elistA.begin() + posA);
+    }
+    {
+        auto &elistB = m_vertices[b].edges;
+        elistB.erase(elistB.begin() + posB);
+    }
+
+    // 2) find insertion location in the c vertex: a->c and b->d
+    int cCyclicPos = find_position_in_vertex_incident(m_vertices, cVertex, m_halfEdges[cEdge].twin);
+    if (cCyclicPos == -1) return false;
+    {
+        auto &elistC = m_vertices[cVertex].edges;
+        int insertPos = clockwise ? cCyclicPos + 1 : cCyclicPos - 1;
+        if (insertPos < 0) insertPos = 0;
+        if (insertPos > elistC.size()) insertPos = elistC.size();
+        elistC.insert(elistC.begin() + insertPos, edgeId);
+    }
+    // 3) find insertion location in the d vertex: b->d
+    int dCyclicPos = find_position_in_vertex_incident(m_vertices, dVertex, m_halfEdges[dEdge].twin);
+    if (dCyclicPos == -1) return false;
+    {
+        auto &elistD = m_vertices[dVertex].edges;
+        int insertPos = clockwise ? dCyclicPos + 1 : dCyclicPos - 1;
+        if (insertPos < 0) insertPos = 0;
+        if (insertPos > elistD.size()) insertPos = elistD.size();
+        elistD.insert(elistD.begin() + insertPos, twinId);
+    }
+    // 4) update half edge vertex references
+    m_halfEdges[edgeId].vertex = cVertex;
+    m_halfEdges[twinId].vertex = dVertex;
+
+
+    cout << "c edges: " << endl;
+
+    for (auto edge : m_vertices[cVertex].edges) {
+        cout << edge << endl;
+    }
+    cout << "d edges: " << endl;
+
+    for (auto edge : m_vertices[dVertex].edges) {
+        cout << edge << endl;
+    }
+
+    // 5) update id string
+    string originC = m_vertices [cVertex].label;
+    string destD  = m_vertices[ m_halfEdges[twinId].vertex ].label;
+    m_halfEdges[edgeId].id_str = originC + "->" + destD;
+
+    string originD = m_vertices[ dVertex ].label;
+    string destC  = m_vertices[ m_halfEdges[edgeId].vertex ].label; // cVert
+    m_halfEdges[twinId].id_str = originD + "->" + destC;
+
+    return true;
+}
+
+void RegularEdgeLabeling::debugCheckAfterFlip(int edgeId) const {
+    if (edgeId < 0 || edgeId >= (int)m_halfEdges.size()) return;
+    int twin = m_halfEdges[edgeId].twin;
+    if (twin < 0 || twin >= (int)m_halfEdges.size()) return;
+    int a = m_halfEdges[edgeId].vertex;
+    int b = m_halfEdges[twin].vertex;
+    std::cout << "After flip: halfEdge " << edgeId << " at vertex " << a << ", twin " << twin << " at vertex " << b << "\n";
+    std::cout << "V["<<a<<"] edges:";
+    for (int he : m_vertices[a].edges) std::cout << " " << he;
+    std::cout << "\nV["<<b<<"] edges:";
+    for (int he : m_vertices[b].edges) std::cout << " " << he;
+    std::cout << "\n";
 }
 
 // ---------------- printSummary ----------------
@@ -266,3 +495,4 @@ void RegularEdgeLabeling::printSummary() const {
         cout << "\n";
     }
 }
+

@@ -27,6 +27,14 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     m_projectData = json::parse(f);
     processData();
 
+    // std::cout << m_relPtr->flipEdgeDiagonally(12, true) << std::endl;
+    // m_relPtr->debugCheckAfterFlip(12);
+    //
+    // m_relPtr->flipEdgeColor(12);
+    //
+    // m_relPtr->printSummary();
+
+
 
     m_rectangularDual = std::make_shared<RectangularDual>();
 
