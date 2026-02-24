@@ -1,12 +1,14 @@
 set(SOURCES
 		rectangular_cartogram_painting.cpp
 		rectangular_dual.cpp
+		regular_edge_labeling.cpp
         rel_painting.cpp
 		rel_map.cpp
 )
 set(HEADERS
 		rectangular_cartogram_painting.h
 		rectangular_dual.h
+		regular_edge_labeling.h
 		rel_painting.h
 		rel_map.h
 )

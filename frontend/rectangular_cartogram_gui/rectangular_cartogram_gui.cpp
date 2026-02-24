@@ -9,6 +9,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "library/regular_edge_labeling.h"
+
 using json = nlohmann::json;
 
 
@@ -39,6 +41,15 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     //     }
     // }
 
+    RegularEdgeLabeling rel;
+
+    try {
+        rel.buildFromJson(m_projectData);
+    } catch (const std::exception &e) {
+        cerr << "Error building REL: " << e.what() << endl;
+    }
+
+    rel.printSummary();
 
 
 
