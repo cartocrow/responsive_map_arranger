@@ -8,11 +8,26 @@
 
 #include "regular_edge_labeling.h"
 
+
+enum SegmentType {
+    SEGMENT_UNKNOWN = 0,
+    SEGMENT_HORIZONTAL = 1, // blue
+    SEGMENT_VERTICAL = 2    // red
+};
+
+struct Segment {
+    SegmentType type = SEGMENT_UNKNOWN;
+    std::vector<int> halfedges;          // half-edge indices belonging to this maximal segment
+    std::vector<int> incoming_vertices;  // vertex indices that are on the *incoming* side of the segment
+    std::vector<int> outgoing_vertices;  // vertex indices that are on the *outgoing* side of the segment
+};
+
 // forward-declare old RELmap (kept for compatibility)
 class RELmap;
 
 // forward-declare RegularEdgeLabeling (new path)
 class RegularEdgeLabeling;
+enum EdgeColor;
 
 class RectangularDual {
 public:
@@ -32,7 +47,13 @@ public:
 
     RectangularDual() = default;
 
+    bool computeMaximalSegments(RegularEdgeLabeling &rel);
+    std::vector<Segment> getMaximalSegments() const { return maximalSegments; };
+
     bool buildSTGraphsFromREL(const RegularEdgeLabeling &rel);
+    bool buildDualsFromREL(const RegularEdgeLabeling &rel);
+    void debugPrintFacesForColor(const RegularEdgeLabeling &rel, EdgeColor color) const;
+    void debugListUnassignedHalfEdges(const RegularEdgeLabeling &rel, EdgeColor color) const;
 
     // Build rectangular dual from RELmap (legacy)
     // cell_size: scale for each grid cell (visual size).
@@ -49,6 +70,11 @@ public:
     const std::vector<Rect> &rectangles() const noexcept { return rects; }
 
 private:
+    bool buildDualForColor(const RegularEdgeLabeling &rel,
+                            const STGraph &primal,
+                            EdgeColor color,
+                            STGraph &dualOut);
+
     // helper functions (implemented in cpp)
     bool buildDAGsFromRELmap(const RELmap &rel);
     bool buildDAGsFromRegularEdgeLabeling(const RegularEdgeLabeling &rel);
@@ -68,8 +94,19 @@ private:
                       const std::vector<std::uint32_t> &topo,
                       std::vector<int> &bottomIndex, int &maxTop) const;
 
+
+    std::vector<Segment> maximalSegments;
+
     STGraph G1;
     STGraph G2;
+    // dual graphs of G1 and G2: each face is represented as a vertex, and two faces with common edge have an edge in the dual.
+    STGraph G1dual;
+    STGraph G2Dual;
+
+    std::vector<int> faceOfHalfEdge_G1; // size = #halfedges (or 0), -1 for not-part-of-G1
+    std::vector<int> faceOfHalfEdge_G2; // same for G2
+    int F1 = 0; // number of faces in G1
+    int F2 = 0; // number of faces in G2
 
     // adjacency lists (size = number of rectangles/vertices)
     // horAdj: left -> right edges (blue)

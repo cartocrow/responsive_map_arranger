@@ -498,3 +498,10 @@ void RegularEdgeLabeling::printSummary() const {
     }
 }
 
+void RegularEdgeLabeling::setVertexSegmentIndices(int vertexId, int leftSeg, int rightSeg, int bottomSeg, int topSeg) {
+    if (vertexId < 0 || vertexId >= (int)m_vertices.size()) return;
+    m_vertices[vertexId].left_segment   = leftSeg;
+    m_vertices[vertexId].right_segment  = rightSeg;
+    m_vertices[vertexId].bottom_segment = bottomSeg;
+    m_vertices[vertexId].top_segment    = topSeg;
+}

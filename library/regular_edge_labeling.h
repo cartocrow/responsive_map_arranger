@@ -31,6 +31,11 @@ struct Vertex {
     int weight;
     // edges of the vertex in COUNTERCLOCKWISE order (combinatorial / cyclic)
     vector<int> edges;
+
+    int left_segment = -1;
+    int right_segment = -1;
+    int bottom_segment = -1;
+    int top_segment = -1;
 };
 
 class RegularEdgeLabeling {
@@ -46,6 +51,8 @@ public:
     string otherLabelOfHalfEdge(int h) const;
 
     void printSummary() const;
+
+    void setVertexSegmentIndices(int vertexId, int leftSeg, int rightSeg, int bottomSeg, int topSeg);
 
     int getPreviousCyclicEdge(const int edgeId) const;
     int getNextCyclicEdge(const int edgeId) const;

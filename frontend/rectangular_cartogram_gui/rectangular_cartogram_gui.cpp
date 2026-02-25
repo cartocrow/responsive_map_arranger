@@ -43,6 +43,7 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
         std::cerr << "Failed to compute rectangular dual. You might want to check for cycles" << std::endl;
     }
 
+
     // RENDERING
     RELPainting::Options relDrawingOptions;
     relDrawingOptions.drawLabels = true;
@@ -54,8 +55,43 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual);
 
     auto constructedSTgraphs = m_rectangularDual->buildSTGraphsFromREL(*m_relPtr);
+    auto constructedDuals = m_rectangularDual->buildDualsFromREL(*m_relPtr);
+
+
 
     std::cout << "ST graph construction status: " << constructedSTgraphs << std::endl;
+    std::cout << "Dual graphs construction status: " << constructedDuals << std::endl;
+
+    m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, RED);
+    m_rectangularDual->debugPrintFacesForColor(*m_relPtr, RED);
+    std::cout << " blue: " << std::endl;
+    m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, BLUE);
+    m_rectangularDual->debugPrintFacesForColor(*m_relPtr, BLUE);
+
+
+    bool computedMaximalSegments = m_rectangularDual->computeMaximalSegments(*m_relPtr);
+
+    std::cout << "computed maximal Segments: " << computedMaximalSegments << std::endl;
+
+    // inspect some vertices
+    for (int v = 0; v < m_relPtr->getVertices().size(); ++v) {
+        const auto &V = m_relPtr->getVertices()[v];
+        std::cout << "V[" << v << "] '" << V.label
+                  << "' left=" << V.left_segment
+                  << " right=" << V.right_segment
+                  << " bottom=" << V.bottom_segment
+                  << " top=" << V.top_segment << "\n";
+    }
+
+    std::cout << "-------------------" << std::endl;
+
+    for (int s = 0; s < m_rectangularDual->getMaximalSegments().size(); ++s) {
+        const auto &seg = m_rectangularDual->getMaximalSegments()[s];
+        std::cout << "segment " << s << " type=" << seg.type
+                  << " halfedges=" << seg.halfedges.size()
+                  << " incoming verts=" << seg.incoming_vertices.size()
+                  << " outgoing verts=" << seg.outgoing_vertices.size() << "\n";
+    }
 
 
     //    m_renderer->addPainting(m_debugPainting, "Debugging");
