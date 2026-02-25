@@ -53,6 +53,10 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
     m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual);
 
+    auto constructedSTgraphs = m_rectangularDual->buildSTGraphsFromREL(*m_relPtr);
+
+    std::cout << "ST graph construction status: " << constructedSTgraphs << std::endl;
+
 
     //    m_renderer->addPainting(m_debugPainting, "Debugging");
 

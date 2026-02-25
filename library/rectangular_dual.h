@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "regular_edge_labeling.h"
+
 // forward-declare old RELmap (kept for compatibility)
 class RELmap;
 
@@ -21,7 +23,16 @@ public:
         double top;
     };
 
+    struct STGraph {
+        int source = -1;
+        int sink = -1;
+        std::vector<std::vector<int>> out; // adjacency out: u -> list of v
+        std::vector<std::vector<int>> in; // adjacency in: v -> list of u
+    };
+
     RectangularDual() = default;
+
+    bool buildSTGraphsFromREL(const RegularEdgeLabeling &rel);
 
     // Build rectangular dual from RELmap (legacy)
     // cell_size: scale for each grid cell (visual size).
@@ -56,6 +67,9 @@ private:
     void packVertical(const std::vector<std::vector<std::uint32_t>> &adj,
                       const std::vector<std::uint32_t> &topo,
                       std::vector<int> &bottomIndex, int &maxTop) const;
+
+    STGraph G1;
+    STGraph G2;
 
     // adjacency lists (size = number of rectangles/vertices)
     // horAdj: left -> right edges (blue)

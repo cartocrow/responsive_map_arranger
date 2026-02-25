@@ -28,6 +28,7 @@ struct HalfEdge {
 
 struct Vertex {
     string label;
+    int weight;
     // edges of the vertex in COUNTERCLOCKWISE order (combinatorial / cyclic)
     vector<int> edges;
 };

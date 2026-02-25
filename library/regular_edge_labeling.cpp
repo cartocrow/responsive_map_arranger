@@ -31,11 +31,13 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
     // 1) create vertices for all provided region labels
     for (const auto &r : j["regions"]) {
         if (!r.contains("label")) throw runtime_error("Each region must have a 'label'");
+        if (!r.contains("weight")) throw runtime_error("Each region must have a 'weight'");
         string lbl = r["label"].get<string>();
         if (m_labelToIndex.find(lbl) == m_labelToIndex.end()) {
             int idx = (int)m_vertices.size();
             Vertex v;
             v.label = lbl;
+            v.weight = r["weight"].get<int>();
             m_vertices.push_back(std::move(v));
             m_labelToIndex[lbl] = idx;
         }
@@ -480,7 +482,7 @@ void RegularEdgeLabeling::printSummary() const {
     cout << "Vertices: " << m_vertices.size() << ", HalfEdges: " << m_halfEdges.size() << "\n";
     for (int i = 0; i < (int)m_vertices.size(); ++i) {
         const Vertex &v = m_vertices[i];
-        cout << "V["<<i<<"] '"<<v.label<<"' incident (CCW):";
+        cout << "V["<<i<<"] '"<<v.label<< "' | weight: " << v.weight << " | incident (CCW):";
         for (int heIdx : v.edges) {
             const HalfEdge &h = m_halfEdges[heIdx];
             cout << " {#" << heIdx << " " << h.id_str

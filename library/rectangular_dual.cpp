@@ -72,7 +72,125 @@ bool RectangularDual::buildDAGsFromRegularEdgeLabeling(const RegularEdgeLabeling
     return true;
 }
 
-// ---------- public initializeFromREL overloads ----------
+static bool auto_detect_exterior(const RegularEdgeLabeling &rel, std::array<int, 4> &outIndices) {
+    outIndices = { -1, -1, -1, -1 };
+    const auto &vertices = rel.getVertices();
+    for (int i = 0; i < vertices.size(); ++i) {
+        const std::string &label = vertices[i].label;
+
+        if (label == "South") {
+            outIndices[0] = i;
+            continue;
+        }
+        if (label == "West") {
+            outIndices[1] = i;
+            continue;
+        }
+        if (label == "North") {
+            outIndices[2] = i;
+            continue;
+        }
+        if (label == "East") {
+            outIndices[3] = i;
+            continue;
+        }
+    }
+    return (outIndices[0] >= 0 && outIndices[1] >= 0 && outIndices[2] >= 0 && outIndices[3] >= 0);
+}
+
+
+bool RectangularDual::buildSTGraphsFromREL(const RegularEdgeLabeling &rel) {
+    const auto &relVertices = rel.getVertices();
+    const auto &relHalfedges = rel.getHalfEdges();
+
+    const int n = (int)relVertices.size();
+    if (n == 0) return false;
+
+    std:array<int, 4> extIndices{-1, -1, -1, -1};
+    if (!auto_detect_exterior(rel, extIndices)) {
+        std::cerr << "Failed to detect exterior edges. Make sure 'South', 'West', 'North' and 'East' node are defined in the data. " << std::endl;
+        return false;
+    }
+
+    // validate exterior indices
+    for (int k = 0; k < 4; ++k) {
+        if (extIndices[k] < 0 || extIndices[k] >= n) {
+            std::cerr << "RectangularDual::buildSTGraphsFromREL: invalid exterior index\n";
+            return false;
+        }
+    }
+
+    const int vS = extIndices[0];
+    const int vW = extIndices[1];
+    const int vN = extIndices[2];
+    const int vE = extIndices[3];
+
+    // initialize graphs (n vertices)
+    G1.out.assign(n, {});
+    G1.in.assign(n, {});
+    G2.out.assign(n, {});
+    G2.in.assign(n, {});
+    G1.source = vS;
+    G1.sink = vN;
+    G2.source = vW;
+    G2.sink = vE;
+
+    auto is_exterior_pair = [&](const int u, const int v) -> bool {
+        if (u < 0 || v < 0) return false;
+        // set membership test: both u and v are one of the four exterior indices
+        return ( (u==vS||u==vW||u==vN||u==vE) &&
+                 (v==vS||v==vW||v==vN||v==vE) );
+    };
+
+    for (int i = 0; i < relHalfedges.size(); ++i) {
+        const auto &h = relHalfedges[i];
+        if (!h.outgoing) continue;;
+        int u = h.vertex;
+        int t = h.twin;
+
+        if (u < 0 || u >= n) continue;
+        if (t < 0 || t >= relHalfedges.size()) continue;
+        int v = relHalfedges[t].vertex;
+        if (v < 0 || v >= n) continue;
+
+        if (is_exterior_pair(u, v)) continue;
+
+        if (h.color == RED) {
+            G1.out[u].push_back(v);
+            G2.out[v].push_back(v);
+        }
+        else if (h.color == BLUE) {
+            G2.out[u].push_back(v);
+            G1.in[v].push_back(u);
+        }
+    }
+
+    // Add the four exterior edges
+    // For G1 (edges in T1 plus exterior):
+    //    vS -> vW,  vS -> vE,  vW -> vN,  vE -> vN
+    //
+    // For G2 (edges in T2 plus exterior):
+    //    vS -> vW,  vN -> vW,  vE -> vS,  vE -> vN
+    auto add_edge = [&](STGraph &G, const int a, const int b) {
+        G.out[a].push_back(b);
+        G.in[b].push_back(a);
+    };
+
+    // add G1 exterior edges
+    add_edge(G1, vS, vW);
+    add_edge(G1, vS, vE);
+    add_edge(G1, vW, vN);
+    add_edge(G1, vE, vN);
+
+    // add G2 exterior edges
+    add_edge(G2, vS, vW);
+    add_edge(G2, vN, vW);
+    add_edge(G2, vE, vS);
+    add_edge(G2, vE, vN);
+
+
+    return true;
+}
 
 bool RectangularDual::initializeFromREL(const RELmap &rel, double cell_size) {
     // preserve old behaviour: build DAGs from RELmap, topo sort, pack, build rects
