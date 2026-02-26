@@ -72,8 +72,8 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
 
 
     bool computedMaximalSegments = m_rectangularDual->computeMaximalSegments(*m_relPtr);
-
     bool computedSegmentPositions = m_rectangularDual->computeSegmentPositions(*m_relPtr);
+    bool computedRects = m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
 
 
     // // inspect some vertices

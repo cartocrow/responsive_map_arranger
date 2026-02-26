@@ -22,6 +22,8 @@ struct Segment {
     std::vector<int> incoming_vertices;  // for horizontal: below rects, for vertical: left rects
     std::vector<int> outgoing_vertices;  // for horizontal: above rects, for vertical: right rects
 
+    double coord = 0.0;
+    double gradientValue = 0.0;
     //coord
     //gradient value
 };
@@ -51,9 +53,8 @@ public:
 
     bool computeMaximalSegments(RegularEdgeLabeling &rel);
     std::vector<Segment> getMaximalSegments() const { return maximalSegments; };
-
-    // rectangular_dual.h (add inside class RectangularDual)
     bool computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size = 50.0);
+    bool computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size = 50.0);
 
     void debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const;
     void debugDumpVertexSegments(const RegularEdgeLabeling &rel, int v) const;
@@ -78,10 +79,6 @@ public:
     const std::vector<Rect> &rectangles() const noexcept { return rects; }
 
 private:
-    bool buildDualForColor(const RegularEdgeLabeling &rel,
-                            const STGraph &primal,
-                            EdgeColor color,
-                            STGraph &dualOut);
 
     // helper functions (implemented in cpp)
     bool buildDAGsFromRELmap(const RELmap &rel);
