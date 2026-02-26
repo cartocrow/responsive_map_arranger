@@ -499,9 +499,30 @@ void RegularEdgeLabeling::printSummary() const {
 }
 
 void RegularEdgeLabeling::setVertexSegmentIndices(int vertexId, int leftSeg, int rightSeg, int bottomSeg, int topSeg) {
-    if (vertexId < 0 || vertexId >= (int)m_vertices.size()) return;
-    m_vertices[vertexId].left_segment   = leftSeg;
-    m_vertices[vertexId].right_segment  = rightSeg;
-    m_vertices[vertexId].bottom_segment = bottomSeg;
-    m_vertices[vertexId].top_segment    = topSeg;
+    if (vertexId < 0 || vertexId >= (int)m_vertices.size()) {
+        std::cerr << "setVertexSegmentIndices: invalid vertex index " << vertexId << "\n";
+        return;
+    }
+    Vertex &v = m_vertices[vertexId];
+    v.left_segment = leftSeg;
+    v.right_segment = rightSeg;
+    v.bottom_segment = bottomSeg;
+    v.top_segment = topSeg;
+}
+
+int RegularEdgeLabeling::getVertexLeftSegment(int v) const {
+    if (v < 0 || v >= (int)m_vertices.size()) return -1;
+    return m_vertices[v].left_segment;
+}
+int RegularEdgeLabeling::getVertexRightSegment(int v) const {
+    if (v < 0 || v >= (int)m_vertices.size()) return -1;
+    return m_vertices[v].right_segment;
+}
+int RegularEdgeLabeling::getVertexBottomSegment(int v) const {
+    if (v < 0 || v >= (int)m_vertices.size()) return -1;
+    return m_vertices[v].bottom_segment;
+}
+int RegularEdgeLabeling::getVertexTopSegment(int v) const {
+    if (v < 0 || v >= (int)m_vertices.size()) return -1;
+    return m_vertices[v].top_segment;
 }

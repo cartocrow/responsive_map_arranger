@@ -121,19 +121,46 @@ bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
     const auto &relVertices  = rel.getVertices();
     const int H = (int)relHalfedges.size();
     const int V = (int)relVertices.size();
-    if (H == 0) return false;
+    if (H == 0) { std::cerr << "computeMaximalSegments: no halfedges\n"; return false; }
 
-    DSU dsu(H);
+    // small DSU (local copy)
+    struct DSUlocal {
+        std::vector<int> p, r;
+        void init(int n) { p.resize(n); r.assign(n,0); std::iota(p.begin(), p.end(), 0); }
+        int find(int a){ return p[a]==a ? a : p[a]=find(p[a]); }
+        void unite(int a,int b){ int ra=find(a), rb=find(b); if(ra==rb) return;
+                                if(r[ra]<r[rb]) p[ra]=rb;
+                                else if(r[rb]<r[ra]) p[rb]=ra;
+                                else { p[rb]=ra; r[ra]++; } }
+    };
+    DSUlocal dsu; dsu.init(H);
 
-    // 1) union half-edge with twin
+    // 1) union half-edge with twin (if present)
     for (int h = 0; h < H; ++h) {
         int t = relHalfedges[h].twin;
         if (t >= 0 && t < H) dsu.unite(h, t);
     }
 
-    // 2) at each vertex, union consecutive half-edges that belong to same run
+    // 2) union consecutive half-edges at each vertex when color+direction match
+    // create a repaired local copy of incident lists to ensure the half-edge belongs to vertex
+    std::vector<std::vector<int>> vertexInc(V);
+    for (int v = 0; v < V; ++v) vertexInc[v] = relVertices[v].edges;
+
+    // repair incident entries: if an entry is not actually attached to this vertex, try its twin
     for (int v = 0; v < V; ++v) {
-        const auto &inc = relVertices[v].edges;
+        for (int &he : vertexInc[v]) {
+            if (he < 0 || he >= H) continue;
+            if (relHalfedges[he].vertex == v) continue;
+            int t = relHalfedges[he].twin;
+            if (t >= 0 && t < H && relHalfedges[t].vertex == v) { he = t; continue; }
+            // otherwise leave it (we'll skip invalid he later)
+            std::cerr << "computeMaximalSegments: incident halfedge " << he << " at vertex " << v
+                      << " not attached to vertex (owner=" << relHalfedges[he].vertex << ")\n";
+        }
+    }
+
+    for (int v = 0; v < V; ++v) {
+        const auto &inc = vertexInc[v];
         int deg = (int)inc.size();
         if (deg <= 1) continue;
         for (int i = 0; i < deg; ++i) {
@@ -141,168 +168,475 @@ bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
             int he_i = inc[i];
             int he_j = inc[j];
             if (he_i < 0 || he_i >= H || he_j < 0 || he_j >= H) continue;
-
             const HalfEdge &hi = relHalfedges[he_i];
             const HalfEdge &hj = relHalfedges[he_j];
-
-            // Union if they are the same color AND they have the same incoming/outgoing flag.
-            // This covers outgoing-blue, incoming-blue, outgoing-red, incoming-red, etc.
-            if (hi.color == hj.color && hi.outgoing == hj.outgoing) {
-                dsu.unite(he_i, he_j);
-            }
+            if (hi.color == hj.color && hi.outgoing == hj.outgoing) dsu.unite(he_i, he_j);
         }
     }
 
-    // 3) gather components
-    std::unordered_map<int, std::vector<int>> comps;
-    comps.reserve(H);
-    for (int h = 0; h < H; ++h) {
-        int root = dsu.find(h);
-        comps[root].push_back(h);
+    // --- Critical additional step: enforce that any explicit outgoing half-edge and its twin are in same component.
+    // This ensures every REL edge maps to a single segment.
+    bool mergedAny = true;
+    int iter = 0;
+    while (mergedAny && iter < H+5) {
+        mergedAny = false;
+        ++iter;
+        for (int h = 0; h < H; ++h) {
+            const HalfEdge &hh = relHalfedges[h];
+            if (!hh.outgoing) continue; // only explicit outgoing half-edges represent input edges
+            int t = hh.twin;
+            if (t < 0 || t >= H) continue;
+            int r1 = dsu.find(h);
+            int r2 = dsu.find(t);
+            if (r1 != r2) { dsu.unite(r1, r2); mergedAny = true; }
+        }
+    }
+    if (iter >= H+5) {
+        std::cerr << "computeMaximalSegments: adjacency-enforcement iter exceeded\n";
     }
 
-    // 4) build segments and classify
+    // 3) gather components into a map root -> members
+    std::unordered_map<int, std::vector<int>> comps;
+    comps.reserve(H);
+    for (int h = 0; h < H; ++h) comps[ dsu.find(h) ].push_back(h);
+
+    // 4) deterministic order of roots (sort keys)
+    std::vector<int> roots;
+    roots.reserve(comps.size());
+    for (auto &kv : comps) roots.push_back(kv.first);
+    std::sort(roots.begin(), roots.end());
+
+    // 5) build segments from components
     maximalSegments.clear();
-    maximalSegments.reserve(comps.size());
-    // build half-edge -> seg index map
+    maximalSegments.reserve(roots.size());
     std::vector<int> he_to_seg(H, -1);
-    int sidx = 0;
-    for (auto &kv : comps) {
+
+    for (int root : roots) {
+        auto membersIt = comps.find(root);
+        if (membersIt == comps.end()) continue;
+        std::vector<int> members = membersIt->second; // copy (safe)
+
         Segment seg;
-        seg.halfedges = kv.second;
+        seg.type = SEGMENT_UNKNOWN;
+        seg.halfedges = std::move(members);
 
-        bool hasOutgoingBlue = false;
-        bool hasIncomingRed = false;
-        bool hasOutgoingRed = false;
-        bool hasIncomingBlue = false;
-
+        // counts
+        // simpler classification: any BLUE -> horizontal, else any RED -> vertical, else unknown
+        bool seenBlue = false, seenRed = false;
         for (int he : seg.halfedges) {
             if (he < 0 || he >= H) continue;
             const HalfEdge &h = relHalfedges[he];
-            if (h.color == BLUE) {
-                if (h.outgoing) hasOutgoingBlue = true;
-                else hasIncomingBlue = true;
-            } else if (h.color == RED) {
-                if (h.outgoing) hasOutgoingRed = true;
-                else hasIncomingRed = true;
-            }
+            if (h.color == BLUE) seenBlue = true;
+            else if (h.color == RED) seenRed = true;
         }
+        if (seenBlue) seg.type = SEGMENT_HORIZONTAL;
+        else if (seenRed) seg.type = SEGMENT_VERTICAL;
+        else seg.type = SEGMENT_UNKNOWN;
 
-        // classify: horizontal if outgoing-blue present (dominant), vertical if incoming-red present (dominant).
-        // (use whichever rule matches your data; here we prefer BLUE-outgoing => horizontal, RED-incoming => vertical)
-        if (hasOutgoingBlue && !hasIncomingRed && !hasOutgoingRed) {
-            seg.type = SEGMENT_HORIZONTAL;
-        } else if (hasIncomingRed && !hasOutgoingBlue && !hasIncomingBlue) {
-            seg.type = SEGMENT_VERTICAL;
-        } else {
-            // mixed or ambiguous -> try to decide by majority or mark unknown
-            int cntBlueOut = 0, cntRedIn = 0;
-            for (int he : seg.halfedges) {
-                const HalfEdge &h = relHalfedges[he];
-                if (h.color == BLUE && h.outgoing) ++cntBlueOut;
-                if (h.color == RED  && !h.outgoing) ++cntRedIn;
-            }
-            if (cntBlueOut >= cntRedIn && cntBlueOut > 0) seg.type = SEGMENT_HORIZONTAL;
-            else if (cntRedIn > 0) seg.type = SEGMENT_VERTICAL;
-            else seg.type = SEGMENT_UNKNOWN;
-        }
-
-        // 5) compute side vertex sets using *outgoing* half-edges only
+        // fill side vertex sets using outgoing half-edges as canonical origin->dest semantics
         std::unordered_set<int> leftSet, rightSet, bottomSet, topSet;
-        if (seg.type == SEGMENT_HORIZONTAL) {
-            for (int he : seg.halfedges) {
-                if (he < 0 || he >= H) continue;
-                const HalfEdge &h = relHalfedges[he];
+        for (int he : seg.halfedges) {
+            if (he < 0 || he >= H) continue;
+            const HalfEdge &h = relHalfedges[he];
+            int twin = h.twin;
+            int dest = (twin >= 0 && twin < H) ? relHalfedges[twin].vertex : -1;
+            if (seg.type == SEGMENT_HORIZONTAL) {
                 if (h.color == BLUE && h.outgoing) {
-                    int u = h.vertex;                 // origin (left)
-                    int twin = h.twin;
-                    if (twin >= 0 && twin < H) {
-                        int vdest = relHalfedges[twin].vertex; // destination origin (right)
-                        leftSet.insert(u);
-                        rightSet.insert(vdest);
-                    } else {
-                        // half-edge missing twin? treat origin only
-                        leftSet.insert(u);
-                    }
+                    if (h.vertex >= 0) leftSet.insert(h.vertex);
+                    if (dest >= 0) rightSet.insert(dest);
                 }
-            }
-            seg.incoming_vertices.assign(leftSet.begin(), leftSet.end());   // rename semantics: incoming_vertices -> left
-            seg.outgoing_vertices.assign(rightSet.begin(), rightSet.end()); // outgoing_vertices -> right
-        } else if (seg.type == SEGMENT_VERTICAL) {
-            for (int he : seg.halfedges) {
-                if (he < 0 || he >= H) continue;
-                const HalfEdge &h = relHalfedges[he];
+            } else if (seg.type == SEGMENT_VERTICAL) {
                 if (h.color == RED && h.outgoing) {
-                    int u = h.vertex;                 // origin (bottom)
-                    int twin = h.twin;
-                    if (twin >= 0 && twin < H) {
-                        int vdest = relHalfedges[twin].vertex; // destination origin (top)
-                        bottomSet.insert(u);
-                        topSet.insert(vdest);
-                    } else {
-                        bottomSet.insert(u);
-                    }
+                    if (h.vertex >= 0) bottomSet.insert(h.vertex);
+                    if (dest >= 0) topSet.insert(dest);
                 }
+            } else {
+                if (h.vertex >= 0) seg.incoming_vertices.push_back(h.vertex);
+                if (dest >= 0) seg.outgoing_vertices.push_back(dest);
             }
-            seg.incoming_vertices.assign(bottomSet.begin(), bottomSet.end());   // incoming_vertices -> bottom
-            seg.outgoing_vertices.assign(topSet.begin(), topSet.end());         // outgoing_vertices -> top
+        }
+
+        if (seg.type == SEGMENT_HORIZONTAL) {
+            seg.incoming_vertices.assign(leftSet.begin(), leftSet.end());
+            seg.outgoing_vertices.assign(rightSet.begin(), rightSet.end());
+            std::sort(seg.incoming_vertices.begin(), seg.incoming_vertices.end());
+            std::sort(seg.outgoing_vertices.begin(), seg.outgoing_vertices.end());
+        } else if (seg.type == SEGMENT_VERTICAL) {
+            seg.incoming_vertices.assign(bottomSet.begin(), bottomSet.end());
+            seg.outgoing_vertices.assign(topSet.begin(), topSet.end());
+            std::sort(seg.incoming_vertices.begin(), seg.incoming_vertices.end());
+            std::sort(seg.outgoing_vertices.begin(), seg.outgoing_vertices.end());
         } else {
-            // unknown/mixed: populate both sides conservatively by checking origins/twin-origins
-            for (int he : seg.halfedges) {
-                if (he < 0 || he >= H) continue;
-                int u = relHalfedges[he].vertex;
-                int twin = relHalfedges[he].twin;
-                int vdest = (twin >= 0 && twin < H) ? relHalfedges[twin].vertex : -1;
-                if (u >= 0) seg.incoming_vertices.push_back(u);
-                if (vdest >= 0) seg.outgoing_vertices.push_back(vdest);
-            }
-            // unique-ify
             std::sort(seg.incoming_vertices.begin(), seg.incoming_vertices.end());
             seg.incoming_vertices.erase(std::unique(seg.incoming_vertices.begin(), seg.incoming_vertices.end()), seg.incoming_vertices.end());
             std::sort(seg.outgoing_vertices.begin(), seg.outgoing_vertices.end());
             seg.outgoing_vertices.erase(std::unique(seg.outgoing_vertices.begin(), seg.outgoing_vertices.end()), seg.outgoing_vertices.end());
         }
 
-        // write mapping for this segment's half-edges
-        for (int he : seg.halfedges) if (he >= 0 && he < H) he_to_seg[he] = sidx;
+        // write he->segment mapping
+        int segIndex = (int)maximalSegments.size();
+        for (int he : seg.halfedges) {
+            if (he >= 0 && he < H) he_to_seg[he] = segIndex;
+            else std::cerr << "computeMaximalSegments: invalid he in segment: " << he << "\n";
+        }
 
         maximalSegments.push_back(std::move(seg));
-        ++sidx;
-    } // end components
+    }
 
-    // 6) set per-vertex left/right/top/bottom using the he_to_seg mapping and deterministic pick
+    // 6) set per-vertex left/right/top/bottom indices
     for (int v = 0; v < V; ++v) {
-        std::unordered_set<int> leftCandidates, rightCandidates, bottomCandidates, topCandidates;
-        const auto &inc = relVertices[v].edges;
-        for (int he : inc) {
+    int leftSeg = -1, rightSeg = -1, bottomSeg = -1, topSeg = -1;
+
+    // Horizontal: left = segment of first incoming BLUE, right = segment of first outgoing BLUE
+    int he_left = rel.getFirstIncomingBlue(v);   // returns half-edge index at v (incoming BLUE)
+    if (he_left >= 0 && he_left < H) leftSeg = he_to_seg[he_left];
+
+    int he_right = rel.getFirstOutgoingBlue(v);  // returns half-edge index at v (outgoing BLUE)
+    if (he_right >= 0 && he_right < H) rightSeg = he_to_seg[he_right];
+
+    // Vertical: bottom = segment of first incoming RED, top = segment of first outgoing RED
+    int he_bottom = rel.getFirstIncomingRed(v);
+    if (he_bottom >= 0 && he_bottom < H) bottomSeg = he_to_seg[he_bottom];
+
+    int he_top = rel.getFirstOutgoingRed(v);
+    if (he_top >= 0 && he_top < H) topSeg = he_to_seg[he_top];
+
+    // Fallbacks: if any side still -1, try last-edge variants (cases where run wraps around)
+    if (leftSeg == -1) {
+        int he = rel.getlastIncomingBlue(v);
+        if (he >= 0 && he < H) leftSeg = he_to_seg[he];
+    }
+    if (rightSeg == -1) {
+        int he = rel.getlastOutgoingBlue(v);
+        if (he >= 0 && he < H) rightSeg = he_to_seg[he];
+    }
+    if (bottomSeg == -1) {
+        int he = rel.getlastIncomingRed(v);
+        if (he >= 0 && he < H) bottomSeg = he_to_seg[he];
+    }
+    if (topSeg == -1) {
+        int he = rel.getlastOutgoingRed(v);
+        if (he >= 0 && he < H) topSeg = he_to_seg[he];
+    }
+
+    // Final fallback: if still missing, pick any candidate deterministically (min) — preserves robustness.
+    if (leftSeg == -1) {
+        // find any incoming BLUE half-edge and use its segment
+        for (int he : rel.getVertices()[v].edges) {
             if (he < 0 || he >= H) continue;
-            int segid = he_to_seg[he];
-            if (segid < 0) continue;
-            const HalfEdge &h = relHalfedges[he];
-            if (h.color == BLUE) {
-                if (h.outgoing) rightCandidates.insert(segid);
-                else leftCandidates.insert(segid);
-            } else if (h.color == RED) {
-                if (h.outgoing) topCandidates.insert(segid);
-                else bottomCandidates.insert(segid);
+            const HalfEdge &h = rel.getHalfEdges()[he];
+            if (h.color == BLUE && !h.outgoing) { leftSeg = he_to_seg[he]; break; }
+        }
+    }
+    if (rightSeg == -1) {
+        for (int he : rel.getVertices()[v].edges) {
+            if (he < 0 || he >= H) continue;
+            const HalfEdge &h = rel.getHalfEdges()[he];
+            if (h.color == BLUE && h.outgoing) { rightSeg = he_to_seg[he]; break; }
+        }
+    }
+    if (bottomSeg == -1) {
+        for (int he : rel.getVertices()[v].edges) {
+            if (he < 0 || he >= H) continue;
+            const HalfEdge &h = rel.getHalfEdges()[he];
+            if (h.color == RED && !h.outgoing) { bottomSeg = he_to_seg[he]; break; }
+        }
+    }
+    if (topSeg == -1) {
+        for (int he : rel.getVertices()[v].edges) {
+            if (he < 0 || he >= H) continue;
+            const HalfEdge &h = rel.getHalfEdges()[he];
+            if (h.color == RED && h.outgoing) { topSeg = he_to_seg[he]; break; }
+        }
+    }
+
+    // write safe-to-call setter
+    rel.setVertexSegmentIndices(v, leftSeg, rightSeg, bottomSeg, topSeg);
+}
+
+    // debug summary
+    std::cout << "computeMaximalSegments: " << maximalSegments.size() << " segments\n";
+    for (size_t i = 0; i < maximalSegments.size(); ++i) {
+        const auto &s = maximalSegments[i];
+        std::cout << " segment " << i << " type=" << static_cast<int>(s.type)
+                  << " halfedges=" << s.halfedges.size()
+                  << " incoming verts=" << s.incoming_vertices.size()
+                  << " outgoing verts=" << s.outgoing_vertices.size() << "\n";
+    }
+
+    for (size_t si = 0; si < maximalSegments.size(); ++si) {
+        const auto &s = maximalSegments[si];
+        if (s.halfedges.empty()) {
+            std::cerr << "Warning: segment " << si << " has zero halfedges\n";
+        }
+        for (int he : s.halfedges) {
+            if (he < 0 || he >= (int)rel.getHalfEdges().size()) {
+                std::cerr << "ERROR: segment " << si << " contains invalid halfedge index " << he << "\n";
             }
         }
-        auto pick_one = [](const std::unordered_set<int> &S)->int {
-            if (S.empty()) return -1;
-            int m = INT_MAX;
-            for (int x : S) if (x < m) m = x;
-            return (m==INT_MAX) ? -1 : m;
-        };
-        int leftSeg   = pick_one(leftCandidates);
-        int rightSeg  = pick_one(rightCandidates);
-        int bottomSeg = pick_one(bottomCandidates);
-        int topSeg    = pick_one(topCandidates);
-
-        // write into rel (non-const)
-        rel.setVertexSegmentIndices(v, leftSeg, rightSeg, bottomSeg, topSeg);
     }
 
     return true;
+}
+
+bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size) {
+    // build compact index maps for existing segments
+    const int S = (int)maximalSegments.size();
+    int hcount = 0, vcount = 0;
+    std::vector<int> seg_to_hidx(S, -1), seg_to_vidx(S, -1);
+    for (int i = 0; i < S; ++i) {
+        if (maximalSegments[i].type == SEGMENT_HORIZONTAL) seg_to_hidx[i] = hcount++;
+        else if (maximalSegments[i].type == SEGMENT_VERTICAL) seg_to_vidx[i] = vcount++;
+    }
+
+    // create frame nodes (we'll append them after existing segments by concept)
+    // We'll treat them as separate indices in the adjacency arrays.
+    const int leftFrameIdx = hcount;    // index in horizontal node-space
+    const int rightFrameIdx = hcount+1;
+    const int bottomFrameIdx = vcount;  // index in vertical node-space
+    const int topFrameIdx = vcount+1;
+
+    // adjacency lists sized to include frame nodes
+    std::vector<std::vector<std::uint32_t>> horAdj(hcount + 2);
+    std::vector<std::vector<std::uint32_t>> verAdj(vcount + 2);
+
+    const auto &verts = rel.getVertices();
+    const int V = (int)verts.size();
+
+    // helper to map possibly -1 segment id to horizontal/vertical node index
+    auto hnode = [&](int segId)->int {
+        if (segId < 0) return -1;
+        if (segId >= 0 && segId < S) return seg_to_hidx[segId];
+        return -1;
+    };
+    auto vnode = [&](int segId)->int {
+        if (segId < 0) return -1;
+        if (segId >= 0 && segId < S) return seg_to_vidx[segId];
+        return -1;
+    };
+
+    // Build edges. If left or right is -1, map to the corresponding frame node.
+    for (int v = 0; v < V; ++v) {
+        int leftSeg = verts[v].left_segment;
+        int rightSeg = verts[v].right_segment;
+        int bottomSeg = verts[v].bottom_segment;
+        int topSeg = verts[v].top_segment;
+
+        // horizontal: left -> right
+        int a = hnode(leftSeg);
+        int b = hnode(rightSeg);
+        if (leftSeg == -1 && rightSeg == -1) {
+            // touches both frame? connect leftFrame -> rightFrame
+            horAdj[leftFrameIdx].push_back((std::uint32_t)rightFrameIdx);
+        } else if (leftSeg == -1 && b >= 0) {
+            horAdj[leftFrameIdx].push_back((std::uint32_t)b);
+        } else if (rightSeg == -1 && a >= 0) {
+            horAdj[a].push_back((std::uint32_t)rightFrameIdx);
+        } else if (a >= 0 && b >= 0 && a != b) {
+            horAdj[a].push_back((std::uint32_t)b);
+        }
+
+        // vertical: bottom -> top
+        int c = vnode(bottomSeg);
+        int d = vnode(topSeg);
+        if (bottomSeg == -1 && topSeg == -1) {
+            verAdj[bottomFrameIdx].push_back((std::uint32_t)topFrameIdx);
+        } else if (bottomSeg == -1 && d >= 0) {
+            verAdj[bottomFrameIdx].push_back((std::uint32_t)d);
+        } else if (topSeg == -1 && c >= 0) {
+            verAdj[c].push_back((std::uint32_t)topFrameIdx);
+        } else if (c >= 0 && d >= 0 && c != d) {
+            verAdj[c].push_back((std::uint32_t)d);
+        }
+    }
+
+    // deduplicate edges
+    auto dedup = [](std::vector<std::vector<std::uint32_t>> &adj) {
+        for (auto &nbrs : adj) {
+            if (nbrs.size() <= 1) continue;
+            std::sort(nbrs.begin(), nbrs.end());
+            nbrs.erase(std::unique(nbrs.begin(), nbrs.end()), nbrs.end());
+        }
+    };
+    dedup(horAdj);
+    dedup(verAdj);
+
+    // Topo-sort with your topoSort helper; it must handle the new arrays (size > 0)
+    std::vector<std::uint32_t> htopo, vtopo;
+    if (!topoSort(horAdj, htopo)) { std::cerr << "horizontal DAG has cycle\n"; return false; }
+    if (!topoSort(verAdj, vtopo)) { std::cerr << "vertical DAG has cycle\n"; return false; }
+
+    // longest-path distances
+    std::vector<int> hx(horAdj.size(), 0), vy(verAdj.size(), 0);
+    for (auto u : htopo) for (auto w : horAdj[u]) hx[w] = std::max(hx[w], hx[u] + 1);
+    for (auto u : vtopo) for (auto w : verAdj[u]) vy[w] = std::max(vy[w], vy[u] + 1);
+
+    // Recover segment coordinates (map back to S-sized arrays)
+    std::vector<int> seg_x(S, -1), seg_y(S, -1);
+    for (int si = 0; si < S; ++si) {
+        if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
+            int hi = seg_to_hidx[si];
+            if (hi >= 0) seg_x[si] = hx[hi];
+        } else if (maximalSegments[si].type == SEGMENT_VERTICAL) {
+            int vi = seg_to_vidx[si];
+            if (vi >= 0) seg_y[si] = vy[vi];
+        }
+    }
+
+
+    // Now use frame node coords too if needed: leftFrameIdx->hx[leftFrameIdx], rightFrameIdx->...
+    int leftFrameX = hx[leftFrameIdx], rightFrameX = hx[rightFrameIdx];
+    int bottomFrameY = vy[bottomFrameIdx], topFrameY = vy[topFrameIdx];
+
+    // print horAdj
+    std::cout << "horAdj (size " << horAdj.size() << "):\n";
+    for (size_t i=0;i<horAdj.size();++i) {
+        std::cout << "  " << i << " ->";
+        for (auto nb: horAdj[i]) std::cout << " " << nb;
+        std::cout << "\n";
+    }
+    // print seg_x and per-vertex intervals
+    std::cout << "seg_x:\n";
+    for (int si = 0; si < S; ++si)
+        if (maximalSegments[si].type == SEGMENT_HORIZONTAL)
+            std::cout << " seg " << si << " -> x=" << seg_x[si] << "\n";
+
+    for (int v = 0; v < V; ++v) {
+        int lx = (verts[v].left_segment == -1 ? leftFrameX : seg_x[ verts[v].left_segment ]);
+        int rx = (verts[v].right_segment == -1 ? rightFrameX : seg_x[ verts[v].right_segment ]);
+        std::cout << "vertex '" << verts[v].label << "' leftSeg=" << verts[v].left_segment
+                  << " rightSeg=" << verts[v].right_segment
+                  << " lx=" << lx << " rx=" << rx << "\n";
+    }
+
+    // 0) basic info
+    std::cout << "maximalSegments.size() = " << maximalSegments.size() << "\n";
+    for (int si = 0; si < (int)maximalSegments.size(); ++si) {
+        std::cout << "  seg#" << si << " type=" << maximalSegments[si].type
+                  << " he_count=" << maximalSegments[si].halfedges.size() << "\n";
+    }
+
+    // 1) mapping seg -> compact hnode -> hx
+    std::cout << "SEG -> hnode -> hx mapping:\n";
+    for (int si = 0; si < (int)maximalSegments.size(); ++si) {
+        int hnode = seg_to_hidx[si];           // -1 if not horizontal
+        if (hnode >= 0 && hnode < (int)hx.size()) {
+            std::cout << "  seg " << si << " -> hnode " << hnode << " -> hx=" << hx[hnode] << "\n";
+        } else {
+            std::cout << "  seg " << si << " -> hnode " << hnode << " (non-horizontal or invalid)\n";
+        }
+    }
+
+    // 2) print horAdj clearly with meaning
+    std::cout << "horAdj (size " << horAdj.size() << "):\n";
+    for (size_t i=0;i<horAdj.size();++i) {
+        std::cout << "  node " << i;
+        if (i == hcount) std::cout << " (leftFrame)";
+        if (i == hcount+1) std::cout << " (rightFrame)";
+        std::cout << " ->";
+        for (auto nb: horAdj[i]) std::cout << " " << nb;
+        std::cout << "\n";
+    }
+
+    // 3) per-vertex assigned segment IDs and final integer intervals
+    std::cout << "Per-vertex intervals:\n";
+    for (int v = 0; v < V; ++v) {
+        const auto &vert = verts[v];
+        int lx = (vert.left_segment == -1 ? hx[leftFrameIdx] : hx[ seg_to_hidx[ vert.left_segment ] ]);
+        int rx = (vert.right_segment == -1 ? hx[rightFrameIdx] : hx[ seg_to_hidx[ vert.right_segment ] ]);
+        std::cout << "  vertex '" << vert.label << "' leftSeg=" << vert.left_segment
+                  << " rightSeg=" << vert.right_segment << " -> lx=" << lx << " rx=" << rx << "\n";
+    }
+
+    // build rects for each region
+    rects.clear(); rects.resize((size_t)V);
+    for (int v = 0; v < V; ++v) {
+        int lx = 0, rx = 0, by = 0, ty = 0;
+        int leftSeg = verts[v].left_segment;
+        int rightSeg = verts[v].right_segment;
+        int bottomSeg = verts[v].bottom_segment;
+        int topSeg = verts[v].top_segment;
+
+        if (leftSeg == -1) lx = leftFrameX;
+        else if (leftSeg >= 0 && leftSeg < S) lx = seg_x[leftSeg];
+        if (rightSeg == -1) rx = rightFrameX;
+        else if (rightSeg >= 0 && rightSeg < S) rx = seg_x[rightSeg];
+        if (bottomSeg == -1) by = bottomFrameY;
+        else if (bottomSeg >= 0 && bottomSeg < S) by = seg_y[bottomSeg];
+        if (topSeg == -1) ty = topFrameY;
+        else if (topSeg >= 0 && topSeg < S) ty = seg_y[topSeg];
+
+        // sanity: ensure left < right etc.
+        if (lx >= rx) rx = lx + 1;
+        if (by >= ty) ty = by + 1;
+
+        Rect r;
+        r.left   = double(lx) * cell_size;
+        r.right  = double(rx) * cell_size;
+        r.bottom = double(by) * cell_size;
+        r.top    = double(ty) * cell_size;
+        rects[v] = r;
+    }
+
+    std::cout << "computeMaximalSegments In segmentposition function: " << maximalSegments.size() << " segments\n";
+    for (size_t i = 0; i < maximalSegments.size(); ++i) {
+        const auto &s = maximalSegments[i];
+        std::cout << " segment " << i << " type=" << static_cast<int>(s.type)
+                  << " halfedges=" << s.halfedges.size()
+                  << " incoming verts=" << s.incoming_vertices.size()
+                  << " outgoing verts=" << s.outgoing_vertices.size() << "\n";
+    }
+
+    std::cout << "hcount = " << hcount << " (horizontal nodes), hx values:\n";
+    for (size_t i = 0; i < hx.size(); ++i) std::cout << i << ":" << hx[i] << " ";
+    std::cout << "\nleftFrameX=" << leftFrameX << " rightFrameX=" << rightFrameX << "\n";
+
+    return true;
+}
+
+// debug: dump a segment's halfedges and the half-edge directions
+void RectangularDual::debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const {
+    if (segId < 0 || segId >= (int)maximalSegments.size()) {
+        std::cout << "debugDumpSegment: segId out of range\n"; return;
+    }
+    const auto &seg = maximalSegments[segId];
+    std::cout << "Segment " << segId << " type=" << static_cast<int>(seg.type)
+              << " halfedges=" << seg.halfedges.size() << "\n";
+    for (int he : seg.halfedges) {
+        const auto &h = rel.getHalfEdges()[he];
+        int twin = h.twin;
+        int dest = (twin >= 0 ? rel.getHalfEdges()[twin].vertex : -1);
+        std::cout << " he#" << he
+                  << " origin=" << h.vertex << "('" << rel.getVertices()[h.vertex].label << "')"
+                  << " -> dest=" << dest
+                  << (dest >= 0 ? ("('" + rel.getVertices()[dest].label + "')") : std::string(""))
+                  << " color=" << (h.color==BLUE?"BLUE":(h.color==RED?"RED":"UNK"))
+                  << " out=" << h.outgoing << "\n";
+    }
+    std::cout << " incoming verts (side A): ";
+    for (int v : seg.incoming_vertices) std::cout << rel.getVertices()[v].label << " ";
+    std::cout << "\n outgoing verts (side B): ";
+    for (int v : seg.outgoing_vertices) std::cout << rel.getVertices()[v].label << " ";
+    std::cout << "\n";
+}
+
+// debug: dump vertex candidate segments and chosen ones
+void RectangularDual::debugDumpVertexSegments(const RegularEdgeLabeling &rel, int v) const {
+    const auto &verts = rel.getVertices();
+    const auto &hes  = rel.getHalfEdges();
+    std::cout << "Vertex " << v << " '" << verts[v].label << "' incident half-edges (CCW):\n";
+    for (int he : verts[v].edges) {
+        const auto &h = hes[he];
+        int twin = h.twin;
+        int dest = (twin >= 0 ? hes[twin].vertex : -1);
+        std::cout << " he#" << he << " -> " << dest
+                  << " color=" << (h.color==BLUE?"BLUE":(h.color==RED?"RED":"UNK"))
+                  << " out=" << h.outgoing << "\n";
+    }
+    std::cout << "Assigned segments: left=" << verts[v].left_segment
+              << " right=" << verts[v].right_segment
+              << " bottom=" << verts[v].bottom_segment
+              << " top=" << verts[v].top_segment << "\n";
 }
 
 bool RectangularDual::buildSTGraphsFromREL(const RegularEdgeLabeling &rel) {
@@ -363,7 +697,7 @@ bool RectangularDual::buildSTGraphsFromREL(const RegularEdgeLabeling &rel) {
 
         if (h.color == RED) {
             G1.out[u].push_back(v);
-            G2.out[v].push_back(v);
+            G2.out[v].push_back(u);
         }
         else if (h.color == BLUE) {
             G2.out[u].push_back(v);

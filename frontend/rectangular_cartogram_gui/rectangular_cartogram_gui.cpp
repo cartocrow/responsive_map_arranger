@@ -62,16 +62,17 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     std::cout << "ST graph construction status: " << constructedSTgraphs << std::endl;
     std::cout << "Dual graphs construction status: " << constructedDuals << std::endl;
 
-    m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, RED);
-    m_rectangularDual->debugPrintFacesForColor(*m_relPtr, RED);
-    std::cout << " blue: " << std::endl;
-    m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, BLUE);
-    m_rectangularDual->debugPrintFacesForColor(*m_relPtr, BLUE);
+    // m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, RED);
+    // m_rectangularDual->debugPrintFacesForColor(*m_relPtr, RED);
+    // std::cout << " blue: " << std::endl;
+    // m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, BLUE);
+    // m_rectangularDual->debugPrintFacesForColor(*m_relPtr, BLUE);
 
 
     bool computedMaximalSegments = m_rectangularDual->computeMaximalSegments(*m_relPtr);
 
-    std::cout << "computed maximal Segments: " << computedMaximalSegments << std::endl;
+    bool computedSegmentPositions = m_rectangularDual->computeSegmentPositions(*m_relPtr);
+
 
     // inspect some vertices
     for (int v = 0; v < m_relPtr->getVertices().size(); ++v) {
@@ -85,8 +86,10 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
 
     std::cout << "-------------------" << std::endl;
 
-    for (int s = 0; s < m_rectangularDual->getMaximalSegments().size(); ++s) {
-        const auto &seg = m_rectangularDual->getMaximalSegments()[s];
+    auto maximalSegments = m_rectangularDual->getMaximalSegments();
+
+    for (int s = 0; s < maximalSegments.size(); ++s) {
+        const auto &seg = maximalSegments[s];
         std::cout << "segment " << s << " type=" << seg.type
                   << " halfedges=" << seg.halfedges.size()
                   << " incoming verts=" << seg.incoming_vertices.size()

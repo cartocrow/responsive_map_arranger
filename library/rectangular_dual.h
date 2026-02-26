@@ -50,6 +50,12 @@ public:
     bool computeMaximalSegments(RegularEdgeLabeling &rel);
     std::vector<Segment> getMaximalSegments() const { return maximalSegments; };
 
+    // rectangular_dual.h (add inside class RectangularDual)
+    bool computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size = 50.0);
+
+    void debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const;
+    void debugDumpVertexSegments(const RegularEdgeLabeling &rel, int v) const;
+
     bool buildSTGraphsFromREL(const RegularEdgeLabeling &rel);
     bool buildDualsFromREL(const RegularEdgeLabeling &rel);
     void debugPrintFacesForColor(const RegularEdgeLabeling &rel, EdgeColor color) const;

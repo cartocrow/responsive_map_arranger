@@ -54,6 +54,11 @@ public:
 
     void setVertexSegmentIndices(int vertexId, int leftSeg, int rightSeg, int bottomSeg, int topSeg);
 
+    int getVertexLeftSegment(int v) const;
+    int getVertexRightSegment(int v) const;
+    int getVertexBottomSegment(int v) const;
+    int getVertexTopSegment(int v) const;
+
     int getPreviousCyclicEdge(const int edgeId) const;
     int getNextCyclicEdge(const int edgeId) const;
 
