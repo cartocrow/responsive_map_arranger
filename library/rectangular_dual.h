@@ -61,8 +61,6 @@ public:
     bool buildSTandDUal(const RegularEdgeLabeling &rel) ;
 
     bool buildSTGraphsFromREL(const RegularEdgeLabeling &rel);
-    bool buildDualsFromREL(const RegularEdgeLabeling &rel);
-    void debugPrintFacesForColor(const RegularEdgeLabeling &rel, EdgeColor color) const;
     void debugListUnassignedHalfEdges(const RegularEdgeLabeling &rel, EdgeColor color) const;
 
     // Build rectangular dual from RELmap (legacy)
@@ -103,34 +101,6 @@ private:
     void packVertical(const std::vector<std::vector<std::uint32_t>> &adj,
                       const std::vector<std::uint32_t> &topo,
                       std::vector<int> &bottomIndex, int &maxTop) const;
-
-    static int findNextActive(int next, int H,
-                             const RegularEdgeLabeling &rel,
-                             const std::vector<HalfEdge> &relHalfedges,
-                             const std::unordered_set<int> &activeHE);
-
-    static void walkFaceFrom(int start, int H, const RegularEdgeLabeling &rel,
-                             const std::vector<HalfEdge> &relHalfedges,
-                             const unordered_set<int> &activeHE,
-                             std::vector<char> &visited,
-                             std::vector<int> &faceOfHE,
-                             int &nextFaceId);
-
-    // helpers for dual adjacency & ST-test
-    static void buildDualAdjacency(bool right_to_left, int F,
-                                   const std::vector<int> &activeHE_list, // list copy of activeHE for iteration
-                                   const std::vector<HalfEdge> &relHalfedges,
-                                   const std::vector<int> &faceOfHE,
-                                   std::vector<std::vector<int>> &out,
-                                   std::vector<std::vector<int>> &in);
-
-    static void testST(const std::vector<std::vector<int>> &outAdj,
-                       const std::vector<std::vector<int>> &inAdj,
-                       int &srcRes, int &sinkRes, int &nSrc, int &nSink);
-
-    static void printSourceSinks(const std::vector<std::vector<int>> &outAdj,
-                                 const std::vector<std::vector<int>> &inAdj,
-                                 const std::string &label);
 
 
     std::vector<Segment> maximalSegments;
