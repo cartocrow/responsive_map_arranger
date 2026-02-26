@@ -72,6 +72,8 @@ public:
     int getlastOutgoingRed(int vertexId) const;
     int getlastIncomingRed(int vertexId) const;
 
+    int canonicalHalfEdge(int he) const;
+
     bool flipEdgeColor(const int edgeId);
     bool flipEdgeDiagonally(int edgeId, bool clockwise);
     void debugCheckAfterFlip(int edgeId) const;

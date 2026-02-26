@@ -148,6 +148,19 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     vLayout->addWidget(debugSettings);
     vLayout->addWidget(m_showREL);
 
+    // EDGE SELECTION/MANIPULATION BUTTONS
+    auto* selectionLabel = new QLabel("<h3>Selection Actions</h3>", vWidget);
+    auto* btnFlipColor = new QPushButton("Flip Color");
+    auto* btnFlipDiagCW = new QPushButton("Flip Diagonal ▶ (CW)");
+    auto* btnFlipDiagCCW = new QPushButton("Flip Diagonal ◀ (CCW)");
+    auto* btnClearSelection = new QPushButton("Clear Selection");
+
+    vLayout->addWidget(selectionLabel);
+    vLayout->addWidget(btnFlipColor);
+    vLayout->addWidget(btnFlipDiagCW);
+    vLayout->addWidget(btnFlipDiagCCW);
+    vLayout->addWidget(btnClearSelection);
+
 
     connect(loadDataButton, &QPushButton::clicked, [this, loadDataButton]() {
         QString startDir = "data";
@@ -160,6 +173,79 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     connect(m_showREL, &QCheckBox::toggled, [this, loadDataButton]() {
         m_relPainting->drawRel(m_showREL->isChecked());
         m_renderer->update();
+    });
+
+     connect(btnClearSelection, &QPushButton::clicked, [this]() {
+        if (m_relPainting) {
+            m_relPainting->clearSelection();
+            m_renderer->update();
+        }
+    });
+
+    connect(btnFlipColor, &QPushButton::clicked, [this]() {
+        if (!m_relPtr || !m_relPainting) return;
+        const auto sels = m_relPainting->getSelectedHalfEdges();
+        if (sels.empty()) return;
+        for (int he : sels) {
+            bool ok = m_relPtr->flipEdgeColor(he);
+            if (!ok) std::cerr << "flipEdgeColor failed for halfedge " << he << "\n";
+        }
+        // after mutating REL, rebuild dual & segment geometry:
+        if (m_rectangularDual) {
+            m_rectangularDual->computeMaximalSegments(*m_relPtr);
+            m_rectangularDual->computeSegmentPositions(*m_relPtr);
+            m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+        }
+        m_renderer->update();
+    });
+
+    connect(btnFlipDiagCW, &QPushButton::clicked, [this]() {
+        if (!m_relPtr || !m_relPainting) return;
+        const auto sels = m_relPainting->getSelectedHalfEdges();
+        if (sels.empty()) return;
+        for (int he : sels) {
+            int heCan = m_relPtr->canonicalHalfEdge(he);
+            bool ok = m_relPtr->flipEdgeDiagonally(heCan, /*clockwise=*/true);
+
+            //bool ok = m_relPtr->flipEdgeDiagonally(heCan, /*clockwise=*/true);
+            if (!ok) std::cerr << "flipEdgeDiagonally(cw) failed for halfedge " << he << "\n";
+        }
+        if (m_rectangularDual) {
+            m_rectangularDual->computeMaximalSegments(*m_relPtr);
+            m_rectangularDual->computeSegmentPositions(*m_relPtr);
+            m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+        }
+        m_renderer->update();
+    });
+
+    connect(btnFlipDiagCCW, &QPushButton::clicked, [this]() {
+        if (!m_relPtr || !m_relPainting) return;
+        const auto sels = m_relPainting->getSelectedHalfEdges();
+        if (sels.empty()) return;
+        for (int he : sels) {
+            int heCan = m_relPtr->canonicalHalfEdge(he);
+            bool ok = m_relPtr->flipEdgeDiagonally(heCan, /*clockwise=*/false);
+            //bool ok = m_relPtr->flipEdgeDiagonally(heCan, /*clockwise=*/false);
+            if (!ok) std::cerr << "flipEdgeDiagonally(ccw) failed for halfedge " << he << "\n";
+        }
+        if (m_rectangularDual) {
+            m_rectangularDual->computeMaximalSegments(*m_relPtr);
+            m_rectangularDual->computeSegmentPositions(*m_relPtr);
+            m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+        }
+        m_renderer->update();
+    });
+
+    connect(m_renderer, &GeometryWidget::clicked, [this](Point<Inexact> pt){
+        if (!m_relPainting) return;
+        float wx = static_cast<float>(pt.x());
+        float wy = static_cast<float>(pt.y());
+        int he = m_relPainting->pickAndToggleHalfEdgeNear(wx, wy, 8.0 /*tolerance*/);
+        if (he >= 0) {
+            // optional: print / debug
+            std::cout << "Toggled selection halfedge " << he << "\n";
+            m_renderer->update();
+        }
     });
 }
 

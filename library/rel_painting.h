@@ -3,6 +3,7 @@
 #include <array>
 #include <string>
 #include <optional>
+#include <unordered_set>
 
 #include <cartocrow/core/core.h>
 #include <cartocrow/renderer/geometry_painting.h>
@@ -18,6 +19,7 @@ using Renderer = cartocrow::renderer::GeometryRenderer;
 #include "regular_edge_labeling.h" // new dependency
 
 
+
 class RELPainting : public cartocrow::renderer::GeometryPainting {
 public:
     struct Options {
@@ -31,6 +33,7 @@ public:
         double colorRedEdge[3] = { 200, 30, 45 };
         double colorBlueEdge[3] = { 41, 128, 185 };
         double colorEdgeFrame[3] = { 44, 62, 80 };
+        double colorSelection[4] = { 200, 200, 200 };
         double colorText[3] = { 34, 34, 34 };
     };
 
@@ -51,10 +54,22 @@ public:
     // main paint entry
     void paint(Renderer &renderer) const;
 
+
+    int pickAndToggleHalfEdgeNear(double wx, double wy, double tol = 8.0);
+    int pickHalfEdgeNear(double wx, double wy, double tol = 8.0) const;
+
+    // manipulate selection directly
+    void clearSelection();
+    void selectHalfEdge(int halfedge);
+    void deselectHalfEdge(int halfedge);
+    const std::unordered_set<int> &getSelectedHalfEdges() const { return m_selectedHalfEdges; }
+
 private:
     std::shared_ptr<RegularEdgeLabeling> m_rel;
     std::shared_ptr<RectangularDual> m_dual;
     Options m_options;
+
+    std::unordered_set<int> m_selectedHalfEdges;
 
     // helpers
     static bool isFrameLabel(const std::string &s) {

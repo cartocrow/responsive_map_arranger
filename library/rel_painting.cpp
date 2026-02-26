@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iostream>
 #include <array>
+#include <limits>
 
 // If RegularEdgeLabeling and the nested types are in a namespace (e.g. rel::),
 // either add `using namespace rel;` here, or qualify them below (e.g. rel::RegularEdgeLabeling).
@@ -181,6 +182,13 @@ void RELPainting::paint(Renderer &renderer) const {
                            m_options.colorEdgeFrame[2] },
                          std::max(1.0, strokeW));
         }
+
+        if (m_selectedHalfEdges.count(hi)) {
+            // use a bright highlight color and thicker stroke
+            draw_segment(ax, ay, bx, by,
+                         { m_options.colorSelection[0], m_options.colorSelection[1], m_options.colorSelection[2] },
+                         std::max(2.0, strokeW * 2.5));
+        }
     } // end halfedge loop
 
     // draw labels
@@ -195,4 +203,85 @@ void RELPainting::paint(Renderer &renderer) const {
             renderer.drawText(p, label);
         }
     }
+}
+
+// Helper: squared distance from point P to segment AB
+static double pointSegmentDist2(double px, double py, double ax, double ay, double bx, double by) {
+    double vx = bx - ax;
+    double vy = by - ay;
+    double wx = px - ax;
+    double wy = py - ay;
+    double c = vx*vx + vy*vy;
+    if (c <= 1e-12) {
+        // degenerate segment
+        double dx = px - ax, dy = py - ay;
+        return dx*dx + dy*dy;
+    }
+    double t = (wx*vx + wy*vy) / c;
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+    double qx = ax + vx * t;
+    double qy = ay + vy * t;
+    double dx = px - qx;
+    double dy = py - qy;
+    return dx*dx + dy*dy;
+}
+
+int RELPainting::pickHalfEdgeNear(double wx, double wy, double tol) const {
+    if (!m_rel || !m_dual) return -1;
+    const auto &vertices = m_rel->getVertices();
+    const size_t nRegions = vertices.size();
+    if (nRegions == 0) return -1;
+    if (m_dual->rectangles().size() != nRegions) return -1;
+
+    // compute centroids (same as paint)
+    std::vector<std::pair<double,double>> pos(nRegions);
+    for (size_t i = 0; i < nRegions; ++i) {
+        const auto &r = m_dual->getRect(static_cast<unsigned int>(i));
+        pos[i] = { 0.5 * (r.left + r.right), 0.5 * (r.bottom + r.top) };
+    }
+
+    const auto &halfedges = m_rel->getHalfEdges();
+    int bestHe = -1;
+    double bestD2 = tol * tol;
+    for (int hi = 0; hi < (int)halfedges.size(); ++hi) {
+        const auto &h = halfedges[hi];
+        if (!h.outgoing) continue;
+        int u = h.vertex;
+        int twin = h.twin;
+        if (u < 0 || u >= (int)nRegions) continue;
+        if (twin < 0 || twin >= (int)halfedges.size()) continue;
+        int v = halfedges[twin].vertex;
+        if (v < 0 || v >= (int)nRegions) continue;
+
+        double ax = pos[u].first, ay = pos[u].second;
+        double bx = pos[v].first, by = pos[v].second;
+
+        double d2 = pointSegmentDist2(wx, wy, ax, ay, bx, by);
+        if (d2 <= bestD2) {
+            bestD2 = d2;
+            bestHe = hi;
+        }
+    }
+    return bestHe;
+}
+
+int RELPainting::pickAndToggleHalfEdgeNear(double wx, double wy, double tol) {
+    int he = pickHalfEdgeNear(wx, wy, tol);
+    if (he < 0) return -1;
+    if (m_selectedHalfEdges.count(he)) m_selectedHalfEdges.erase(he);
+    else m_selectedHalfEdges.insert(he);
+    return he;
+}
+
+void RELPainting::clearSelection() {
+    m_selectedHalfEdges.clear();
+}
+
+void RELPainting::selectHalfEdge(int halfedge) {
+    if (halfedge >= 0) m_selectedHalfEdges.insert(halfedge);
+}
+
+void RELPainting::deselectHalfEdge(int halfedge) {
+    m_selectedHalfEdges.erase(halfedge);
 }

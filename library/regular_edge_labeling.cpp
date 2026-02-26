@@ -336,6 +336,15 @@ int RegularEdgeLabeling::getlastIncomingRed(const int vertexId) const {
     return findLastEdgeOfType(vertexId, RED, false);
 }
 
+int RegularEdgeLabeling::canonicalHalfEdge(int he) const {
+    if (he < 0 || he >= (int)m_halfEdges.size()) return -1;
+    const HalfEdge &h = m_halfEdges[he];
+    if (h.outgoing) return he;
+    int t = h.twin;
+    if (t >= 0 && t < (int)m_halfEdges.size() && m_halfEdges[t].outgoing) return t;
+    return he;
+}
+
 bool RegularEdgeLabeling::flipEdgeColor(const int edgeId) {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) return false;
     HalfEdge &halfEdge = m_halfEdges[edgeId];
@@ -356,6 +365,7 @@ bool RegularEdgeLabeling::flipEdgeColor(const int edgeId) {
 }
 
 bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
+
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         cerr << "Invalid edgeId " << edgeId << endl;
         return false;
@@ -366,23 +376,50 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
         return false;
     }
 
-    int a = m_halfEdges[edgeId].vertex; // origin of half-edge id
-    int b = m_halfEdges[twinId].vertex; // other edge id (of twin)
+    int a = -1;
+    int b = -1;
+    int baseEdgeId = -1;
+    int endEdgeId = -1;
+
+    if (m_halfEdges[edgeId].outgoing) {
+        a = m_halfEdges[edgeId].vertex; // origin of half-edge id
+        b = m_halfEdges[twinId].vertex;
+        baseEdgeId = edgeId;
+        endEdgeId = twinId;
+    }
+    else {
+        a = m_halfEdges[twinId].vertex; // origin of half-edge id
+        b = m_halfEdges[edgeId].vertex;
+        baseEdgeId = twinId;
+        endEdgeId = edgeId;
+    }
+    //
+    // int a = m_halfEdges[edgeId].vertex; // origin of half-edge id
+    // int b = m_halfEdges[twinId].vertex; // other edge id (of twin)
     if (a < 0 || b < 0 || a >= m_vertices.size() || b >= m_vertices.size()) return false;
 
-    const int posA = find_position_in_vertex_incident(m_vertices, a, edgeId);
-    const int posB = find_position_in_vertex_incident(m_vertices, b, twinId);
-    if (posA == -1 || posB == -1) return false;
+    const int posA = find_position_in_vertex_incident(m_vertices, a, baseEdgeId);
+    const int posB = find_position_in_vertex_incident(m_vertices, b, endEdgeId);
+    if (posA == -1) return false;// || posB == -1) return false;
 
     // previous or next half-edge around a and b in ccw order
     int cEdge = -1;
     int dEdge = -1;
+    // if (clockwise) {
+    //     cEdge = getNextCyclicEdge(edgeId);
+    //     dEdge = getNextCyclicEdge(twinId);
+    // } else {
+    //     cEdge = getPreviousCyclicEdge(edgeId);
+    //     dEdge = getPreviousCyclicEdge(twinId);
+    // }
+
     if (clockwise) {
         cEdge = getNextCyclicEdge(edgeId);
-        dEdge = getNextCyclicEdge(twinId);
-    } else {
+        dEdge = getPreviousCyclicEdge(edgeId);
+    }
+    else {
         cEdge = getPreviousCyclicEdge(edgeId);
-        dEdge = getPreviousCyclicEdge(twinId);
+        dEdge = getNextCyclicEdge(edgeId);
     }
 
     int cVertex = m_halfEdges[m_halfEdges[cEdge].twin].vertex;
@@ -430,7 +467,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     if (dCyclicPos == -1) return false;
     {
         auto &elistD = m_vertices[dVertex].edges;
-        int insertPos = clockwise ? dCyclicPos + 1 : dCyclicPos - 1;
+        int insertPos = clockwise ? dCyclicPos -1 : dCyclicPos + 1;
         if (insertPos < 0) insertPos = 0;
         if (insertPos > elistD.size()) insertPos = elistD.size();
         elistD.insert(elistD.begin() + insertPos, twinId);
