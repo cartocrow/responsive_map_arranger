@@ -5,6 +5,7 @@
 #include <string>
 #include <cstdint>
 #include <optional>
+#include <unordered_set>
 
 #include "regular_edge_labeling.h"
 
@@ -16,16 +17,17 @@ enum SegmentType {
 };
 
 struct Segment {
-    SegmentType type = SEGMENT_UNKNOWN;
+    SegmentType type = SEGMENT_UNKNOWN; // blue or red
     std::vector<int> halfedges;          // half-edge indices belonging to this maximal segment
-    std::vector<int> incoming_vertices;  // vertex indices that are on the *incoming* side of the segment
-    std::vector<int> outgoing_vertices;  // vertex indices that are on the *outgoing* side of the segment
+    std::vector<int> incoming_vertices;  // for horizontal: below rects, for vertical: left rects
+    std::vector<int> outgoing_vertices;  // for horizontal: above rects, for vertical: right rects
+
+    //coord
+    //gradient value
 };
 
-// forward-declare old RELmap (kept for compatibility)
 class RELmap;
 
-// forward-declare RegularEdgeLabeling (new path)
 class RegularEdgeLabeling;
 enum EdgeColor;
 
@@ -55,6 +57,8 @@ public:
 
     void debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const;
     void debugDumpVertexSegments(const RegularEdgeLabeling &rel, int v) const;
+
+    bool buildSTandDUal(const RegularEdgeLabeling &rel) ;
 
     bool buildSTGraphsFromREL(const RegularEdgeLabeling &rel);
     bool buildDualsFromREL(const RegularEdgeLabeling &rel);
@@ -99,6 +103,34 @@ private:
     void packVertical(const std::vector<std::vector<std::uint32_t>> &adj,
                       const std::vector<std::uint32_t> &topo,
                       std::vector<int> &bottomIndex, int &maxTop) const;
+
+    static int findNextActive(int next, int H,
+                             const RegularEdgeLabeling &rel,
+                             const std::vector<HalfEdge> &relHalfedges,
+                             const std::unordered_set<int> &activeHE);
+
+    static void walkFaceFrom(int start, int H, const RegularEdgeLabeling &rel,
+                             const std::vector<HalfEdge> &relHalfedges,
+                             const unordered_set<int> &activeHE,
+                             std::vector<char> &visited,
+                             std::vector<int> &faceOfHE,
+                             int &nextFaceId);
+
+    // helpers for dual adjacency & ST-test
+    static void buildDualAdjacency(bool right_to_left, int F,
+                                   const std::vector<int> &activeHE_list, // list copy of activeHE for iteration
+                                   const std::vector<HalfEdge> &relHalfedges,
+                                   const std::vector<int> &faceOfHE,
+                                   std::vector<std::vector<int>> &out,
+                                   std::vector<std::vector<int>> &in);
+
+    static void testST(const std::vector<std::vector<int>> &outAdj,
+                       const std::vector<std::vector<int>> &inAdj,
+                       int &srcRes, int &sinkRes, int &nSrc, int &nSink);
+
+    static void printSourceSinks(const std::vector<std::vector<int>> &outAdj,
+                                 const std::vector<std::vector<int>> &inAdj,
+                                 const std::string &label);
 
 
     std::vector<Segment> maximalSegments;

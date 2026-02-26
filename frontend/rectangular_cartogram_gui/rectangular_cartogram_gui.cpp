@@ -54,13 +54,15 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
     m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual);
 
-    auto constructedSTgraphs = m_rectangularDual->buildSTGraphsFromREL(*m_relPtr);
-    auto constructedDuals = m_rectangularDual->buildDualsFromREL(*m_relPtr);
+    // auto constructedSTgraphs = m_rectangularDual->buildSTGraphsFromREL(*m_relPtr);
+    // auto constructedDuals = m_rectangularDual->buildDualsFromREL(*m_relPtr);
 
+    //bool buildstatus =  m_rectangularDual->buildSTandDUal(m_rel);
 
+    //std::cout << "Build st and dual stats: " << buildstatus << std::endl;
 
-    std::cout << "ST graph construction status: " << constructedSTgraphs << std::endl;
-    std::cout << "Dual graphs construction status: " << constructedDuals << std::endl;
+    // std::cout << "ST graph construction status: " << constructedSTgraphs << std::endl;
+    // std::cout << "Dual graphs construction status: " << constructedDuals << std::endl;
 
     // m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, RED);
     // m_rectangularDual->debugPrintFacesForColor(*m_relPtr, RED);
@@ -74,30 +76,32 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     bool computedSegmentPositions = m_rectangularDual->computeSegmentPositions(*m_relPtr);
 
 
-    // inspect some vertices
-    for (int v = 0; v < m_relPtr->getVertices().size(); ++v) {
-        const auto &V = m_relPtr->getVertices()[v];
-        std::cout << "V[" << v << "] '" << V.label
-                  << "' left=" << V.left_segment
-                  << " right=" << V.right_segment
-                  << " bottom=" << V.bottom_segment
-                  << " top=" << V.top_segment << "\n";
-    }
-
-    std::cout << "-------------------" << std::endl;
-
-    auto maximalSegments = m_rectangularDual->getMaximalSegments();
-
-    for (int s = 0; s < maximalSegments.size(); ++s) {
-        const auto &seg = maximalSegments[s];
-        std::cout << "segment " << s << " type=" << seg.type
-                  << " halfedges=" << seg.halfedges.size()
-                  << " incoming verts=" << seg.incoming_vertices.size()
-                  << " outgoing verts=" << seg.outgoing_vertices.size() << "\n";
-    }
+    // // inspect some vertices
+    // for (int v = 0; v < m_relPtr->getVertices().size(); ++v) {
+    //     const auto &V = m_relPtr->getVertices()[v];
+    //     std::cout << "V[" << v << "] '" << V.label
+    //               << "' left=" << V.left_segment
+    //               << " right=" << V.right_segment
+    //               << " bottom=" << V.bottom_segment
+    //               << " top=" << V.top_segment << "\n";
+    // }
+    //
+    // std::cout << "-------------------" << std::endl;
+    //
+    // auto maximalSegments = m_rectangularDual->getMaximalSegments();
+    //
+    // for (int s = 0; s < maximalSegments.size(); ++s) {
+    //     const auto &seg = maximalSegments[s];
+    //     std::cout << "segment " << s << " type=" << seg.type
+    //               << " halfedges=" << seg.halfedges.size()
+    //               << " incoming verts=" << seg.incoming_vertices.size()
+    //               << " outgoing verts=" << seg.outgoing_vertices.size() << "\n";
+    // }
 
 
     //    m_renderer->addPainting(m_debugPainting, "Debugging");
+
+    //m_relPtr->flipEdgeDiagonally(12, false);
 
     m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
     m_renderer->addPainting(m_relPainting, "REL");

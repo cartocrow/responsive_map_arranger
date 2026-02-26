@@ -355,14 +355,14 @@ bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
 }
 
     // debug summary
-    std::cout << "computeMaximalSegments: " << maximalSegments.size() << " segments\n";
-    for (size_t i = 0; i < maximalSegments.size(); ++i) {
-        const auto &s = maximalSegments[i];
-        std::cout << " segment " << i << " type=" << static_cast<int>(s.type)
-                  << " halfedges=" << s.halfedges.size()
-                  << " incoming verts=" << s.incoming_vertices.size()
-                  << " outgoing verts=" << s.outgoing_vertices.size() << "\n";
-    }
+    // std::cout << "computeMaximalSegments: " << maximalSegments.size() << " segments\n";
+    // for (size_t i = 0; i < maximalSegments.size(); ++i) {
+    //     const auto &s = maximalSegments[i];
+    //     std::cout << " segment " << i << " type=" << static_cast<int>(s.type)
+    //               << " halfedges=" << s.halfedges.size()
+    //               << " incoming verts=" << s.incoming_vertices.size()
+    //               << " outgoing verts=" << s.outgoing_vertices.size() << "\n";
+    // }
 
     for (size_t si = 0; si < maximalSegments.size(); ++si) {
         const auto &s = maximalSegments[si];
@@ -488,66 +488,6 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
     int leftFrameX = hx[leftFrameIdx], rightFrameX = hx[rightFrameIdx];
     int bottomFrameY = vy[bottomFrameIdx], topFrameY = vy[topFrameIdx];
 
-    // print horAdj
-    std::cout << "horAdj (size " << horAdj.size() << "):\n";
-    for (size_t i=0;i<horAdj.size();++i) {
-        std::cout << "  " << i << " ->";
-        for (auto nb: horAdj[i]) std::cout << " " << nb;
-        std::cout << "\n";
-    }
-    // print seg_x and per-vertex intervals
-    std::cout << "seg_x:\n";
-    for (int si = 0; si < S; ++si)
-        if (maximalSegments[si].type == SEGMENT_HORIZONTAL)
-            std::cout << " seg " << si << " -> x=" << seg_x[si] << "\n";
-
-    for (int v = 0; v < V; ++v) {
-        int lx = (verts[v].left_segment == -1 ? leftFrameX : seg_x[ verts[v].left_segment ]);
-        int rx = (verts[v].right_segment == -1 ? rightFrameX : seg_x[ verts[v].right_segment ]);
-        std::cout << "vertex '" << verts[v].label << "' leftSeg=" << verts[v].left_segment
-                  << " rightSeg=" << verts[v].right_segment
-                  << " lx=" << lx << " rx=" << rx << "\n";
-    }
-
-    // 0) basic info
-    std::cout << "maximalSegments.size() = " << maximalSegments.size() << "\n";
-    for (int si = 0; si < (int)maximalSegments.size(); ++si) {
-        std::cout << "  seg#" << si << " type=" << maximalSegments[si].type
-                  << " he_count=" << maximalSegments[si].halfedges.size() << "\n";
-    }
-
-    // 1) mapping seg -> compact hnode -> hx
-    std::cout << "SEG -> hnode -> hx mapping:\n";
-    for (int si = 0; si < (int)maximalSegments.size(); ++si) {
-        int hnode = seg_to_hidx[si];           // -1 if not horizontal
-        if (hnode >= 0 && hnode < (int)hx.size()) {
-            std::cout << "  seg " << si << " -> hnode " << hnode << " -> hx=" << hx[hnode] << "\n";
-        } else {
-            std::cout << "  seg " << si << " -> hnode " << hnode << " (non-horizontal or invalid)\n";
-        }
-    }
-
-    // 2) print horAdj clearly with meaning
-    std::cout << "horAdj (size " << horAdj.size() << "):\n";
-    for (size_t i=0;i<horAdj.size();++i) {
-        std::cout << "  node " << i;
-        if (i == hcount) std::cout << " (leftFrame)";
-        if (i == hcount+1) std::cout << " (rightFrame)";
-        std::cout << " ->";
-        for (auto nb: horAdj[i]) std::cout << " " << nb;
-        std::cout << "\n";
-    }
-
-    // 3) per-vertex assigned segment IDs and final integer intervals
-    std::cout << "Per-vertex intervals:\n";
-    for (int v = 0; v < V; ++v) {
-        const auto &vert = verts[v];
-        int lx = (vert.left_segment == -1 ? hx[leftFrameIdx] : hx[ seg_to_hidx[ vert.left_segment ] ]);
-        int rx = (vert.right_segment == -1 ? hx[rightFrameIdx] : hx[ seg_to_hidx[ vert.right_segment ] ]);
-        std::cout << "  vertex '" << vert.label << "' leftSeg=" << vert.left_segment
-                  << " rightSeg=" << vert.right_segment << " -> lx=" << lx << " rx=" << rx << "\n";
-    }
-
     // build rects for each region
     rects.clear(); rects.resize((size_t)V);
     for (int v = 0; v < V; ++v) {
@@ -577,19 +517,6 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
         r.top    = double(ty) * cell_size;
         rects[v] = r;
     }
-
-    std::cout << "computeMaximalSegments In segmentposition function: " << maximalSegments.size() << " segments\n";
-    for (size_t i = 0; i < maximalSegments.size(); ++i) {
-        const auto &s = maximalSegments[i];
-        std::cout << " segment " << i << " type=" << static_cast<int>(s.type)
-                  << " halfedges=" << s.halfedges.size()
-                  << " incoming verts=" << s.incoming_vertices.size()
-                  << " outgoing verts=" << s.outgoing_vertices.size() << "\n";
-    }
-
-    std::cout << "hcount = " << hcount << " (horizontal nodes), hx values:\n";
-    for (size_t i = 0; i < hx.size(); ++i) std::cout << i << ":" << hx[i] << " ";
-    std::cout << "\nleftFrameX=" << leftFrameX << " rightFrameX=" << rightFrameX << "\n";
 
     return true;
 }
@@ -639,115 +566,323 @@ void RectangularDual::debugDumpVertexSegments(const RegularEdgeLabeling &rel, in
               << " top=" << verts[v].top_segment << "\n";
 }
 
-bool RectangularDual::buildSTGraphsFromREL(const RegularEdgeLabeling &rel) {
-    const auto &relVertices = rel.getVertices();
-    const auto &relHalfedges = rel.getHalfEdges();
+bool RectangularDual::buildSTandDUal(const RegularEdgeLabeling &rel) {
+    auto one = buildSTGraphsFromREL(rel);
 
-    const int n = (int)relVertices.size();
+    // Print basic graph info
+    std::cout << "G1.source=" << G1.source << " G1.sink=" << G1.sink << " n=" << G1.out.size() << "\n";
+    for (int u = 0; u < (int)G1.out.size(); ++u) {
+        std::cout << " G1 " << u << " ->";
+        for (int v : G1.out[u]) std::cout << " " << v;
+        std::cout << "\n";
+    }
+    std::cout << "G2.source=" << G2.source << " G2.sink=" << G2.sink << " n=" << G2.out.size() << "\n";
+    for (int u = 0; u < (int)G2.out.size(); ++u) {
+        std::cout << " G2 " << u << " ->";
+        for (int v : G2.out[u]) std::cout << " " << v;
+        std::cout << "\n";
+    }
+
+    // quick validity tests
+    auto checkST = [&](const RectangularDual::STGraph &G, const std::string &name) {
+        int n = (int)G.out.size();
+        std::vector<int> indeg(n, 0);
+        for (int u = 0; u < n; ++u) for (int v : G.out[u]) if (v >= 0 && v < n) ++indeg[v];
+        int nsrc = 0, nsink = 0;
+        for (int i = 0; i < n; ++i) {
+            if (indeg[i] == 0) ++nsrc;
+            if (G.out[i].empty()) ++nsink;
+        }
+        std::cout << name << " has " << nsrc << " sources and " << nsink << " sinks\n";
+    };
+    checkST(G1, "G1");
+    checkST(G2, "G2");
+
+    std::cout << "-------------------" << std::endl;
+    int gw = G2.source; // should be vW
+    int ge = G2.sink;   // should be vE
+    std::cerr << "G2.source (vW) index = " << gw << " label=" << rel.getVertices()[gw].label << "\n";
+    std::cerr << " G2.in[" << gw << "] =";
+    for (int u : G2.in[gw]) std::cerr << " " << u << "('" << rel.getVertices()[u].label << "')";
+    std::cerr << "\n";
+    std::cerr << "G2.sink (vE) index = " << ge << " label=" << rel.getVertices()[ge].label << "\n";
+    std::cerr << " G2.out[" << ge << "] =";
+    for (int v : G2.out[ge]) std::cerr << " " << v << "('" << rel.getVertices()[v].label << "')";
+    std::cerr << "\n";
+
+    std::cout << "++=======+++" << std::endl;
+    // print outdeg/indeg with labels for G2
+    int n = (int)G2.out.size();
+    std::vector<int> indeg(n,0);
+    for (int u=0; u<n; ++u) for (int v: G2.out[u]) if (v >= 0 && v < n) ++indeg[v];
+
+    std::cout << "G2 nodes (index:label) outdeg indeg\n";
+    for (int i=0;i<n;++i) {
+        std::cout << " " << i << ":" << rel.getVertices()[i].label
+                  << " out=" << G2.out[i].size()
+                  << " in=" << indeg[i] << "\n";
+    }
+
+
+    std::cout << "==" << std::endl;
+    // run Kahn and show remaining nodes if cycle
+    int N = (int)G2.out.size();
+    std::vector<int> indeg2(N,0);
+    for (int u=0; u<N; ++u) for (int v: G2.out[u]) if (v>=0 && v<N) ++indeg2[v];
+
+    std::queue<int> q;
+    for (int i=0;i<N;++i) if (indeg2[i]==0) q.push(i);
+
+    std::vector<int> order;
+    while (!q.empty()) {
+        int u = q.front(); q.pop();
+        order.push_back(u);
+        for (int v: G2.out[u]) {
+            if (v<0||v>=N) continue;
+            if (--indeg2[v]==0) q.push(v);
+        }
+    }
+
+    if ((int)order.size() == N) {
+        std::cout << "G2 is acyclic (topo size=" << order.size() << ")\n";
+    } else {
+        std::cout << "G2 has cycle: processed " << order.size() << " / " << N << " nodes\n";
+        std::cout << " nodes left (likely in cycles):";
+        std::vector<char> seen(N,false);
+        for (int x: order) seen[x]=true;
+        for (int i=0;i<N;++i) if (!seen[i]) std::cout << " " << i << "(" << rel.getVertices()[i].label << ")";
+        std::cout << "\n";
+    }
+
+    for (int x : { 0, 1, 2, 3, 4, 5, 6, 7 }) {
+        std::cout << "Blue outgoing halfedges from node " << x << " ("<<rel.getVertices()[x].label<<"):\n";
+        for (int he : rel.getVertices()[x].edges) {
+            if (he<0||he>=(int)rel.getHalfEdges().size()) continue;
+            const auto &h = rel.getHalfEdges()[he];
+            if (!h.outgoing) continue;
+            if (h.color != BLUE) continue;
+            int twin = h.twin;
+            int v = (twin>=0 && twin < (int)rel.getHalfEdges().size()) ? rel.getHalfEdges()[twin].vertex : -1;
+            std::cout << " he#" << he << " -> " << v << "(" << (v>=0?rel.getVertices()[v].label:"?") << ")\n";
+        }
+    }
+
+    bool two = buildDualsFromREL(rel);
+
+
+    return one && two;
+}
+
+bool RectangularDual::buildSTGraphsFromREL(const RegularEdgeLabeling &rel)
+{
+    const auto &V  = rel.getVertices();
+    const auto &HE = rel.getHalfEdges();
+
+    const int n = (int)V.size();
     if (n == 0) return false;
 
-    std:array<int, 4> extIndices{-1, -1, -1, -1};
-    if (!auto_detect_exterior(rel, extIndices)) {
-        std::cerr << "Failed to detect exterior edges. Make sure 'South', 'West', 'North' and 'East' node are defined in the data. " << std::endl;
+    std::array<int,4> ext;
+    if (!auto_detect_exterior(rel, ext)) {
+        std::cerr << "Failed to detect exterior vertices\n";
         return false;
     }
 
-    // validate exterior indices
-    for (int k = 0; k < 4; ++k) {
-        if (extIndices[k] < 0 || extIndices[k] >= n) {
-            std::cerr << "RectangularDual::buildSTGraphsFromREL: invalid exterior index\n";
-            return false;
-        }
-    }
+    const int vS = ext[0];
+    const int vW = ext[1];
+    const int vN = ext[2];
+    const int vE = ext[3];
 
-    const int vS = extIndices[0];
-    const int vW = extIndices[1];
-    const int vN = extIndices[2];
-    const int vE = extIndices[3];
-
-    // initialize graphs (n vertices)
+    // clear graphs
     G1.out.assign(n, {});
-    G1.in.assign(n, {});
+    G1.in .assign(n, {});
     G2.out.assign(n, {});
-    G2.in.assign(n, {});
-    G1.source = vS;
-    G1.sink = vN;
-    G2.source = vW;
-    G2.sink = vE;
+    G2.in .assign(n, {});
 
-    auto is_exterior_pair = [&](const int u, const int v) -> bool {
-        if (u < 0 || v < 0) return false;
-        // set membership test: both u and v are one of the four exterior indices
-        return ( (u==vS||u==vW||u==vN||u==vE) &&
-                 (v==vS||v==vW||v==vN||v==vE) );
-    };
+    G1.source = vS;  G1.sink = vN;
+    G2.source = vW;  G2.sink = vE;
 
-    for (int i = 0; i < relHalfedges.size(); ++i) {
-        const auto &h = relHalfedges[i];
-        if (!h.outgoing) continue;;
-        int u = h.vertex;
-        int t = h.twin;
+    // ---- process each EDGE ONCE ----
+    std::vector<bool> used(HE.size(), false);
 
-        if (u < 0 || u >= n) continue;
-        if (t < 0 || t >= relHalfedges.size()) continue;
-        int v = relHalfedges[t].vertex;
-        if (v < 0 || v >= n) continue;
+    for (int i=0;i<HE.size();++i)
+    {
+        if (used[i]) continue;
+        int t = HE[i].twin;
+        if (t < 0) continue;
 
-        if (is_exterior_pair(u, v)) continue;
+        used[i]=used[t]=true;
 
-        if (h.color == RED) {
-            G1.out[u].push_back(v);
-            G2.out[v].push_back(u);
+        int u = HE[i].vertex;
+        int v = HE[t].vertex;
+
+        if (u<0||v<0||u>=n||v>=n) continue;
+
+        // skip edges between two exterior vertices
+        auto is_ext = [&](int x){
+            return x==vS||x==vW||x==vN||x==vE;
+        };
+        if (is_ext(u)&&is_ext(v)) continue;
+
+        auto c = HE[i].color;
+
+        // orientation is defined by the outgoing flag of the pair
+        int from,to;
+        if (HE[i].outgoing) { from=u; to=v; }
+        else                { from=v; to=u; }
+
+        if (c == RED)
+        {
+            // vertical relation (below -> above)
+            G1.out[from].push_back(to);
+            G1.in[to].push_back(from);
         }
-        else if (h.color == BLUE) {
-            G2.out[u].push_back(v);
-            G1.in[v].push_back(u);
+        else if (c == BLUE)
+        {
+            // horizontal relation (left -> right)
+            G2.out[from].push_back(to);
+            G2.in[to].push_back(from);
         }
     }
 
-    // Add the four exterior edges
-    // For G1 (edges in T1 plus exterior):
-    //    vS -> vW,  vS -> vE,  vW -> vN,  vE -> vN
-    //
-    // For G2 (edges in T2 plus exterior):
-    //    vS -> vW,  vN -> vW,  vE -> vS,  vE -> vN
-    auto add_edge = [&](STGraph &G, const int a, const int b) {
+    // ---- add exterior frame edges (REQUIRED FOR ST) ----
+
+    auto add = [&](STGraph& G,int a,int b){
         G.out[a].push_back(b);
         G.in[b].push_back(a);
     };
 
-    // add G1 exterior edges
-    add_edge(G1, vS, vW);
-    add_edge(G1, vS, vE);
-    add_edge(G1, vW, vN);
-    add_edge(G1, vE, vN);
+    // vertical graph (bottom → top)
+    add(G1,vS,vW);
+    add(G1,vS,vE);
+    add(G1,vW,vN);
+    add(G1,vE,vN);
 
-    // add G2 exterior edges
-    add_edge(G2, vS, vW);
-    add_edge(G2, vN, vW);
-    add_edge(G2, vE, vS);
-    add_edge(G2, vE, vN);
+    // horizontal graph (left → right)
+    add(G2,vW,vS);
+    add(G2,vW,vN);
+    add(G2,vS,vE);
+    add(G2,vN,vE);
 
-    // 3) Optionally deduplicate adjacency lists (still useful)
-    auto dedup = [](std::vector<std::vector<int>> &adj) {
-        for (auto &nbrs : adj) {
-            if (nbrs.empty()) continue;
-            std::sort(nbrs.begin(), nbrs.end());
-            nbrs.erase(std::unique(nbrs.begin(), nbrs.end()), nbrs.end());
+    // ---- deduplicate ----
+    auto dedup=[&](STGraph& G){
+        for(int i=0;i<n;++i){
+            auto &o=G.out[i];
+            std::sort(o.begin(),o.end());
+            o.erase(std::unique(o.begin(),o.end()),o.end());
+
+            auto &in=G.in[i];
+            std::sort(in.begin(),in.end());
+            in.erase(std::unique(in.begin(),in.end()),in.end());
         }
     };
-    dedup(G1.out); dedup(G1.in); dedup(G2.out); dedup(G2.in);
+    dedup(G1); dedup(G2);
 
+    std::cout<<"G1.source="<<G1.source<<" G1.sink="<<G1.sink<<"\n";
+    std::cout<<"G2.source="<<G2.source<<" G2.sink="<<G2.sink<<"\n";
 
-    std::cout << "G1.source=" << G1.source << " G1.sink=" << G1.sink << std::endl;
-    std::cout << "G2.source=" << G2.source << " G2.sink=" << G2.sink << std::endl;
     return true;
 }
 
-// helper: make a 64-bit key from directed (u->v)
-// static inline uint64_t uvkey(int u, int v) {
-//     return ( (uint64_t)(uint32_t)u << 32 ) | (uint32_t)v;
-// }
+int RectangularDual::findNextActive(int next, int H,
+                                    const RegularEdgeLabeling &rel,
+                                    const std::vector<HalfEdge> &relHalfedges,
+                                    const std::unordered_set<int> &activeHE)
+{
+    for (int safety = 0; safety <= H; ++safety) {
+        if (next < 0 || next >= H) return -1;
+        if (activeHE.find(next) != activeHE.end()) return next;
+        int twin = relHalfedges[next].twin;
+        if (twin < 0) return -1;
+        next = rel.getNextCyclicEdge(twin);
+    }
+    return -1;
+}
+
+void RectangularDual::walkFaceFrom(int start, int H, const RegularEdgeLabeling &rel,
+                                   const std::vector<HalfEdge> &relHalfedges,
+                                   const std::unordered_set<int> &activeHE,
+                                   std::vector<char> &visited,
+                                   std::vector<int> &faceOfHE,
+                                   int &nextFaceId)
+{
+    int cur = start;
+    int fid = nextFaceId++;
+    int steps = 0;
+
+    // Loop until we find the start half edge again: i.e. we found a cycle
+    do {
+        visited[cur] = 1;
+        faceOfHE[cur] = fid;
+
+        int twin = relHalfedges[cur].twin;
+        if (twin < 0) break;
+
+        int next = rel.getNextCyclicEdge(twin);
+        next = findNextActive(next, H, rel, relHalfedges, activeHE);
+        if (next < 0) break;
+
+        cur = next;
+    } while (cur != start);
+}
+
+void RectangularDual::buildDualAdjacency(bool right_to_left, int F,
+                                         const std::vector<int> &activeHE_list,
+                                         const std::vector<HalfEdge> &relHalfedges,
+                                         const std::vector<int> &faceOfHE,
+                                         std::vector<std::vector<int>> &out,
+                                         std::vector<std::vector<int>> &in)
+{
+    out.assign(F, {});
+    in.assign(F, {});
+    for (int h : activeHE_list) {
+        int twin = relHalfedges[h].twin;
+        if (twin < 0) continue;
+        int fL = faceOfHE[h];
+        int fR = faceOfHE[twin];
+        if (fL == -1 || fR == -1 || fL == fR) continue;
+        if (right_to_left) {
+            out[fR].push_back(fL); // right -> left
+            in[fL].push_back(fR);
+        } else {
+            out[fL].push_back(fR); // left -> right (opposite)
+            in[fR].push_back(fL);
+        }
+    }
+    // dedupe each list
+    for (int i = 0; i < F; ++i) {
+        auto &o = out[i]; std::sort(o.begin(), o.end()); o.erase(std::unique(o.begin(), o.end()), o.end());
+        auto &ii = in[i]; std::sort(ii.begin(), ii.end()); ii.erase(std::unique(ii.begin(), ii.end()), ii.end());
+    }
+}
+
+void RectangularDual::testST(const std::vector<std::vector<int>> &outAdj,
+                             const std::vector<std::vector<int>> &inAdj,
+                             int &srcRes, int &sinkRes, int &nSrc, int &nSink)
+{
+    int n = (int)outAdj.size();
+    srcRes = -1; sinkRes = -1; nSrc = 0; nSink = 0;
+    for (int i = 0; i < n; ++i) {
+        if (inAdj[i].empty()) { srcRes = i; ++nSrc; }
+        if (outAdj[i].empty()) { sinkRes = i; ++nSink; }
+    }
+}
+
+void RectangularDual::printSourceSinks(const std::vector<std::vector<int>> &outAdj,
+                                       const std::vector<std::vector<int>> &inAdj,
+                                       const std::string &label)
+{
+    int n = (int)outAdj.size();
+    std::vector<int> srcs, sinks;
+    for (int i = 0; i < n; ++i) {
+        if (inAdj[i].empty()) srcs.push_back(i);
+        if (outAdj[i].empty()) sinks.push_back(i);
+    }
+    std::cerr << label << " sources:";
+    for (int s : srcs) std::cerr << " " << s;
+    std::cerr << " ; sinks:";
+    for (int s : sinks) std::cerr << " " << s;
+    std::cerr << "\n";
+}
 
 bool RectangularDual::buildDualForColor(const RegularEdgeLabeling &rel, const STGraph &primal, EdgeColor color,
     STGraph &dualOut) {
@@ -757,30 +892,62 @@ bool RectangularDual::buildDualForColor(const RegularEdgeLabeling &rel, const ST
     if (relVertices.empty()) return false;
     const int H = (int)relHalfedges.size();
 
-    // 1) get half edges beloning to primal ST graph
+    auto is_exterior_pair_by_label = [&](int a, int b) -> bool {
+        if (a < 0 || b < 0) return false;
+        const std::string &la = relVertices[a].label;
+        const std::string &lb = relVertices[b].label;
+        auto isExt = [](const std::string &s) {
+            return s == "South" || s == "West" || s == "North" || s == "East";
+        };
+        return isExt(la) && isExt(lb);
+    };
+
+    // collect active half-edges that correspond to primal edges of this color
     std::unordered_set<int> activeHE;
     std::unordered_map<uint64_t, int> uv_to_he;
     auto uvkey = [](int u, int v)->uint64_t { return ((uint64_t)(uint32_t)u << 32) | (uint32_t)v; };
 
-    for (int h = 0; h < relHalfedges.size(); ++h) {
+    int relColorOutCount = 0;
+    std::vector<int> skippedByPrimal; skippedByPrimal.reserve(H);
+
+    for (int h = 0; h < H; ++h) {
         const HalfEdge &e = relHalfedges[h];
         if (!e.outgoing) continue;
         if (e.color != color) continue;
+        ++relColorOutCount;
 
         int u = e.vertex;
         int t = e.twin;
-        if (t < 0 || t >= (int)relHalfedges.size()) continue;
+        if (t < 0 || t >= H) { skippedByPrimal.push_back(h); continue; }
         int v = relHalfedges[t].vertex;
+        if (is_exterior_pair_by_label(u, v)) { skippedByPrimal.push_back(h); continue; }
 
         // verify edge exists in primal graph
         bool found = false;
         if (u >= 0 && u < (int)primal.out.size()) {
-            for (int nb : primal.out[u])
-                if (nb == v) { found = true; break; }
+            for (int nb : primal.out[u]) if (nb == v) { found = true; break; }
         }
-        if (!found) continue;
+        if (!found) { skippedByPrimal.push_back(h); continue; }
+
         activeHE.insert(h);
+        activeHE.insert(t);
         uv_to_he[uvkey(u, v)] = h;
+        uv_to_he[uvkey(v, u)] = t;
+    }
+
+    //DEBUGGING
+    std::cerr << "buildDualForColor(color=" << (color==RED?"RED":"BLUE") << "): rel outgoing halfedges=" << relColorOutCount
+              << " activeHE=" << activeHE.size() << " skipped(primal/exterior)=" << skippedByPrimal.size() << "\n";
+    if (!skippedByPrimal.empty()) {
+        std::cerr << "  skipped edges:";
+        int printed=0;
+        for (int he : skippedByPrimal) {
+            if (printed++ > 10) break;
+            const HalfEdge &e = relHalfedges[he];
+            int t = e.twin; int v = (t>=0 && t < H) ? relHalfedges[t].vertex : -1;
+            std::cerr << " he#" << he << "(" << relVertices[e.vertex].label << "->" << (v>=0?relVertices[v].label:"?") << ")";
+        }
+        std::cerr << "\n";
     }
 
     if (activeHE.empty()) {
@@ -788,38 +955,31 @@ bool RectangularDual::buildDualForColor(const RegularEdgeLabeling &rel, const ST
         return false;
     }
 
-// prepare face mapping containers
+    // prepare face mapping containers
     std::vector<int> faceOfHE(H, -1);
     std::vector<char> visited(H, 0);
     int nextFaceId = 0;
 
-    // face walk using REL's getNextCyclicEdge
-    auto walkFaceFrom = [&](int start) {
-        int cur = start;
-        int fid = nextFaceId++;
-        while (true) {
-            visited[cur] = 1;
-            faceOfHE[cur] = fid;
-            int twin = relHalfedges[cur].twin;
-            if (twin < 0) break;
-            int next = rel.getNextCyclicEdge(twin);
-            if (next < 0) break;
-            cur = next;
-            if (cur == start) break;
-        }
-    };
+    // convert activeHE to a stable vector (deterministic iteration)
+    std::vector<int> activeHE_list;
+    activeHE_list.reserve(activeHE.size());
+    for (int h : activeHE) activeHE_list.push_back(h);
+    std::sort(activeHE_list.begin(), activeHE_list.end());
 
-    // run walks for all active halfedges
-    for (int h : activeHE) if (!visited[h]) walkFaceFrom(h);
+    // run face walks for all active halfedges
+    for (int h : activeHE_list) if (!visited[h]) walkFaceFrom(h, H, rel, relHalfedges, activeHE, visited, faceOfHE, nextFaceId);
 
-    // sanity: if any active HE remain unassigned, try to start at them
-    for (int h : activeHE) if (faceOfHE[h] == -1) walkFaceFrom(h);
 
     int F = nextFaceId;
     if (F == 0) {
         std::cerr << "buildDualForColor: no faces found\n";
         return false;
     }
+
+    // DEBUGGING: how many activeHE got assigned
+    int assigned = 0;
+    for (int h : activeHE_list) if (faceOfHE[h] != -1) ++assigned;
+    std::cerr << "buildDualForColor: assignedHalfEdges = " << assigned << " / " << activeHE_list.size() << " faces=" << F << "\n";
 
     // store face map into appropriate member vector
     if (color == RED) {
@@ -832,43 +992,41 @@ bool RectangularDual::buildDualForColor(const RegularEdgeLabeling &rel, const ST
         this->F2 = F;
     }
 
-    // build dual adjacency: for each active halfedge h, right=face(twin), left=face(h)
-    std::vector<std::vector<int>> out(F), in(F);
-    for (int h : activeHE) {
-        int twin = relHalfedges[h].twin;
-        if (twin < 0) continue;
-        int fL = faceOfHE[h];
-        int fR = faceOfHE[twin];
-        if (fL == -1 || fR == -1 || fL == fR) continue;
-        out[fR].push_back(fL); // right->left
-        in[fL].push_back(fR);
+    // Build primary orientation (right->left) and test ST property
+    std::vector<std::vector<int>> out1, in1;
+    buildDualAdjacency(true, F, activeHE_list, relHalfedges, faceOfHE, out1, in1);
+
+    int srcA=-1, sinkA=-1, nSrcA=0, nSinkA=0;
+    testST(out1, in1, srcA, sinkA, nSrcA, nSinkA);
+
+    if (nSrcA == 1 && nSinkA == 1) {
+        // Accept primary orientation
+        dualOut.source = srcA; dualOut.sink = sinkA; dualOut.out = std::move(out1); dualOut.in = std::move(in1);
+        return true;
     }
 
-    // dedupe
-    for (int i=0;i<F;++i) {
-        auto &o = out[i]; std::sort(o.begin(), o.end()); o.erase(std::unique(o.begin(), o.end()), o.end());
-        auto &ii = in[i]; std::sort(ii.begin(), ii.end()); ii.erase(std::unique(ii.begin(), ii.end()), ii.end());
+    // Otherwise try opposite orientation (left->right)
+    std::vector<std::vector<int>> out2, in2;
+    buildDualAdjacency(false, F, activeHE_list, relHalfedges, faceOfHE, out2, in2);
+    int srcB=-1, sinkB=-1, nSrcB=0, nSinkB=0;
+    testST(out2, in2, srcB, sinkB, nSrcB, nSinkB);
+
+    if (nSrcB == 1 && nSinkB == 1) {
+        dualOut.source = srcB; dualOut.sink = sinkB; dualOut.out = std::move(out2); dualOut.in = std::move(in2);
+        std::cerr << "Note: dual orientation flipped (used left->right) to obtain valid st-graph\n";
+        return true;
     }
 
-    // try to find unique source & sink by indeg/outdeg
-    int source = -1, sink = -1, nSrc = 0, nSink = 0;
-    for (int i=0;i<F;++i) {
-        if (in[i].empty()) { source = i; ++nSrc; }
-        if (out[i].empty()) { sink = i; ++nSink; }
-    }
+    // Neither orientation gave a valid st-graph -> provide detailed diagnostics and return failure
+    std::cerr << "Dual is not an st-graph (primary had " << nSrcA << " sources, " << nSinkA << " sinks; "
+              << "flipped had " << nSrcB << " sources, " << nSinkB << " sinks)\n";
 
-    if (nSrc != 1 || nSink != 1) {
-        std::cerr << "Dual is not an st-graph ("<<nSrc<<" sources, "<<nSink<<" sinks)\n";
-    }
+    printSourceSinks(out1, in1, "primary");
+    printSourceSinks(out2, in2, "flipped");
 
-    std::cout << nSrc << " " << nSink << std::endl;
-
-    dualOut.source = source;
-    dualOut.sink   = sink;
-    dualOut.out    = std::move(out);
-    dualOut.in     = std::move(in);
-
-    return nSrc == 1 && nSink == 1;
+    // store primary into dualOut anyway so caller can inspect
+    dualOut.source = srcA; dualOut.sink = sinkA; dualOut.out = std::move(out1); dualOut.in = std::move(in1);
+    return false;
 }
 
 bool RectangularDual::buildDualsFromREL(const RegularEdgeLabeling &rel) {
