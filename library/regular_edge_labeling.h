@@ -70,6 +70,8 @@ public:
     void collapseMaxHorizontalPath();
     void collapseMaxVerticalPath();
 
+    bool mergeRedEdge(int edgeId);
+
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
     string otherLabelOfHalfEdge(int h) const;
@@ -104,8 +106,9 @@ public:
 
     int canonicalHalfEdge(int he) const;
 
-    bool flipEdgeColor(const int edgeId);
+    bool flipEdgeColor(int edgeId);
     bool flipEdgeDiagonally(int edgeId, bool clockwise);
+    void revertEdgeDirection(int edgeId);
     void debugCheckAfterFlip(int edgeId) const;
 
 private:

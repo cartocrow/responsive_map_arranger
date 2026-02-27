@@ -137,6 +137,41 @@ void RectangularCartogramDemo::processData() {
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
     m_relPtr->setBoundingBox(BoundingBox{0, 1280, 0, 880});
 
+    //m_relPtr->mergeRedEdge(13);
+
+    m_rel.printSummary();
+
+    std::cout << "========================" << std::endl;
+
+    const auto &V = m_relPtr->getVertices();
+    const auto &H = m_relPtr->getHalfEdges();
+    std::cout << "=== REL HalfEdges ===\n";
+    for (int i = 0; i < (int)H.size(); ++i) {
+        const auto &h = H[i];
+        int twin = h.twin;
+        std::cout << "he#" << i
+                  << " vertex=" << h.vertex << "('" << (h.vertex>=0?V[h.vertex].label:"?") << "')"
+                  << " twin=" << twin
+                  << " twin->v=" << (twin>=0 && twin < (int)H.size() ? std::to_string(H[twin].vertex) : std::string("nil"))
+                  << " color=" << (h.color==BLUE?"BLUE":(h.color==RED?"RED":"BLACK"))
+                  << " out=" << h.outgoing
+                  << " id_str=" << h.id_str
+                  << "\n";
+    }
+    std::cout << "=== Vertex incident lists ===\n";
+    for (int v = 0; v < (int)V.size(); ++v) {
+        std::cout << "V["<<v<<"] '"<<V[v].label<<"' edges:";
+        for (int he : V[v].edges) {
+            std::cout << " " << he;
+        }
+        std::cout << "\n";
+    }
+
+
+    std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
+    bool valid = m_relPtr->isValidREL();
+    std::cout << "isvalid: " << valid << std::endl;
+
 }
 
 RectangularCartogramDemo::RectangularCartogramDemo() {
