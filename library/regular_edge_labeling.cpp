@@ -34,6 +34,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
     for (const auto &r : j["regions"]) {
         if (!r.contains("label")) throw runtime_error("Each region must have a 'label'");
         if (!r.contains("weight")) throw runtime_error("Each region must have a 'weight'");
+        if (!r.contains("preferred_aspect")) throw runtime_error("Each region must have a 'preferred_aspect'");
         string lbl = r["label"].get<string>();
         if (m_labelToIndex.find(lbl) == m_labelToIndex.end()) {
             int idx = (int)m_vertices.size();
@@ -41,6 +42,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
             v.label = lbl;
             v.weight = r["weight"].get<int>();
             v.oldWeight = v.weight;
+            v.preferred_aspect_ratio = r["preferred_aspect"].get<double>();
             m_vertices.push_back(std::move(v));
             m_labelToIndex[lbl] = idx;
         }
@@ -404,6 +406,20 @@ void RegularEdgeLabeling::normalizeVertexWeights() {
 
     for (Vertex &v : m_vertices) {
         v.weight *= ratio;
+    }
+
+    computePreferredSizes();
+}
+
+void RegularEdgeLabeling::computePreferredSizes() {
+    for (Vertex &v : m_vertices) {
+        double r = v.preferred_aspect_ratio;
+
+        double w = sqrt(v.weight * r);
+        double h = v.weight / w;
+
+        v.preferred_width = w;
+        v.preferred_height = h;
     }
 }
 

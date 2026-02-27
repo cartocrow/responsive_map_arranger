@@ -57,7 +57,7 @@ public:
     RectangularDual() = default;
 
     bool hasValidSegmentCoords() const;
-    
+
     double computeAreaDeviation(RegularEdgeLabeling &rel);
 
     void fixRectangleAreas(RegularEdgeLabeling &rel);

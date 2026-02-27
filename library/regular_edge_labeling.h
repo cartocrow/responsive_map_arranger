@@ -39,6 +39,10 @@ struct Vertex {
     int right_segment = -1;
     int bottom_segment = -1;
     int top_segment = -1;
+
+    double preferred_aspect_ratio = 1.0;
+    double preferred_width = 0.0;
+    double preferred_height = 0.0;
 };
 
 class RegularEdgeLabeling {
@@ -53,6 +57,7 @@ public:
     const vector<Vertex> &getVertices()  const { return m_vertices; }
     void updateVertexWeight(int id, int weight) { m_vertices[id].weight = weight; }
     void normalizeVertexWeights();
+    void computePreferredSizes();
 
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
