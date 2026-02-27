@@ -129,57 +129,6 @@ bool RectangularDual::hasValidSegmentCoords() const {
     return true;
 }
 
-void RectangularDual::normalizeVertexWeights(RegularEdgeLabeling &rel) {
-    auto &vertices = rel.getVertices();
-
-    int total = 0;
-    for (auto &v : vertices) {
-        total += v.weight;
-    }
-
-    double ratio = computeFrameArea() / total;
-    for (int i = 0; i < vertices.size(); ++i) {
-        rel.updateVertexWeight(i, vertices[i].weight * ratio);
-        //vertices[i].weight *= ratio;
-    }
-
-}
-
-double RectangularDual::computeFrameArea() {
-    double totalArea = 0;
-
-    vector<Segment> horizontalFrameSegments;
-    vector<Segment> verticalFrameSegments;
-
-    for (const Segment& segment : maximalSegments) {
-        if (segment.fixedSegment) {
-            if (segment.type == SEGMENT_HORIZONTAL)
-                horizontalFrameSegments.push_back(segment);
-            if (segment.type == SEGMENT_VERTICAL)
-                verticalFrameSegments.push_back(segment);
-        }
-    }
-
-    double xspan = 0;
-    double yspan = 0;
-
-    if (horizontalFrameSegments[0].coord < horizontalFrameSegments[1].coord) {
-        xspan = horizontalFrameSegments[1].coord - horizontalFrameSegments[0].coord;
-    }
-    else xspan = horizontalFrameSegments[0].coord - horizontalFrameSegments[1].coord;
-
-    if (verticalFrameSegments[0].coord < verticalFrameSegments[1].coord) {
-        yspan = verticalFrameSegments[1].coord - verticalFrameSegments[0].coord;
-    }
-    else yspan = verticalFrameSegments[0].coord - verticalFrameSegments[1].coord;
-
-    totalArea = xspan * yspan;
-
-    std::cout << "xspan = " << xspan << ", yspan = " << yspan << "\n";
-
-    return  totalArea;
-}
-
 double RectangularDual::computeAreaDeviation(RegularEdgeLabeling &rel) {
     double total = 0;
 
@@ -201,10 +150,8 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
         return;
     }
 
-    normalizeVertexWeights(rel);
-
     auto &vertices = rel.getVertices();
-    const double frameArea = computeFrameArea();
+    const double frameArea = rel.getBoundingBox()->area();
     double epsilon = 1.0;
     double deviation = computeAreaDeviation(rel);
 

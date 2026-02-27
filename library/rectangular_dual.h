@@ -57,10 +57,7 @@ public:
     RectangularDual() = default;
 
     bool hasValidSegmentCoords() const;
-
-    void normalizeVertexWeights(RegularEdgeLabeling &rel);
-    double computeFrameArea();
-
+    
     double computeAreaDeviation(RegularEdgeLabeling &rel);
 
     void fixRectangleAreas(RegularEdgeLabeling &rel);

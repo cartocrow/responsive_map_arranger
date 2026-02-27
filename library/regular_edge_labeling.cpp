@@ -40,6 +40,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
             Vertex v;
             v.label = lbl;
             v.weight = r["weight"].get<int>();
+            v.oldWeight = v.weight;
             m_vertices.push_back(std::move(v));
             m_labelToIndex[lbl] = idx;
         }
@@ -391,6 +392,19 @@ bool RegularEdgeLabeling::isValidREL() const
 
     std::cout<<"REL valid\n";
     return true;
+}
+
+void RegularEdgeLabeling::normalizeVertexWeights() {
+    int total = 0;
+    for (Vertex &v : m_vertices) {
+        total += v.weight;
+    }
+
+    double ratio = m_boundingBox->area() / total;
+
+    for (Vertex &v : m_vertices) {
+        v.weight *= ratio;
+    }
 }
 
 // ---------------- otherLabelOfHalfEdge ----------------

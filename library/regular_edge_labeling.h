@@ -30,6 +30,7 @@ struct HalfEdge {
 
 struct Vertex {
     string label;
+    int oldWeight;
     int weight;
     // edges of the vertex in COUNTERCLOCKWISE order (combinatorial / cyclic)
     vector<int> edges;
@@ -51,12 +52,14 @@ public:
 
     const vector<Vertex> &getVertices()  const { return m_vertices; }
     void updateVertexWeight(int id, int weight) { m_vertices[id].weight = weight; }
+    void normalizeVertexWeights();
+
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
     string otherLabelOfHalfEdge(int h) const;
 
     // bb box
-    void setBoundingBox(const BoundingBox &bb) { m_boundingBox = bb; }
+    void setBoundingBox(const BoundingBox &bb) { m_boundingBox = bb; normalizeVertexWeights(); }
     optional<BoundingBox> getBoundingBox() const { return m_boundingBox; }
     bool hasBoundingBox() const noexcept { return static_cast<bool>(m_boundingBox); }
     void clearBoundingBox() { m_boundingBox.reset(); }

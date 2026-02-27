@@ -9,4 +9,5 @@ struct BoundingBox
 
     double width()  const { return right - left; }
     double height() const { return top - bottom; }
+    double area() const { return (right - left) * (top - bottom); }
 };
