@@ -163,17 +163,19 @@ double RectangularDual::computeFrameArea() {
     double xspan = 0;
     double yspan = 0;
 
-    if (horizontalFrameSegments[0].coord > horizontalFrameSegments[1].coord) {
+    if (horizontalFrameSegments[0].coord < horizontalFrameSegments[1].coord) {
         xspan = horizontalFrameSegments[1].coord - horizontalFrameSegments[0].coord;
     }
     else xspan = horizontalFrameSegments[0].coord - horizontalFrameSegments[1].coord;
 
-    if (verticalFrameSegments[0].coord > verticalFrameSegments[1].coord) {
+    if (verticalFrameSegments[0].coord < verticalFrameSegments[1].coord) {
         yspan = verticalFrameSegments[1].coord - verticalFrameSegments[0].coord;
     }
     else yspan = verticalFrameSegments[0].coord - verticalFrameSegments[1].coord;
 
     totalArea = xspan * yspan;
+
+    std::cout << "xspan = " << xspan << ", yspan = " << yspan << "\n";
 
     return  totalArea;
 }
@@ -572,7 +574,6 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
         int a = hnode(leftSeg);
         int b = hnode(rightSeg);
         if (leftSeg == -1 && rightSeg == -1) {
-            // touches both frame? connect leftFrame -> rightFrame
             horAdj[leftFrameIdx].push_back((std::uint32_t)rightFrameIdx);
         } else if (leftSeg == -1 && b >= 0) {
             horAdj[leftFrameIdx].push_back((std::uint32_t)b);
@@ -607,7 +608,7 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
     dedup(horAdj);
     dedup(verAdj);
 
-    // Topo-sort with your topoSort helper; it must handle the new arrays (size > 0)
+    // Topo-sort
     std::vector<std::uint32_t> htopo, vtopo;
     if (!topoSort(horAdj, htopo)) { std::cerr << "horizontal DAG has cycle\n"; return false; }
     if (!topoSort(verAdj, vtopo)) { std::cerr << "vertical DAG has cycle\n"; return false; }
@@ -617,7 +618,7 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
     for (auto u : htopo) for (auto w : horAdj[u]) hx[w] = std::max(hx[w], hx[u] + 1);
     for (auto u : vtopo) for (auto w : verAdj[u]) vy[w] = std::max(vy[w], vy[u] + 1);
 
-    // Recover segment coordinates (map back to S-sized arrays)
+    // Recover segment integer levels (map back to S-sized arrays)
     std::vector<int> seg_x(S, -1), seg_y(S, -1);
     for (int si = 0; si < S; ++si) {
         if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
@@ -629,7 +630,7 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
         }
     }
 
-    // Now use frame node coords too if needed: leftFrameIdx->hx[leftFrameIdx], rightFrameIdx->...
+    // Frame node integer levels (for fallback)
     int leftFrameX = hx[leftFrameIdx], rightFrameX = hx[rightFrameIdx];
     int bottomFrameY = vy[bottomFrameIdx], topFrameY = vy[topFrameIdx];
 
@@ -638,17 +639,45 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
         auto obb = rel.getBoundingBox();
         if (obb) {
             const BoundingBox &bb = *obb;
-            // bounding box is assumed to satisfy right > left and top > bottom (per your note)
+            // bounding box is assumed to satisfy right > left and top > bottom
             double spanX = bb.right - bb.left;
             double spanY = bb.top - bb.bottom;
 
-            // compute numeric ranges for hx/vy (include frame node values)
-            double minHX = static_cast<double>(leftFrameX);
-            double maxHX = static_cast<double>(rightFrameX);
-            double minVY = static_cast<double>(bottomFrameY);
-            double maxVY = static_cast<double>(topFrameY);
+            // Compute min/max among actual horizontal nodes (0 .. hcount-1)
+            bool haveH = false;
+            double minHX = std::numeric_limits<double>::infinity();
+            double maxHX = -std::numeric_limits<double>::infinity();
+            for (int hi = 0; hi < hcount; ++hi) {
+                // consider only finite hx values (should be integers)
+                if (std::isfinite(static_cast<double>(hx[hi]))) {
+                    haveH = true;
+                    minHX = std::min(minHX, (double)hx[hi]);
+                    maxHX = std::max(maxHX, (double)hx[hi]);
+                }
+            }
+            // fallback to frame nodes if no interior horizontal nodes found
+            if (!haveH) {
+                minHX = static_cast<double>(leftFrameX);
+                maxHX = static_cast<double>(rightFrameX);
+            }
 
-            // guard against degenerate ranges (avoid division by zero)
+            // Compute min/max among actual vertical nodes (0 .. vcount-1)
+            bool haveV = false;
+            double minVY = std::numeric_limits<double>::infinity();
+            double maxVY = -std::numeric_limits<double>::infinity();
+            for (int vi = 0; vi < vcount; ++vi) {
+                if (std::isfinite(static_cast<double>(vy[vi]))) {
+                    haveV = true;
+                    minVY = std::min(minVY, (double)vy[vi]);
+                    maxVY = std::max(maxVY, (double)vy[vi]);
+                }
+            }
+            if (!haveV) {
+                minVY = static_cast<double>(bottomFrameY);
+                maxVY = static_cast<double>(topFrameY);
+            }
+
+            // guard against degenerate ranges
             if (maxHX == minHX) maxHX = minHX + 1.0;
             if (maxVY == minVY) maxVY = minVY + 1.0;
 
@@ -679,7 +708,7 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
                 }
             }
         } else {
-            // Defensive: if optional empty for any reason, fall back to old behaviour using cell_size
+            // Defensive: if optional empty, fall back to old behaviour using cell_size
             for (int si = 0; si < S; ++si) {
                 if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
                     int hi = seg_to_hidx[si];
@@ -699,7 +728,7 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
         for (int si = 0; si < S; ++si) {
             if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
                 if (seg_x[si] >= 0) maximalSegments[si].coord = double(seg_x[si]) * cell_size;
-                else maximalSegments[si].coord = 0.0; // or keep previous default
+                else maximalSegments[si].coord = 0.0;
             } else if (maximalSegments[si].type == SEGMENT_VERTICAL) {
                 if (seg_y[si] >= 0) maximalSegments[si].coord = double(seg_y[si]) * cell_size;
                 else                 maximalSegments[si].coord = 0.0;

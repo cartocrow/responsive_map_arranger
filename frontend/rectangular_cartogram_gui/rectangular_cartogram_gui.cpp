@@ -122,7 +122,7 @@ void RectangularCartogramDemo::processData() {
     m_rel.printSummary();
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
-    m_relPtr->setBoundingBox(BoundingBox{0, 640, 0, 360});
+    m_relPtr->setBoundingBox(BoundingBox{0, 1600, 0, 900});
 
 }
 
@@ -288,7 +288,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         if (!m_bboxDragging) return;
         if (!m_relPtr || !m_rectangularDual) return;
 
-        std::cout << "updating bb" << std::endl;
+        //std::cout << "updating bb" << std::endl;
 
         double newRight = static_cast<double>(pt.x());
         double newTop = static_cast<double>(pt.y());

@@ -38,7 +38,7 @@ class RectangularCartogramDemo : public QMainWindow {
     bool m_bboxDragging = false;
     Point<Inexact> m_dragStartWorld;
     BoundingBox m_bboxBeforeDrag;
-    double m_bboxHandleTolerance = 8.0; // world units tolerance to hit corner (adjust)
+    double m_bboxHandleTolerance = 40.0; // world units tolerance to hit corner (adjust)
     double m_bboxMinWidth  = 20.0;
     double m_bboxMinHeight = 20.0;
 
