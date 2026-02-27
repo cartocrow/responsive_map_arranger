@@ -43,6 +43,9 @@ struct Vertex {
     double preferred_aspect_ratio = 1.0;
     double preferred_width = 0.0;
     double preferred_height = 0.0;
+
+    int horizontal_order_index = -1;
+    int vertical_order_index = -1;
 };
 
 class RegularEdgeLabeling {
@@ -54,6 +57,8 @@ public:
 
     bool isValidREL() const;
 
+    void adjustToBB();
+
     const vector<Vertex> &getVertices()  const { return m_vertices; }
     void updateVertexWeight(int id, int weight) { m_vertices[id].weight = weight; }
     void normalizeVertexWeights();
@@ -62,12 +67,15 @@ public:
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
     std::pair<double, std::vector<int>> getLongestVerticalPath() const;
 
+    void collapseMaxHorizontalPath();
+    void collapseMaxVerticalPath();
+
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
     string otherLabelOfHalfEdge(int h) const;
 
     // bb box
-    void setBoundingBox(const BoundingBox &bb) { m_boundingBox = bb; normalizeVertexWeights(); }
+    void setBoundingBox(const BoundingBox &bb) { m_boundingBox = bb; adjustToBB(); }
     optional<BoundingBox> getBoundingBox() const { return m_boundingBox; }
     bool hasBoundingBox() const noexcept { return static_cast<bool>(m_boundingBox); }
     void clearBoundingBox() { m_boundingBox.reset(); }

@@ -30,6 +30,13 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
         throw runtime_error("JSON must contain 'regions' array");
     }
 
+    if (!j.contains("horizontal_order") || !j["horizontal_order"].is_array()) {
+        throw runtime_error("JSON must contain 'horizontal_order' array");
+    }
+    if (!j.contains("vertical_order") || !j["vertical_order"].is_array()) {
+        throw runtime_error("JSON must contain 'vertical_order' array");
+    }
+
     // 1) create vertices for all provided region labels
     for (const auto &r : j["regions"]) {
         if (!r.contains("label")) throw runtime_error("Each region must have a 'label'");
@@ -47,6 +54,39 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
             m_labelToIndex[lbl] = idx;
         }
     }
+
+    // set horizontal and vertical order placement of vertices
+    {
+        int idx = 0;
+        for (const auto &entry : j["horizontal_order"]) {
+            if (!entry.is_string()) { throw runtime_error("JSON must contain 'horizontal_order' string"); }
+            std::string lbl = entry.get<std::string>();
+            auto it = m_labelToIndex.find(lbl);
+            if (it != m_labelToIndex.end()) {
+                int vid = it->second;
+                m_vertices[vid].horizontal_order_index = idx;
+            } else {
+                // optional: warn about unknown label
+                std::cerr << "buildFromJson: horizontal_order contains unknown label '" << lbl << "'\n";
+            }
+            ++idx;
+        }
+        idx = 0;
+        for (const auto &entry : j["vertical_order"]) {
+            if (!entry.is_string()) { throw runtime_error("JSON must contain 'vertical_order' string"); }
+            std::string lbl = entry.get<std::string>();
+            auto it = m_labelToIndex.find(lbl);
+            if (it != m_labelToIndex.end()) {
+                int vid = it->second;
+                m_vertices[vid].vertical_order_index = idx;
+            } else {
+                // optional: warn about unknown label
+                std::cerr << "buildFromJson: vertical_order contains unknown label '" << lbl << "'\n";
+            }
+            ++idx;
+        }
+    }
+
 
     // 2) create explicit half-edges for outgoing lists, preserving per-vertex input order
     unordered_map<int, vector<int>> explicitOutPerVertex; // vertexIdx -> list of explicit halfedge indices (order)
@@ -371,7 +411,7 @@ static bool isColorAcyclic(const RegularEdgeLabeling& rel, EdgeColor color)
 
 bool RegularEdgeLabeling::isValidREL() const
 {
-    return true;
+    //return true;
     if (!checkEdgeConsistency(*this)) {
         std::cout<<"REL invalid: edge mismatch\n";
         return false;
@@ -396,6 +436,23 @@ bool RegularEdgeLabeling::isValidREL() const
     return true;
 }
 
+void RegularEdgeLabeling::adjustToBB() {
+    normalizeVertexWeights();
+    computePreferredSizes();
+
+    auto longestHorizontalPath = getLongestHorizontalPath();
+    auto longestVerticalPath = getLongestVerticalPath();
+
+    double threshHold = 0.00015 * m_boundingBox->area();
+
+    if (longestHorizontalPath.first > m_boundingBox->width() + threshHold) {
+        std::cout << "Critical longest horizontal path found with total weight: " << longestHorizontalPath.first << std::endl;
+    }
+    if (longestVerticalPath.first > m_boundingBox->height() + threshHold) {
+        std::cout << "Critical longest vertical path found with total weight: " << longestVerticalPath.first << std::endl;
+    }
+}
+
 void RegularEdgeLabeling::normalizeVertexWeights() {
     int total = 0;
     for (Vertex &v : m_vertices) {
@@ -407,8 +464,6 @@ void RegularEdgeLabeling::normalizeVertexWeights() {
     for (Vertex &v : m_vertices) {
         v.weight *= ratio;
     }
-
-    computePreferredSizes();
 }
 
 void RegularEdgeLabeling::computePreferredSizes() {
@@ -604,6 +659,14 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestVerticalPath(
 
     return { cost, path };
 }
+
+void RegularEdgeLabeling::collapseMaxHorizontalPath() {
+}
+
+void RegularEdgeLabeling::collapseMaxVerticalPath() {
+
+}
+
 
 // ---------------- otherLabelOfHalfEdge ----------------
 string RegularEdgeLabeling::otherLabelOfHalfEdge(int h) const {
@@ -812,7 +875,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     if (cCyclicPos == -1) return false;
     {
         auto &elistC = m_vertices[cVertex].edges;
-        int insertPos = clockwise ? cCyclicPos + 1 : cCyclicPos - 1;
+        int insertPos = clockwise ? cCyclicPos + 1 : cCyclicPos;
         if (insertPos < 0) insertPos = 0;
         if (insertPos > elistC.size()) insertPos = elistC.size();
         elistC.insert(elistC.begin() + insertPos, edgeId);
@@ -822,7 +885,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     if (dCyclicPos == -1) return false;
     {
         auto &elistD = m_vertices[dVertex].edges;
-        int insertPos = clockwise ? dCyclicPos -1 : dCyclicPos + 1;
+        int insertPos = clockwise ? dCyclicPos : dCyclicPos + 1;
         if (insertPos < 0) insertPos = 0;
         if (insertPos > elistD.size()) insertPos = elistD.size();
         elistD.insert(elistD.begin() + insertPos, twinId);
@@ -851,6 +914,8 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     string originD = m_vertices[ dVertex ].label;
     string destC  = m_vertices[ m_halfEdges[baseEdgeId].vertex ].label; // cVert
     m_halfEdges[endEdgeId].id_str = originD + "->" + destC;
+
+    std::cout << isValidREL() << std::endl;
 
     return true;
 }

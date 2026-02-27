@@ -135,7 +135,7 @@ void RectangularCartogramDemo::processData() {
     m_rel.printSummary();
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
-    m_relPtr->setBoundingBox(BoundingBox{0, 1000, 0, 1000});
+    m_relPtr->setBoundingBox(BoundingBox{0, 1280, 0, 880});
 
 }
 
@@ -281,14 +281,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         double dy = wy - hy;
         double d2 = dx * dx + dy * dy;
 
-        std::cout << "checking distance for click" << std::endl;
-
-        std::cout << std::fixed << std::setprecision(6);
-        std::cout << "checking distance for click\n";
-        std::cout << " bb.right,bb.top = (" << hx << ", " << hy << ")\n";
-        std::cout << " pt.x(),pt.y()   = (" << wx << ", " << wy << ")\n";
-        std::cout << " dx,dy = (" << dx << "," << dy << ") d2=" << d2 << "\n";
-        std::cout << " handle tolerance (squared) = " << (m_bboxHandleTolerance*m_bboxHandleTolerance) << "\n";
+        // std::cout << "checking distance for click" << std::endl;
+        //
+        // std::cout << std::fixed << std::setprecision(6);
+        // std::cout << "checking distance for click\n";
+        // std::cout << " bb.right,bb.top = (" << hx << ", " << hy << ")\n";
+        // std::cout << " pt.x(),pt.y()   = (" << wx << ", " << wy << ")\n";
+        // std::cout << " dx,dy = (" << dx << "," << dy << ") d2=" << d2 << "\n";
+        // std::cout << " handle tolerance (squared) = " << (m_bboxHandleTolerance*m_bboxHandleTolerance) << "\n";
         if (d2 <= m_bboxHandleTolerance * m_bboxHandleTolerance) {
             m_bboxDragging = true;
             m_dragStartWorld = Point<Inexact>(wx, wy);
