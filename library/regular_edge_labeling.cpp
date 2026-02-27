@@ -423,6 +423,188 @@ void RegularEdgeLabeling::computePreferredSizes() {
     }
 }
 
+static std::pair<double, std::vector<int>> REL_longestPathPred_generic(const RegularEdgeLabeling &rel,
+                                                                        EdgeColor color,
+                                                                        const std::string &sourceLabel,
+                                                                        const std::string &sinkLabel,
+                                                                        std::function<double(int)> vertexCost)
+{
+    const auto &V = rel.getVertices();
+    const auto &H = rel.getHalfEdges();
+    const int n = (int)V.size();
+    if (n == 0) return { std::numeric_limits<double>::quiet_NaN(), {} };
+
+    // find source and sink
+    int source = -1, sink = -1;
+    for (int i = 0; i < n; ++i) {
+        if (V[i].label == sourceLabel) source = i;
+        if (V[i].label == sinkLabel)   sink = i;
+    }
+    if (source == -1 || sink == -1) {
+        std::cerr << "REL_longestPathPred_generic: missing source/sink label '"
+                  << sourceLabel << "'/'" << sinkLabel << "'\n";
+        return { std::numeric_limits<double>::quiet_NaN(), {} };
+    }
+
+    // build adjacency over vertices using outgoing halfedges of the requested color
+    std::vector<std::vector<int>> adj(n);
+    std::vector<int> indeg(n,0);
+    for (int hi = 0; hi < (int)H.size(); ++hi) {
+        const auto &h = H[hi];
+        if (!h.outgoing) continue;
+        if (h.color != color) continue;
+        int u = h.vertex;
+        int t = h.twin;
+        if (u < 0 || u >= n) continue;
+        if (t < 0 || t >= (int)H.size()) continue;
+        int v = H[t].vertex;
+        if (v < 0 || v >= n) continue;
+        adj[u].push_back(v);
+        indeg[v] += 1;
+    }
+
+    // Kahn topo order
+    std::deque<int> q;
+    for (int i = 0; i < n; ++i) if (indeg[i] == 0) q.push_back(i);
+    std::vector<int> topo;
+    topo.reserve(n);
+    while (!q.empty()) {
+        int u = q.front(); q.pop_front();
+        topo.push_back(u);
+        for (int w : adj[u]) {
+            if (--indeg[w] == 0) q.push_back(w);
+        }
+    }
+    if (topo.size() != (size_t)n) {
+        std::cerr << "REL_longestPathPred_generic: warning - color graph has cycle (n="
+                  << n << ", topo=" << topo.size() << ")\n";
+        // still continue with whatever topo we have
+    }
+
+    const double NEG_INF = -std::numeric_limits<double>::infinity();
+    std::vector<double> best(n, NEG_INF);
+    std::vector<int> pred(n, -1);
+
+    // initialize source
+    best[source] = vertexCost(source);
+    pred[source] = -1;
+
+    // DP
+    for (int u : topo) {
+        if (best[u] == NEG_INF) continue;
+        for (int v : adj[u]) {
+            double cand = best[u] + vertexCost(v);
+            if (cand > best[v]) {
+                best[v] = cand;
+                pred[v] = u;
+            }
+        }
+    }
+
+    if (best[sink] == NEG_INF) {
+        std::cerr << "REL_longestPathPred_generic: sink '" << sinkLabel
+                  << "' unreachable from '" << sourceLabel << "'\n";
+        return { std::numeric_limits<double>::quiet_NaN(), {} };
+    }
+
+    return { best[sink], pred };
+}
+
+// Return cost + vertex path (excluding outer vertices)
+std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestHorizontalPath() const
+{
+    // compute generic DP for blue edges West->East using preferred_width fallback to weight
+    auto costAndPred = REL_longestPathPred_generic(
+        *this,
+        BLUE,
+        "West",
+        "East",
+        [&](int vid)->double {
+            const Vertex &v = this->m_vertices[vid];
+            double w = v.preferred_width;
+            if (!std::isfinite(w) || w <= 0.0) {
+                return (std::isfinite(v.weight) ? v.weight : 0.0);
+            }
+            return w;
+        }
+    );
+
+    double cost = costAndPred.first;
+    if (!std::isfinite(cost)) return { cost, {} };
+    const std::vector<int> &pred = costAndPred.second;
+
+    // backtrack from sink to source using pred
+    // find sink index (label "East")
+    int sinkIdx = -1;
+    for (int i = 0; i < (int)m_vertices.size(); ++i) if (m_vertices[i].label == "East") { sinkIdx = i; break; }
+    if (sinkIdx == -1) return { std::numeric_limits<double>::quiet_NaN(), {} };
+
+    std::vector<int> rev;
+    int cur = sinkIdx;
+    while (cur != -1) {
+        rev.push_back(cur);
+        cur = pred[cur];
+    }
+    std::reverse(rev.begin(), rev.end()); // now source -> sink
+
+    // filter out outer vertices West,East,North,South
+    std::vector<int> path;
+    path.reserve(rev.size());
+    for (int vid : rev) {
+        const std::string &lbl = m_vertices[vid].label;
+        if (lbl == "West" || lbl == "East" || lbl == "North" || lbl == "South") continue;
+        path.push_back(vid);
+    }
+
+    return { cost, path };
+}
+
+std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestVerticalPath() const
+{
+    auto costAndPred = REL_longestPathPred_generic(
+        *this,
+        RED,
+        "South",
+        "North",
+        [&](int vid)->double {
+            const Vertex &v = this->m_vertices[vid];
+            double h = v.preferred_height;
+            if (!std::isfinite(h) || h <= 0.0) {
+                return (std::isfinite(v.weight) ? v.weight : 0.0);
+            }
+            return h;
+        }
+    );
+
+    double cost = costAndPred.first;
+    if (!std::isfinite(cost)) return { cost, {} };
+    const std::vector<int> &pred = costAndPred.second;
+
+    // find sink "North"
+    int sinkIdx = -1;
+    for (int i = 0; i < (int)m_vertices.size(); ++i) if (m_vertices[i].label == "North") { sinkIdx = i; break; }
+    if (sinkIdx == -1) return { std::numeric_limits<double>::quiet_NaN(), {} };
+
+    std::vector<int> rev;
+    int cur = sinkIdx;
+    while (cur != -1) {
+        rev.push_back(cur);
+        cur = pred[cur];
+    }
+    std::reverse(rev.begin(), rev.end());
+
+    // filter out outer vertices
+    std::vector<int> path;
+    path.reserve(rev.size());
+    for (int vid : rev) {
+        const std::string &lbl = m_vertices[vid].label;
+        if (lbl == "West" || lbl == "East" || lbl == "North" || lbl == "South") continue;
+        path.push_back(vid);
+    }
+
+    return { cost, path };
+}
+
 // ---------------- otherLabelOfHalfEdge ----------------
 string RegularEdgeLabeling::otherLabelOfHalfEdge(int h) const {
     if (h < 0 || h >= (int)m_halfEdges.size()) return string();

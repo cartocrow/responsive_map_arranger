@@ -77,6 +77,19 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
 
     m_rectangularDual->fixRectangleAreas(*m_relPtr);
 
+    auto longestRed = m_relPtr->getLongestVerticalPath();
+    auto longestBlue = m_relPtr->getLongestHorizontalPath();
+
+    std::cout << "Longest Red: " << longestRed.first << std::endl;
+
+    for (auto v : longestRed.second) {
+        std::cout << m_relPtr->getVertices()[v].label << std::endl;
+    }
+
+    std::cout << "Longest Blue: " << longestBlue.first << std::endl;
+    for (auto v : longestBlue.second) {
+        std::cout << m_relPtr->getVertices()[v].label << std::endl;
+    }
 
     // // inspect some vertices
     // for (int v = 0; v < m_relPtr->getVertices().size(); ++v) {
@@ -122,7 +135,7 @@ void RectangularCartogramDemo::processData() {
     m_rel.printSummary();
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
-    m_relPtr->setBoundingBox(BoundingBox{0, 1600, 0, 900});
+    m_relPtr->setBoundingBox(BoundingBox{0, 1000, 0, 1000});
 
 }
 

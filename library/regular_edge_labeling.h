@@ -59,6 +59,9 @@ public:
     void normalizeVertexWeights();
     void computePreferredSizes();
 
+    std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
+    std::pair<double, std::vector<int>> getLongestVerticalPath() const;
+
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
     string otherLabelOfHalfEdge(int h) const;
