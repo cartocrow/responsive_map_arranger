@@ -56,6 +56,7 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
                 const auto &verts = m_relmap->getVertices();
                 if (id < verts.size()) {
                     label = verts[id].label;
+                    label.append(": " + (std::to_string(verts[id].weight)));
                 } else {
                     std::ostringstream ss;
                     ss << "R" << id;

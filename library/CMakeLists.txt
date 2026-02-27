@@ -6,6 +6,7 @@ set(SOURCES
 		rel_map.cpp
 )
 set(HEADERS
+		geometry_types.h
 		rectangular_cartogram_painting.h
 		rectangular_dual.h
 		regular_edge_labeling.h

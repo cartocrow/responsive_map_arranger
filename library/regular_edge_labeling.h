@@ -1,10 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include <nlohmann/json_fwd.hpp>
+#include "geometry_types.h"
 
 using json = nlohmann::json;
 
@@ -45,10 +47,19 @@ public:
 
     void buildFromJson(const json &j);
 
-    const vector<Vertex> &getVertices() const { return m_vertices; }
+    bool isValidREL() const;
+
+    const vector<Vertex> &getVertices()  const { return m_vertices; }
+    void updateVertexWeight(int id, int weight) { m_vertices[id].weight = weight; }
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
     string otherLabelOfHalfEdge(int h) const;
+
+    // bb box
+    void setBoundingBox(const BoundingBox &bb) { m_boundingBox = bb; }
+    optional<BoundingBox> getBoundingBox() const { return m_boundingBox; }
+    bool hasBoundingBox() const noexcept { return static_cast<bool>(m_boundingBox); }
+    void clearBoundingBox() { m_boundingBox.reset(); }
 
     void printSummary() const;
 
@@ -82,6 +93,8 @@ private:
     vector<Vertex> m_vertices;
     unordered_map<string, int> m_labelToIndex;
     vector<HalfEdge> m_halfEdges;
+
+    optional<BoundingBox> m_boundingBox;
 
     static string dirKey(const std::string &a, const std::string &b);
     static string undirKey(const std::string &a, const std::string &b);

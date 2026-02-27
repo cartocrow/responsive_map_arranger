@@ -22,6 +22,7 @@ struct Segment {
     std::vector<int> incoming_vertices;  // for horizontal: below rects, for vertical: left rects
     std::vector<int> outgoing_vertices;  // for horizontal: above rects, for vertical: right rects
 
+    bool fixedSegment = false;
     double coord = 0.0;
     double gradientValue = 0.0;
     //coord
@@ -40,6 +41,10 @@ public:
         double right;
         double bottom;
         double top;
+
+        double computeArea() {
+            return (right - left) * (top - bottom);
+        }
     };
 
     struct STGraph {
@@ -51,10 +56,19 @@ public:
 
     RectangularDual() = default;
 
+    bool hasValidSegmentCoords() const;
+
+    void normalizeVertexWeights(RegularEdgeLabeling &rel);
+    double computeFrameArea();
+
+    double computeAreaDeviation(RegularEdgeLabeling &rel);
+
+    void fixRectangleAreas(RegularEdgeLabeling &rel);
+
     bool computeMaximalSegments(RegularEdgeLabeling &rel);
     std::vector<Segment> getMaximalSegments() const { return maximalSegments; };
     bool computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size = 50.0);
-    bool computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size = 50.0);
+    bool computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size = 0.0);
 
     void debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const;
     void debugDumpVertexSegments(const RegularEdgeLabeling &rel, int v) const;

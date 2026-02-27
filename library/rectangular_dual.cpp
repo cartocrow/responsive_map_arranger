@@ -116,6 +116,146 @@ struct DSU {
     }
 };
 
+bool RectangularDual::hasValidSegmentCoords() const {
+    for (int i = 4; i < rects.size(); ++i) {
+        if (rects[i].bottom >= rects[i].top || rects[i].left >= rects[i].right) {
+            //std::cout << "rect:" << std::endl;
+            //std::cout << "bottom: " << rects[i].bottom <<  " top: " << rects[i].top << " left: " << rects[i].left << " right: " << rects[i].right << std::endl;
+
+            return false;
+        };
+    }
+
+    return true;
+}
+
+void RectangularDual::normalizeVertexWeights(RegularEdgeLabeling &rel) {
+    auto &vertices = rel.getVertices();
+
+    int total = 0;
+    for (auto &v : vertices) {
+        total += v.weight;
+    }
+
+    double ratio = computeFrameArea() / total;
+    for (int i = 0; i < vertices.size(); ++i) {
+        rel.updateVertexWeight(i, vertices[i].weight * ratio);
+        //vertices[i].weight *= ratio;
+    }
+
+}
+
+double RectangularDual::computeFrameArea() {
+    double totalArea = 0;
+
+    vector<Segment> horizontalFrameSegments;
+    vector<Segment> verticalFrameSegments;
+
+    for (const Segment& segment : maximalSegments) {
+        if (segment.fixedSegment) {
+            if (segment.type == SEGMENT_HORIZONTAL)
+                horizontalFrameSegments.push_back(segment);
+            if (segment.type == SEGMENT_VERTICAL)
+                verticalFrameSegments.push_back(segment);
+        }
+    }
+
+    double xspan = 0;
+    double yspan = 0;
+
+    if (horizontalFrameSegments[0].coord > horizontalFrameSegments[1].coord) {
+        xspan = horizontalFrameSegments[1].coord - horizontalFrameSegments[0].coord;
+    }
+    else xspan = horizontalFrameSegments[0].coord - horizontalFrameSegments[1].coord;
+
+    if (verticalFrameSegments[0].coord > verticalFrameSegments[1].coord) {
+        yspan = verticalFrameSegments[1].coord - verticalFrameSegments[0].coord;
+    }
+    else yspan = verticalFrameSegments[0].coord - verticalFrameSegments[1].coord;
+
+    totalArea = xspan * yspan;
+
+    return  totalArea;
+}
+
+double RectangularDual::computeAreaDeviation(RegularEdgeLabeling &rel) {
+    double total = 0;
+
+    auto &vertices = rel.getVertices();
+
+    for (int i = 4; i < vertices.size(); ++i) {
+        auto rectArea = rects[i].computeArea();
+        double targetArea = vertices[i].weight;
+
+        total += (rectArea - targetArea) * (rectArea - targetArea);
+    }
+    return sqrt(total);
+
+}
+
+void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
+    if (!hasValidSegmentCoords()) {
+        std::cerr << "Invalid segment coordinates." << std::endl;
+        return;
+    }
+
+    normalizeVertexWeights(rel);
+
+    auto &vertices = rel.getVertices();
+    const double frameArea = computeFrameArea();
+    double epsilon = 1.0;
+    double deviation = computeAreaDeviation(rel);
+
+    while (deviation > 0.0001 * frameArea) {
+        for (Segment &segment : maximalSegments) {
+
+            if (segment.fixedSegment) continue;
+            segment.gradientValue = 0.0;
+        }
+
+        // set gradients for maximal segments
+        for (int i = 4; i < vertices.size(); ++i) {
+            auto &rect = rects[i];
+            auto &v = vertices[i];
+
+            double width = rect.right - rect.left;
+            double height = rect.top - rect.bottom;
+            double area = width * height;
+            double targetArea = v.weight;
+
+            maximalSegments[v.top_segment].gradientValue += (targetArea - area) * width;
+            maximalSegments[v.bottom_segment].gradientValue -= (targetArea - area) * width;
+            maximalSegments[v.right_segment].gradientValue += (targetArea - area) * height;
+            maximalSegments[v.left_segment].gradientValue -= (targetArea - area) * height;
+        }
+
+        for (Segment &segment : maximalSegments){//  (Segment segment : maximalSegments) {
+            if (segment.fixedSegment) continue;
+            segment.coord += segment.gradientValue * epsilon ;
+        }
+
+        computeRectanglesFromSegments(rel);
+
+        if (hasValidSegmentCoords() && computeAreaDeviation(rel) < deviation) {
+            epsilon *= 2;
+        } else {
+            while (!hasValidSegmentCoords() || computeAreaDeviation(rel) > deviation) { // If rects not valid -> trace back sliding segment
+                epsilon *= 0.5;
+                for (Segment &segment : maximalSegments) {
+                    if (segment.fixedSegment) continue;
+                    segment.coord -= segment.gradientValue * epsilon ;
+                }
+                computeRectanglesFromSegments(rel);
+
+            }
+        }
+
+        deviation = computeAreaDeviation(rel);
+    }
+
+    std::cout << "fixed areas" << std::endl;
+}
+
 bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
     const auto &relHalfedges = rel.getHalfEdges();
     const auto &relVertices  = rel.getVertices();
@@ -390,7 +530,6 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
     }
 
     // create frame nodes (we'll append them after existing segments by concept)
-    // We'll treat them as separate indices in the adjacency arrays.
     const int leftFrameIdx = hcount;    // index in horizontal node-space
     const int rightFrameIdx = hcount+1;
     const int bottomFrameIdx = vcount;  // index in vertical node-space
@@ -421,6 +560,13 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
         int rightSeg = verts[v].right_segment;
         int bottomSeg = verts[v].bottom_segment;
         int topSeg = verts[v].top_segment;
+
+        if (verts[v].label == "West" || verts[v].label == "East" || verts[v].label == "South" || verts[v].label == "North") {
+            if (leftSeg != -1) maximalSegments[leftSeg].fixedSegment = true;
+            if (rightSeg != -1) maximalSegments[rightSeg].fixedSegment = true;
+            if (bottomSeg != -1) maximalSegments[bottomSeg].fixedSegment = true;
+            if (topSeg != -1) maximalSegments[topSeg].fixedSegment = true;
+        }
 
         // horizontal: left -> right
         int a = hnode(leftSeg);
@@ -483,20 +629,83 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
         }
     }
 
-
     // Now use frame node coords too if needed: leftFrameIdx->hx[leftFrameIdx], rightFrameIdx->...
     int leftFrameX = hx[leftFrameIdx], rightFrameX = hx[rightFrameIdx];
     int bottomFrameY = vy[bottomFrameIdx], topFrameY = vy[topFrameIdx];
 
-    for (int si = 0; si < S; ++si) {
-        if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
-            if (seg_x[si] >= 0) maximalSegments[si].coord = double(seg_x[si]) * cell_size;
-            else                 maximalSegments[si].coord = 0.0; // or keep previous default
-        } else if (maximalSegments[si].type == SEGMENT_VERTICAL) {
-            if (seg_y[si] >= 0) maximalSegments[si].coord = double(seg_y[si]) * cell_size;
-            else                 maximalSegments[si].coord = 0.0;
+    // If REL provides a bounding box, map integer levels into that box.
+    if (rel.hasBoundingBox()) {
+        auto obb = rel.getBoundingBox();
+        if (obb) {
+            const BoundingBox &bb = *obb;
+            // bounding box is assumed to satisfy right > left and top > bottom (per your note)
+            double spanX = bb.right - bb.left;
+            double spanY = bb.top - bb.bottom;
+
+            // compute numeric ranges for hx/vy (include frame node values)
+            double minHX = static_cast<double>(leftFrameX);
+            double maxHX = static_cast<double>(rightFrameX);
+            double minVY = static_cast<double>(bottomFrameY);
+            double maxVY = static_cast<double>(topFrameY);
+
+            // guard against degenerate ranges (avoid division by zero)
+            if (maxHX == minHX) maxHX = minHX + 1.0;
+            if (maxVY == minVY) maxVY = minVY + 1.0;
+
+            // assign coordinates by linear interpolation into bbox
+            for (int si = 0; si < S; ++si) {
+                if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
+                    int hi = seg_to_hidx[si];
+                    if (hi >= 0) {
+                        double val = static_cast<double>(hx[hi]);
+                        double t = (val - minHX) / (maxHX - minHX);
+                        maximalSegments[si].coord = bb.left + t * spanX;
+                    } else {
+                        // fallback: place at left boundary + small epsilon (one percent)
+                        maximalSegments[si].coord = bb.left + 0.01 * spanX;
+                    }
+                } else if (maximalSegments[si].type == SEGMENT_VERTICAL) {
+                    int vi = seg_to_vidx[si];
+                    if (vi >= 0) {
+                        double val = static_cast<double>(vy[vi]);
+                        double t = (val - minVY) / (maxVY - minVY);
+                        maximalSegments[si].coord = bb.bottom + t * spanY;
+                    } else {
+                        // fallback: place at bottom boundary + small epsilon
+                        maximalSegments[si].coord = bb.bottom + 0.01 * spanY;
+                    }
+                } else {
+                    maximalSegments[si].coord = 0.0;
+                }
+            }
         } else {
-            maximalSegments[si].coord = 0.0;
+            // Defensive: if optional empty for any reason, fall back to old behaviour using cell_size
+            for (int si = 0; si < S; ++si) {
+                if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
+                    int hi = seg_to_hidx[si];
+                    if (hi >= 0) maximalSegments[si].coord = double(hx[hi]) * cell_size;
+                    else maximalSegments[si].coord = 0.0;
+                } else if (maximalSegments[si].type == SEGMENT_VERTICAL) {
+                    int vi = seg_to_vidx[si];
+                    if (vi >= 0) maximalSegments[si].coord = double(vy[vi]) * cell_size;
+                    else maximalSegments[si].coord = 0.0;
+                } else {
+                    maximalSegments[si].coord = 0.0;
+                }
+            }
+        }
+    } else {
+        // original behaviour: place segments on integer grid * cell_size
+        for (int si = 0; si < S; ++si) {
+            if (maximalSegments[si].type == SEGMENT_HORIZONTAL) {
+                if (seg_x[si] >= 0) maximalSegments[si].coord = double(seg_x[si]) * cell_size;
+                else maximalSegments[si].coord = 0.0; // or keep previous default
+            } else if (maximalSegments[si].type == SEGMENT_VERTICAL) {
+                if (seg_y[si] >= 0) maximalSegments[si].coord = double(seg_y[si]) * cell_size;
+                else                 maximalSegments[si].coord = 0.0;
+            } else {
+                maximalSegments[si].coord = 0.0;
+            }
         }
     }
 
@@ -504,6 +713,9 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
 }
 
 bool RectangularDual::computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size) {
+    //const auto &
+
+
     const auto &verts = rel.getVertices();
     const int V = static_cast<int>(verts.size());
     if (V == 0) {
@@ -598,10 +810,6 @@ bool RectangularDual::computeRectanglesFromSegments(const RegularEdgeLabeling &r
         if (!std::isfinite(ty)) {
             ty = topFrameY - cell_size;
         }
-
-        // Sanity: ensure positive width/height
-        if (rx <= lx) rx = lx + cell_size;
-        if (ty <= by) ty = by + cell_size;
 
         Rect r;
         r.left   = lx;

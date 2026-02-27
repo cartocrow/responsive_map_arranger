@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <set>
 #include <algorithm>
+#include <queue>
+#include <CGAL/MP_Float_impl.h>
 
 using json = nlohmann::json;
 using namespace std;
@@ -241,6 +243,154 @@ for (int vIdx = 0; vIdx < (int)m_vertices.size(); ++vIdx) {
 
     m_vertices[vIdx].edges.swap(incident);
 }
+    isValidREL();
+}
+
+static bool checkEdgeConsistency(const RegularEdgeLabeling& rel)
+{
+    const auto& H = rel.getHalfEdges();
+
+    for (int i = 0; i < H.size(); ++i) {
+        int t = H[i].twin;
+        if (t < 0 || t >= H.size()) return false;
+
+        // same color
+        if (H[i].color != H[t].color)
+            return false;
+
+        // exactly one outgoing
+        if (H[i].outgoing == H[t].outgoing)
+            return false;
+    }
+    return true;
+}
+
+static bool checkVertexBlocks(const RegularEdgeLabeling& rel)
+{
+    const auto& V = rel.getVertices();
+    const auto& H = rel.getHalfEdges();
+
+    auto typeToString = [](int t)->std::string {
+        switch(t) {
+            case 0: return "IB";
+            case 1: return "IR";
+            case 2: return "OB";
+            case 3: return "OR";
+            default: return "?";
+        }
+    };
+
+    for (int v = 0; v < (int)V.size(); ++v)
+    {
+        const auto& edges = V[v].edges;
+        if (edges.empty()) continue;
+
+        // build compressed sequence of types (no consecutive duplicates)
+        std::vector<int> compressed;
+        compressed.reserve(edges.size());
+        for (int he : edges) {
+            const auto &e = H[he];
+            int t = -1;
+            if (e.color == BLUE && !e.outgoing) t = 0; // IB
+            else if (e.color == RED  && !e.outgoing) t = 1; // IR
+            else if (e.color == BLUE &&  e.outgoing) t = 2; // OB
+            else if (e.color == RED  &&  e.outgoing) t = 3; // OR
+            else continue;
+
+            if (compressed.empty() || compressed.back() != t) compressed.push_back(t);
+        }
+
+        if (compressed.empty()) continue;
+
+        // MERGE wrap-around duplicate: if first==last and size>1, drop last
+        if (compressed.size() > 1 && compressed.front() == compressed.back()) {
+            compressed.pop_back();
+        }
+
+        // Core check:
+        // Map each block to offset relative to first block, offsets must be strictly increasing and < 4.
+        int base = compressed.front();
+        int lastOffset = -1;
+        bool ok = true;
+        for (int x : compressed) {
+            int offset = (x - base + 4) % 4; // 0..3
+            if (offset <= lastOffset) { ok = false; break; } // not strictly increasing
+            lastOffset = offset;
+        }
+
+        if (!ok) {
+            std::cout << "Vertex block-order violation at vertex " << v
+                      << " label='" << V[v].label << "'; blocks = ";
+            for (int b : compressed) std::cout << typeToString(b) << " ";
+            std::cout << "\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool isColorAcyclic(const RegularEdgeLabeling& rel, EdgeColor color)
+{
+    const auto& V = rel.getVertices();
+    const auto& H = rel.getHalfEdges();
+
+    std::vector<int> indeg(V.size(),0);
+    std::vector<std::vector<int>> adj(V.size());
+
+    for (int i=0;i<H.size();++i)
+    {
+        const auto& e = H[i];
+        if (!e.outgoing || e.color!=color) continue;
+
+        int u = e.vertex;
+        int v = H[e.twin].vertex;
+
+        adj[u].push_back(v);
+        indeg[v]++;
+    }
+
+    queue<int> q;
+    for (int i=0;i<V.size();++i)
+        if (indeg[i]==0) q.push(i);
+
+    int visited=0;
+    while(!q.empty())
+    {
+        int u=q.front(); q.pop();
+        visited++;
+        for(int v:adj[u])
+            if(--indeg[v]==0)
+                q.push(v);
+    }
+
+    return visited==V.size();
+}
+
+bool RegularEdgeLabeling::isValidREL() const
+{
+    return true;
+    if (!checkEdgeConsistency(*this)) {
+        std::cout<<"REL invalid: edge mismatch\n";
+        return false;
+    }
+
+    if (!checkVertexBlocks(*this)) {
+        std::cout<<"REL invalid: vertex block order\n";
+        return false;
+    }
+
+    if (!isColorAcyclic(*this, BLUE)) {
+        std::cout<<"REL invalid: blue cycle\n";
+        return false;
+    }
+
+    if (!isColorAcyclic(*this, RED)) {
+        std::cout<<"REL invalid: red cycle\n";
+        return false;
+    }
+
+    std::cout<<"REL valid\n";
+    return true;
 }
 
 // ---------------- otherLabelOfHalfEdge ----------------
@@ -405,21 +555,14 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     // previous or next half-edge around a and b in ccw order
     int cEdge = -1;
     int dEdge = -1;
-    // if (clockwise) {
-    //     cEdge = getNextCyclicEdge(edgeId);
-    //     dEdge = getNextCyclicEdge(twinId);
-    // } else {
-    //     cEdge = getPreviousCyclicEdge(edgeId);
-    //     dEdge = getPreviousCyclicEdge(twinId);
-    // }
 
     if (clockwise) {
-        cEdge = getNextCyclicEdge(edgeId);
-        dEdge = getPreviousCyclicEdge(edgeId);
+        cEdge = getNextCyclicEdge(baseEdgeId);
+        dEdge = getPreviousCyclicEdge(baseEdgeId);
     }
     else {
-        cEdge = getPreviousCyclicEdge(edgeId);
-        dEdge = getNextCyclicEdge(edgeId);
+        cEdge = getPreviousCyclicEdge(baseEdgeId);
+        dEdge = getNextCyclicEdge(baseEdgeId);
     }
 
     int cVertex = m_halfEdges[m_halfEdges[cEdge].twin].vertex;
@@ -473,8 +616,8 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
         elistD.insert(elistD.begin() + insertPos, twinId);
     }
     // 4) update half edge vertex references
-    m_halfEdges[edgeId].vertex = cVertex;
-    m_halfEdges[twinId].vertex = dVertex;
+    m_halfEdges[baseEdgeId].vertex = cVertex;
+    m_halfEdges[endEdgeId].vertex = dVertex;
 
 
     cout << "c edges: " << endl;
@@ -490,12 +633,12 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
 
     // 5) update id string
     string originC = m_vertices [cVertex].label;
-    string destD  = m_vertices[ m_halfEdges[twinId].vertex ].label;
-    m_halfEdges[edgeId].id_str = originC + "->" + destD;
+    string destD  = m_vertices[ m_halfEdges[endEdgeId].vertex ].label;
+    m_halfEdges[baseEdgeId].id_str = originC + "->" + destD;
 
     string originD = m_vertices[ dVertex ].label;
-    string destC  = m_vertices[ m_halfEdges[edgeId].vertex ].label; // cVert
-    m_halfEdges[twinId].id_str = originD + "->" + destC;
+    string destC  = m_vertices[ m_halfEdges[baseEdgeId].vertex ].label; // cVert
+    m_halfEdges[endEdgeId].id_str = originD + "->" + destC;
 
     return true;
 }

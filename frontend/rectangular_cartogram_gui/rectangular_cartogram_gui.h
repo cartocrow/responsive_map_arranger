@@ -16,6 +16,7 @@
 #include "library/regular_edge_labeling.h"
 #include "library/rel_map.h"
 #include "library/rel_painting.h"
+#include "library/geometry_types.h"
 
 using json = nlohmann::json;
 
@@ -33,6 +34,13 @@ class RectangularCartogramDemo : public QMainWindow {
     GeometryWidget* m_renderer;
     std::shared_ptr<RELPainting> m_relPainting;
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
+
+    bool m_bboxDragging = false;
+    Point<Inexact> m_dragStartWorld;
+    BoundingBox m_bboxBeforeDrag;
+    double m_bboxHandleTolerance = 8.0; // world units tolerance to hit corner (adjust)
+    double m_bboxMinWidth  = 20.0;
+    double m_bboxMinHeight = 20.0;
 
     QCheckBox* m_showREL = nullptr;
 
