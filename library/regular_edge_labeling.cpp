@@ -765,20 +765,14 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
 
     std::cout << "Merging red edge: " << edgeId << std::endl;
 
-    int a = -1;
-    int b = -1;
     int baseEdgeId = -1;
     int endEdgeId = -1;
 
     if (m_halfEdges[edgeId].outgoing) {
-        a = m_halfEdges[edgeId].vertex; // origin of half-edge id
-        b = m_halfEdges[twinId].vertex;
         baseEdgeId = edgeId;
         endEdgeId = twinId;
     }
     else {
-        a = m_halfEdges[twinId].vertex; // origin of half-edge id
-        b = m_halfEdges[edgeId].vertex;
         baseEdgeId = twinId;
         endEdgeId = edgeId;
     }
@@ -877,6 +871,150 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
             flipEdgeDiagonally(firstIncomingEdgeId, false);
             flipEdgeColor(firstIncomingEdgeId);
         }
+
+        // when the bottom vertex goes to the right of the top, the edge dir needs to be reverted
+        revertEdgeDirection(baseEdgeId);
+    }
+
+    std::cout << "oldColor: " << m_halfEdges[baseEdgeId].color << std::endl;
+
+    // flip color of edge that needs to merge
+    bool flippedColor = flipEdgeColor(baseEdgeId);
+
+    std::cout << "newColor: " << m_halfEdges[baseEdgeId].color << std::endl;
+
+
+
+    std::cout << "FLIPPED status of edge ID: " << baseEdgeId << " = " << flippedColor << std::endl;
+
+    return true;
+}
+
+bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
+
+    if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
+        cerr << "Invalid edgeId " << edgeId << endl;
+        return false;
+    }
+    const int twinId = m_halfEdges[edgeId].twin;
+    if (twinId < 0 || twinId >= m_halfEdges.size()){
+        cerr << "Invalid twinEdge id " << twinId << endl;
+        return false;
+    }
+
+    std::cout << "Merging blue edge: " << edgeId << std::endl;
+
+    int baseEdgeId = -1;
+    int endEdgeId = -1;
+
+    if (m_halfEdges[edgeId].outgoing) {
+        baseEdgeId = edgeId;
+        endEdgeId = twinId;
+    }
+    else {
+        baseEdgeId = twinId;
+        endEdgeId = edgeId;
+    }
+
+    HalfEdge &baseEdge = m_halfEdges[baseEdgeId];
+    HalfEdge &endEdge = m_halfEdges[endEdgeId];
+    Vertex &baseVertex = m_vertices[baseEdge.vertex];
+    Vertex &endVertex = m_vertices[endEdge.vertex];
+
+    // If the left vertex needs to go to the bottom
+    if (baseVertex.vertical_order_index < endVertex.vertical_order_index) {
+        // If bottom vertex is last in the subsequence then we first want to flip all blue outgoing edge of the base node (highest to lowest order)
+        {
+            // int lastRedOutId = getlastOutgoingRed(baseEdge.vertex);
+            // if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastRedOutId].twin)].color == RED) {
+            //     std::cout << "last in sequence" << std::endl;
+            //     while (getFirstOutgoingRed(baseEdge.vertex) != lastRedOutId) {
+            //
+            //         flipEdgeDiagonally(lastRedOutId, false);
+            //         lastRedOutId = getlastOutgoingBlue(baseEdge.vertex);
+            //     }
+            //     // Last flipped edge recolor and flip in the other direction
+            //     flipEdgeDiagonally(lastRedOutId, true);
+            //     flipEdgeColor(lastRedOutId);
+            // }
+        }
+
+        // flip all outgoing red edges of the left vertex (right to left order)
+        {
+            std::cout << "flipping all outoing red of left" << std::endl;
+            int firstOutgoingEdgeId = getFirstOutgoingRed(baseEdge.vertex);
+            std::cout << "firstOUtRedId: " << firstOutgoingEdgeId << std::endl;
+            while (getlastOutgoingRed(baseEdge.vertex) != firstOutgoingEdgeId) {
+                flipEdgeDiagonally(firstOutgoingEdgeId, false);
+                firstOutgoingEdgeId = getFirstOutgoingRed(baseEdge.vertex);
+            }
+            flipEdgeDiagonally(firstOutgoingEdgeId, true);
+            flipEdgeColor(firstOutgoingEdgeId);
+        }
+
+        // flip incoming red edges on right vertex and recolor last one (lowest to highest order)
+        {
+            std::cout << "flipping incoming blue of top vertex" << std::endl;
+            int firstIncomingEdgeId = getFirstIncomingRed(endEdge.vertex);
+            while (getlastIncomingRed(endEdge.vertex) != firstIncomingEdgeId) {
+
+                flipEdgeDiagonally(firstIncomingEdgeId, true);
+                firstIncomingEdgeId = getlastIncomingRed(endEdge.vertex);
+            }
+            // Last flipped edge recolor and flip in the other direction
+            flipEdgeDiagonally(firstIncomingEdgeId, true);
+            flipEdgeColor(firstIncomingEdgeId);
+
+        }
+
+    } // if the left vertex needs to go to the top
+    else if (baseVertex.vertical_order_index > endVertex.vertical_order_index) {
+        // If top vertex is last in the subsequence then we first want to flip all outgoing blue edge of the end node (lowest to highest order)
+        {
+            // int firstRedOutId = getFirstOutgoingRed(endEdge.vertex);
+            // std::cout << "before: " << getNextCyclicEdge(m_halfEdges[firstRedOutId].twin) << std::endl;
+            // if (m_halfEdges[getNextCyclicEdge(m_halfEdges[firstRedOutId].twin)].color == RED) {
+            //     std::cout << "after.." << std::endl;
+            //     while (getlastOutgoingRed(endEdge.vertex) != firstRedOutId) {
+            //         flipEdgeDiagonally(firstRedOutId, false);
+            //         firstRedOutId = getFirstOutgoingRed(endEdge.vertex);
+            //     }
+            //     // Last flipped edge recolor and flip in the other direction
+            //     flipEdgeDiagonally(firstRedOutId, false);
+            //     std::cout << "flipping last in sequence: edgeID: " << firstRedOutId << std::endl;
+            //     flipEdgeColor(firstRedOutId);
+            // }
+        }
+
+        // flip outgoing red edges on right vertex and recolor last one (highest to lowest order)
+        {
+            int lastOutgoingEdgeId = getlastOutgoingRed(endEdge.vertex);
+            while (getFirstOutgoingRed(endEdge.vertex) != lastOutgoingEdgeId) {
+                flipEdgeDiagonally(lastOutgoingEdgeId, true);
+                lastOutgoingEdgeId = getlastIncomingRed(endEdge.vertex);
+            }
+            // Last flipped edge recolor and flip in the other direction
+            flipEdgeDiagonally(lastOutgoingEdgeId, true);
+            flipEdgeColor(lastOutgoingEdgeId);
+        }
+
+        // flip all incoming red edges of the left vertex
+        {
+            std::cout << "flipping incoming red edges of left vertex" << std::endl;
+            std::cout << "endvertexID: " << endEdge.vertex << std::endl;
+            for (auto he : m_vertices[endEdge.vertex].edges) { std::cout << he << " "; } std::cout << std::endl;
+
+            int lastOutgoingId = getlastIncomingRed(baseEdge.vertex);
+            std::cout << "lastRedId: " << lastOutgoingId << std::endl;
+            while (getFirstIncomingRed(baseEdge.vertex) != lastOutgoingId) {
+                flipEdgeDiagonally(lastOutgoingId, true);
+                lastOutgoingId = getlastIncomingRed(baseEdge.vertex);
+            }
+            flipEdgeDiagonally(lastOutgoingId, true);
+            flipEdgeColor(lastOutgoingId);
+        }
+
+
 
         // when the bottom vertex goes to the right of the top, the edge dir needs to be reverted
         revertEdgeDirection(baseEdgeId);

@@ -298,7 +298,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
             return;
         }
         for (int he : sels) {
-            m_relPtr->mergeLeftMostRedEdge(he);
+
+            if (m_relPtr->getHalfEdges()[he].color == RED) {
+                m_relPtr->mergeLeftMostRedEdge(he);
+            }
+            else if (m_relPtr->getHalfEdges()[he].color == BLUE) {
+                m_relPtr->mergeLowestBlueEdge(he);
+            }
             m_relPainting->clearSelection();
         }
 

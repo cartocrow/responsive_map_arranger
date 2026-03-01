@@ -71,6 +71,7 @@ public:
     void collapseMaxVerticalPath();
 
     bool mergeLeftMostRedEdge(int edgeId);
+    bool mergeLowestBlueEdge(int edgeId);
 
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
