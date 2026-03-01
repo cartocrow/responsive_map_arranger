@@ -992,7 +992,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
         cout << edge << endl;
     }
     cout << m_vertices[a].label << " " << m_vertices[b].label << endl;
-    cout << edgeId << " " << twinId << endl;
+    cout << baseEdgeId << " " << endEdgeId << endl;
     cout << m_vertices[cVertex].label << " " << m_vertices[dVertex].label << endl;
 
     cout << cEdge << " " << dEdge << endl;
@@ -1016,7 +1016,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
         int insertPos = clockwise ? cCyclicPos + 1 : cCyclicPos;
         if (insertPos < 0) insertPos = 0;
         if (insertPos > elistC.size()) insertPos = elistC.size();
-        elistC.insert(elistC.begin() + insertPos, edgeId);
+        elistC.insert(elistC.begin() + insertPos, baseEdgeId);
     }
     // 3) find insertion location in the d vertex: b->d
     int dCyclicPos = find_position_in_vertex_incident(m_vertices, dVertex, m_halfEdges[dEdge].twin);
@@ -1026,7 +1026,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
         int insertPos = clockwise ? dCyclicPos : dCyclicPos + 1;
         if (insertPos < 0) insertPos = 0;
         if (insertPos > elistD.size()) insertPos = elistD.size();
-        elistD.insert(elistD.begin() + insertPos, twinId);
+        elistD.insert(elistD.begin() + insertPos, endEdgeId);
     }
     // 4) update half edge vertex references
     m_halfEdges[baseEdgeId].vertex = cVertex;
