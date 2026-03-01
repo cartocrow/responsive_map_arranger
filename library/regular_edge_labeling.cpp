@@ -49,6 +49,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
             v.label = lbl;
             v.weight = r["weight"].get<int>();
             v.oldWeight = v.weight;
+            // note: your Vertex may have a different field name; adapt if needed
             v.preferred_aspect_ratio = r["preferred_aspect"].get<double>();
             m_vertices.push_back(std::move(v));
             m_labelToIndex[lbl] = idx;
@@ -66,7 +67,6 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
                 int vid = it->second;
                 m_vertices[vid].horizontal_order_index = idx;
             } else {
-                // optional: warn about unknown label
                 std::cerr << "buildFromJson: horizontal_order contains unknown label '" << lbl << "'\n";
             }
             ++idx;
@@ -80,13 +80,11 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
                 int vid = it->second;
                 m_vertices[vid].vertical_order_index = idx;
             } else {
-                // optional: warn about unknown label
                 std::cerr << "buildFromJson: vertical_order contains unknown label '" << lbl << "'\n";
             }
             ++idx;
         }
     }
-
 
     // 2) create explicit half-edges for outgoing lists, preserving per-vertex input order
     unordered_map<int, vector<int>> explicitOutPerVertex; // vertexIdx -> list of explicit halfedge indices (order)
@@ -128,7 +126,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
         addOut(r, "blue_out", BLUE);
     }
 
-    // 3) build undirected map and link/create twins
+    // 3) build undirected map and link/create twins (same as before)
     unordered_map<string, pair<int,int>> undirMap; // undirKey -> (leftSlot,rightSlot) where left corresponds to smaller label
     for (const auto &kv : directedMap) {
         string key = kv.first; // "A->B"
@@ -199,6 +197,54 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
         }
     }
 
+    // Helper: ensure (and create if needed) an incoming half-edge at dest from src of given color.
+    // Returns the index of the incoming half-edge at dest (attached to dest) representing src->dest.
+    auto ensureIncomingHalfEdgeAt = [&](int srcIdx, int destIdx, EdgeColor color) -> int {
+        const string &srcLabel = m_vertices[srcIdx].label;
+        // if incoming already exists, return it
+        auto it = incomingMap[destIdx].find(srcLabel);
+        if (it != incomingMap[destIdx].end()) return it->second;
+
+        // attempt to link to an explicit outgoing if present
+        string dir = dirKey(m_vertices[srcIdx].label, m_vertices[destIdx].label);
+        auto dit = directedMap.find(dir);
+        if (dit != directedMap.end()) {
+            int outHe = dit->second;
+            // if outHe exists but hasn't a twin (should have from undir step), create twin to attach here
+            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].twin != -1) {
+                int twinIdx = m_halfEdges[outHe].twin;
+                incomingMap[destIdx][srcLabel] = twinIdx;
+                return twinIdx;
+            }
+            // else if outHe exists but no twin, create one now and link
+            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].twin == -1) {
+                HalfEdge twin;
+                twin.vertex = destIdx;
+                twin.twin = outHe;
+                twin.color = color;
+                twin.outgoing = false;
+                twin.id_str = m_vertices[destIdx].label + "<-" + srcLabel;
+                int twinIdx = (int)m_halfEdges.size();
+                m_halfEdges.push_back(twin);
+                m_halfEdges[outHe].twin = twinIdx;
+                incomingMap[destIdx][srcLabel] = twinIdx;
+                return twinIdx;
+            }
+        }
+
+        // last resort: create an incoming half-edge at dest (no explicit outgoing exists)
+        HalfEdge twin;
+        twin.vertex = destIdx;
+        twin.twin = -1;
+        twin.color = color;
+        twin.outgoing = false;
+        twin.id_str = m_vertices[destIdx].label + "<-" + srcLabel;
+        int twinIdx = (int)m_halfEdges.size();
+        m_halfEdges.push_back(twin);
+        incomingMap[destIdx][srcLabel] = twinIdx;
+        return twinIdx;
+    };
+
     // 5) build outNeighbors list per vertex preserving input order
     vector<vector<string>> outNeighbors(m_vertices.size());
     for (const auto &kv : explicitOutPerVertex) {
@@ -211,81 +257,119 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
         }
     }
 
-    // 6) incoming-only neighbors set for each vertex (neighbors that send to v, but v did not list them)
-    vector< set<string> > incomingOnly(m_vertices.size());
-    for (const auto &dkv : directedMap) {
-        string key = dkv.first;
-        size_t p = key.find("->");
-        string a = key.substr(0,p);
-        string b = key.substr(p+2);
-        int bIdx = m_labelToIndex.at(b);
-        bool found = false;
-        for (const string &s : outNeighbors[bIdx]) if (s == a) { found = true; break; }
-        if (!found) incomingOnly[bIdx].insert(a);
-    }
+    // 5b) parse optional prescribed incoming orders blue_in / red_in from JSON
+    // store them as label sequences per vertex (may be empty)
+    vector<vector<string>> prescribedBlueIn(m_vertices.size()), prescribedRedIn(m_vertices.size());
+    for (const auto &r : j["regions"]) {
+        string lbl = r["label"].get<string>();
+        int vid = m_labelToIndex.at(lbl);
 
-    // 7) assemble final incident list per vertex into 4 REL blocks (preserve neighbor ordering within each block)
-    //
-    // Assemble incident edges into REL blocks (preserve neighbor order inside each block)
-// Desired CCW order (user request): [ incoming blue ] [ incoming red ] [ outgoing blue ] [ outgoing red ]
-for (int vIdx = 0; vIdx < (int)m_vertices.size(); ++vIdx) {
-    vector<int> incomingBlue;
-    vector<int> incomingRed;
-    vector<int> outgoingBlue;
-    vector<int> outgoingRed;
-
-    // primary sequence: iterate outNeighbors in the recorded order so outgoing order is preserved
-    for (const string &nbr : outNeighbors[vIdx]) {
-        // incoming from neighbor -> v (if present)
-        auto itIn = incomingMap[vIdx].find(nbr);
-        if (itIn != incomingMap[vIdx].end()) {
-            int inHe = itIn->second;
-            if (inHe >= 0 && inHe < (int)m_halfEdges.size()) {
-                const HalfEdge &hIn = m_halfEdges[inHe];
-                if (hIn.color == BLUE) incomingBlue.push_back(inHe);
-                else if (hIn.color == RED) incomingRed.push_back(inHe);
-                else incomingRed.push_back(inHe); // fallback for unknown color
+        if (r.contains("blue_in") && r["blue_in"].is_array()) {
+            for (const auto &entry : r["blue_in"]) {
+                if (!entry.is_string()) continue;
+                string src = entry.get<string>();
+                if (m_labelToIndex.find(src) == m_labelToIndex.end()) {
+                    std::cerr << "buildFromJson: blue_in contains unknown label '" << src << "'\n";
+                    continue;
+                }
+                int srcIdx = m_labelToIndex.at(src);
+                // ensure incoming half-edge exists (create if needed)
+                ensureIncomingHalfEdgeAt(srcIdx, vid, BLUE);
+                prescribedBlueIn[vid].push_back(src);
             }
         }
 
-        // outgoing v -> neighbor (if present)
-        auto itOut = directedMap.find(dirKey(m_vertices[vIdx].label, nbr));
-        if (itOut != directedMap.end()) {
-            int outHe = itOut->second;
-            if (outHe >= 0 && outHe < (int)m_halfEdges.size()) {
-                const HalfEdge &hOut = m_halfEdges[outHe];
-                if (hOut.color == BLUE) outgoingBlue.push_back(outHe);
-                else if (hOut.color == RED) outgoingRed.push_back(outHe);
-                else outgoingRed.push_back(outHe); // fallback
+        if (r.contains("red_in") && r["red_in"].is_array()) {
+            for (const auto &entry : r["red_in"]) {
+                if (!entry.is_string()) continue;
+                string src = entry.get<string>();
+                if (m_labelToIndex.find(src) == m_labelToIndex.end()) {
+                    std::cerr << "buildFromJson: red_in contains unknown label '" << src << "'\n";
+                    continue;
+                }
+                int srcIdx = m_labelToIndex.at(src);
+                ensureIncomingHalfEdgeAt(srcIdx, vid, RED);
+                prescribedRedIn[vid].push_back(src);
             }
         }
     }
 
-    // incoming-only neighbors (neighbors that send to v but v did not list them)
-    // incomingOnly[vIdx] is a set<string> (sorted deterministic)
-    for (const string &nbr : incomingOnly[vIdx]) {
-        auto itIn = incomingMap[vIdx].find(nbr);
-        if (itIn != incomingMap[vIdx].end()) {
-            int inHe = itIn->second;
-            if (inHe >= 0 && inHe < (int)m_halfEdges.size()) {
-                const HalfEdge &hIn = m_halfEdges[inHe];
-                if (hIn.color == BLUE) incomingBlue.push_back(inHe);
-                else if (hIn.color == RED) incomingRed.push_back(inHe);
-                else incomingRed.push_back(inHe);
+    // 6) assemble final incident list per vertex into 4 REL blocks (prescribed order preferred)
+    // Desired CCW order (user request): [ incoming blue ] [ incoming red ] [ outgoing blue ] [ outgoing red ]
+    for (int vIdx = 0; vIdx < (int)m_vertices.size(); ++vIdx) {
+        vector<int> incomingBlue;
+        vector<int> incomingRed;
+        vector<int> outgoingBlue;
+        vector<int> outgoingRed;
+
+        // 6a) incoming blue: prefer prescribed order if present, otherwise derive deterministically
+        if (!prescribedBlueIn[vIdx].empty()) {
+            for (const string &src : prescribedBlueIn[vIdx]) {
+                auto it = incomingMap[vIdx].find(src);
+                if (it != incomingMap[vIdx].end()) {
+                    int inHe = it->second;
+                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].color == BLUE)
+                        incomingBlue.push_back(inHe);
+                }
+            }
+        } else {
+            // fallback: collect incoming blue edges deterministically by source vertex index order
+            for (const auto &kv : incomingMap[vIdx]) {
+                int he = kv.second;
+                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].color == BLUE) incomingBlue.push_back(he);
+            }
+            sort(incomingBlue.begin(), incomingBlue.end(), [&](int a, int b) {
+                int sa = (m_halfEdges[a].twin >= 0) ? m_halfEdges[m_halfEdges[a].twin].vertex : -1;
+                int sb = (m_halfEdges[b].twin >= 0) ? m_halfEdges[m_halfEdges[b].twin].vertex : -1;
+                return sa < sb;
+            });
+        }
+
+        // 6b) incoming red
+        if (!prescribedRedIn[vIdx].empty()) {
+            for (const string &src : prescribedRedIn[vIdx]) {
+                auto it = incomingMap[vIdx].find(src);
+                if (it != incomingMap[vIdx].end()) {
+                    int inHe = it->second;
+                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].color == RED)
+                        incomingRed.push_back(inHe);
+                }
+            }
+        } else {
+            for (const auto &kv : incomingMap[vIdx]) {
+                int he = kv.second;
+                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].color == RED) incomingRed.push_back(he);
+            }
+            sort(incomingRed.begin(), incomingRed.end(), [&](int a, int b) {
+                int sa = (m_halfEdges[a].twin >= 0) ? m_halfEdges[m_halfEdges[a].twin].vertex : -1;
+                int sb = (m_halfEdges[b].twin >= 0) ? m_halfEdges[m_halfEdges[b].twin].vertex : -1;
+                return sa < sb;
+            });
+        }
+
+        // 6c) outgoing lists: preserve earlier explicit order you built (explicitOutPerVertex)
+        auto itExp = explicitOutPerVertex.find(vIdx);
+        if (itExp != explicitOutPerVertex.end()) {
+            for (int heIdx : itExp->second) {
+                if (heIdx < 0 || heIdx >= (int)m_halfEdges.size()) continue;
+                const HalfEdge &hOut = m_halfEdges[heIdx];
+                if (hOut.color == BLUE) outgoingBlue.push_back(heIdx);
+                else if (hOut.color == RED) outgoingRed.push_back(heIdx);
             }
         }
+
+        // final concatenation in requested order: IB | IR | OB | OR
+        vector<int> incident;
+        incident.reserve(incomingBlue.size() + incomingRed.size() + outgoingBlue.size() + outgoingRed.size());
+        incident.insert(incident.end(), incomingBlue.begin(), incomingBlue.end());
+        incident.insert(incident.end(), incomingRed.begin(), incomingRed.end());
+        incident.insert(incident.end(), outgoingBlue.begin(), outgoingBlue.end());
+        incident.insert(incident.end(), outgoingRed.begin(), outgoingRed.end());
+
+        m_vertices[vIdx].edges.swap(incident);
     }
 
-    // final concatenation in requested order: IB | IR | OB | OR
-    vector<int> incident;
-    incident.reserve(incomingBlue.size() + incomingRed.size() + outgoingBlue.size() + outgoingRed.size());
-    incident.insert(incident.end(), incomingBlue.begin(), incomingBlue.end());
-    incident.insert(incident.end(), incomingRed.begin(), incomingRed.end());
-    incident.insert(incident.end(), outgoingBlue.begin(), outgoingBlue.end());
-    incident.insert(incident.end(), outgoingRed.begin(), outgoingRed.end());
-
-    m_vertices[vIdx].edges.swap(incident);
-}
+    // final REL validity check (prints diagnostics on failure)
     isValidREL();
 }
 
@@ -667,7 +751,7 @@ void RegularEdgeLabeling::collapseMaxVerticalPath() {
 
 }
 
-bool RegularEdgeLabeling::mergeRedEdge(int edgeId) {
+bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
 
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         cerr << "Invalid edgeId " << edgeId << endl;
@@ -678,6 +762,8 @@ bool RegularEdgeLabeling::mergeRedEdge(int edgeId) {
         cerr << "Invalid twinEdge id " << twinId << endl;
         return false;
     }
+
+    std::cout << "Merging red edge: " << edgeId << std::endl;
 
     int a = -1;
     int b = -1;
@@ -703,25 +789,12 @@ bool RegularEdgeLabeling::mergeRedEdge(int edgeId) {
     Vertex &endVertex = m_vertices[endEdge.vertex];
 
     // If the bottom vertex needs to go to the left
-    if (baseVertex.vertical_order_index < endVertex.vertical_order_index) {
-        // flip incoming blue edges on top vertex and recolor last one (lowest to highest order)
-        {
-            int lastIncomingEdgeId = getlastIncomingBlue(endEdge.vertex);
-            while (getFirstIncomingBlue(endEdge.vertex) != lastIncomingEdgeId) {
-
-                flipEdgeDiagonally(lastIncomingEdgeId, true);
-                lastIncomingEdgeId = getlastIncomingBlue(endEdge.vertex);
-            }
-            // Last flipped edge recolor and flip in the other direction
-            flipEdgeDiagonally(lastIncomingEdgeId, false);
-            flipEdgeColor(lastIncomingEdgeId);
-
-        }
-
+    if (baseVertex.horizontal_order_index < endVertex.horizontal_order_index) {
         // If bottom vertex is last in the subsequence then we first want to flip all blue outgoing edge of the base node (highest to lowest order)
         {
             int lastBlueOutId = getlastOutgoingBlue(baseEdge.vertex);
             if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastBlueOutId].twin)].color == BLUE) {
+                std::cout << "last in sequence" << std::endl;
                 while (getFirstOutgoingBlue(baseEdge.vertex) != lastBlueOutId) {
 
                     flipEdgeDiagonally(lastBlueOutId, true);
@@ -735,52 +808,74 @@ bool RegularEdgeLabeling::mergeRedEdge(int edgeId) {
 
         // flip all outgoing red edges of the bottom vertex (right to left order)
         {
+            std::cout << "flipping all outoing red of bottom verte" << std::endl;
             int firstOutgoingEdgeId = getFirstOutgoingRed(baseEdge.vertex);
+            std::cout << "firstOUtRedId: " << firstOutgoingEdgeId << std::endl;
             while (firstOutgoingEdgeId != baseEdgeId) {
                 flipEdgeDiagonally(firstOutgoingEdgeId, false);
 
-                firstOutgoingEdgeId = getFirstOutgoingRed(m_halfEdges[firstOutgoingEdgeId].vertex);
+                firstOutgoingEdgeId = getFirstOutgoingRed(baseEdge.vertex);
             }
         }
-    } // if the bottom vertex needs to go to the right
-    else if (baseVertex.vertical_order_index > endVertex.vertical_order_index) {
-        // flip incoming blue edges on bottom vertex and recolor last one (highest to lowest order)
-        {
-            int firstIncomingEdgeId = getFirstIncomingBlue(baseEdge.vertex);
-            while (getlastIncomingBlue(baseEdge.vertex) != firstIncomingEdgeId) {
-                //                flipEdgeDiagonally(lastIncomingEdgeId, true);
-                //lastIncomingEdgeId = getlastIncomingBlue(endEdge.vertex);
 
-                flipEdgeDiagonally(firstIncomingEdgeId, true);
-                firstIncomingEdgeId = getFirstIncomingBlue(baseEdge.vertex);
+        // flip incoming blue edges on top vertex and recolor last one (lowest to highest order)
+        {
+            std::cout << "flipping incoming blue of top vertex" << std::endl;
+            int lastIncomingEdgeId = getlastIncomingBlue(endEdge.vertex);
+            while (getFirstIncomingBlue(endEdge.vertex) != lastIncomingEdgeId) {
+
+                flipEdgeDiagonally(lastIncomingEdgeId, true);
+                lastIncomingEdgeId = getlastIncomingBlue(endEdge.vertex);
             }
             // Last flipped edge recolor and flip in the other direction
-            flipEdgeDiagonally(firstIncomingEdgeId, false);
-            flipEdgeColor(firstIncomingEdgeId);
+            flipEdgeDiagonally(lastIncomingEdgeId, false);
+            flipEdgeColor(lastIncomingEdgeId);
+
         }
 
+    } // if the bottom vertex needs to go to the right
+    else if (baseVertex.vertical_order_index > endVertex.vertical_order_index) {
         // If top vertex is last in the subsequence then we first want to flip all outgoing blue edge of the end node (lowest to highest order)
         {
             int firstBLueOutId = getFirstOutgoingBlue(endEdge.vertex);
+            std::cout << "before: " << getNextCyclicEdge(m_halfEdges[firstBLueOutId].twin) << std::endl;
             if (m_halfEdges[getNextCyclicEdge(m_halfEdges[firstBLueOutId].twin)].color == BLUE) {
+                std::cout << "after.." << std::endl;
                 while (getlastOutgoingBlue(endEdge.vertex) != firstBLueOutId) {
                     flipEdgeDiagonally(firstBLueOutId, false);
                     firstBLueOutId = getFirstOutgoingBlue(endEdge.vertex);
                 }
                 // Last flipped edge recolor and flip in the other direction
-                flipEdgeDiagonally(firstBLueOutId, true);
+                flipEdgeDiagonally(firstBLueOutId, false);
                 std::cout << "flipping last in sequence: edgeID: " << firstBLueOutId << std::endl;
                 flipEdgeColor(firstBLueOutId);
             }
         }
 
-        // flip all outgoing red edges of the top vertex (right to left order)
+        // flip all incoming red edges of the top vertex (right to left order)
         {
+            std::cout << "flipping incloming red edges of top vertex" << std::endl;
+            std::cout << "endvertexID: " << endEdge.vertex << std::endl;
+            for (auto he : m_vertices[endEdge.vertex].edges) { std::cout << he << " "; } std::cout << std::endl;
+
             int lastOutgoingEdgeId = getlastIncomingRed(endEdge.vertex);
+            std::cout << "lastRedId: " << lastOutgoingEdgeId << std::endl;
             while (lastOutgoingEdgeId != endEdgeId) {
                 flipEdgeDiagonally(lastOutgoingEdgeId, true);
                 lastOutgoingEdgeId = getlastIncomingRed(endEdge.vertex);
             }
+        }
+
+        // flip incoming blue edges on bottom vertex and recolor last one (highest to lowest order)
+        {
+            int firstIncomingEdgeId = getFirstIncomingBlue(baseEdge.vertex);
+            while (getlastIncomingBlue(baseEdge.vertex) != firstIncomingEdgeId) {
+                flipEdgeDiagonally(firstIncomingEdgeId, false);
+                firstIncomingEdgeId = getFirstIncomingBlue(baseEdge.vertex);
+            }
+            // Last flipped edge recolor and flip in the other direction
+            flipEdgeDiagonally(firstIncomingEdgeId, false);
+            flipEdgeColor(firstIncomingEdgeId);
         }
 
         // when the bottom vertex goes to the right of the top, the edge dir needs to be reverted
@@ -846,7 +941,7 @@ int RegularEdgeLabeling::findFirstEdgeOfType(int vertexId, EdgeColor edge_color,
         const HalfEdge &edge = m_halfEdges[v.edges[i]];
         const HalfEdge &prevEdge = m_halfEdges[v.edges[(i + vDegree - 1) % vDegree]];
 
-        if (edge.color == edge_color && edge.outgoing == outgoing && prevEdge.color != edge_color) {
+        if (edge.color == edge_color && edge.outgoing == outgoing && (prevEdge.color != edge_color || prevEdge.outgoing != outgoing)) {
             return v.edges[i];
         }
     }
@@ -862,7 +957,7 @@ int RegularEdgeLabeling::findLastEdgeOfType(int vertexId, EdgeColor edge_color, 
         const HalfEdge &edge = m_halfEdges[v.edges[i]];
         const HalfEdge &nextEdge = m_halfEdges[v.edges[(i+1) % vDegree]];
 
-        if (edge.color == edge_color && edge.outgoing == outgoing && nextEdge.color != edge_color) {
+        if (edge.color == edge_color && edge.outgoing == outgoing && (nextEdge.color != edge_color || nextEdge.outgoing != outgoing)) {
             return v.edges[i];
         }
     }
@@ -930,12 +1025,11 @@ bool RegularEdgeLabeling::flipEdgeColor(const int edgeId) {
 bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
 
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
-        cerr << "Invalid edgeId " << edgeId << endl;
-        return false;
+        throw runtime_error("flipEdgeDiagonally: Invalid edgeId: " + std::to_string(edgeId));
     }
     const int twinId = m_halfEdges[edgeId].twin;
     if (twinId < 0 || twinId >= m_halfEdges.size()){
-        cerr << "Invalid twinEdge id " << twinId << endl;
+        throw runtime_error("flipEdgeDiagonally: Invalid twinEdgeId: " + std::to_string(twinId));
         return false;
     }
 

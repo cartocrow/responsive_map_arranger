@@ -149,6 +149,7 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
         std::cerr << "Invalid segment coordinates." << std::endl;
         return;
     }
+    std::cout << "fixing areas..." << std::endl;
 
     auto &vertices = rel.getVertices();
     const double frameArea = rel.getBoundingBox()->area();
