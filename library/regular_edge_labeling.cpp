@@ -544,14 +544,13 @@ void RegularEdgeLabeling::adjustToBB() {
     double horizontalStress = longestHorizontalPath.first - (m_boundingBox->width() + threshHold);
     double verticalStress = longestVerticalPath.first - (m_boundingBox->height() + threshHold);
 
-
+    std::cout << "vertical Stress: " << verticalStress << std::endl;
+    std::cout << "horizontal stress: " << horizontalStress << std::endl;
 
     if (verticalStress >= horizontalStress) {
         // Collapse horizontal segments on the longest vertical path
-
         while (verticalStress > 0) {
-            std::cout << "vertical Stress: " << verticalStress << std::endl;
-            std::cout << "horizontal stress: " << horizontalStress << std::endl;
+
             for (auto v : longestVerticalPath.second) {
                 std::cout << m_vertices[v].label << std::endl;
             }
@@ -573,15 +572,40 @@ void RegularEdgeLabeling::adjustToBB() {
             std::cout << "horizontal stress: " << horizontalStress << std::endl;
 
         }
+    }
+    else {
+        while (horizontalStress > 0) {
+            int leftmostVertexId = longestHorizontalPath.second[0];
+            int nextVertexId = longestHorizontalPath.second[1];
+            int halfEdgeToCollapse = -1;
 
+            for (int he : m_vertices[leftmostVertexId].edges) {
+                if (m_halfEdges[m_halfEdges[he].twin].vertex == nextVertexId)
+                    halfEdgeToCollapse = he;
+            }
+
+            std::cout << "selected he to merge" << std::endl;
+
+            mergeMaxVerticalSegment(halfEdgeToCollapse);
+            std::cout << "after merging segment " << std::endl;
+            longestHorizontalPath = getLongestHorizontalPath();
+            horizontalStress = longestHorizontalPath.first - (m_boundingBox->width() + threshHold);
+
+            std::cout << "new longest path cost =" << longestHorizontalPath.first << std::endl;
+            for (auto v : longestHorizontalPath.second) {
+                std::cout << m_vertices[v].label << std::endl;
+            }
+            std::cout << "horizontal stress: " << horizontalStress << std::endl;
+
+        }
     }
 
-    if (longestHorizontalPath.first > m_boundingBox->width() + threshHold) {
-        std::cout << "Critical longest horizontal path found with total weight: " << longestHorizontalPath.first << std::endl;
-    }
-    if (longestVerticalPath.first > m_boundingBox->height() + threshHold) {
-        std::cout << "Critical longest vertical path found with total weight: " << longestVerticalPath.first << std::endl;
-    }
+    // if (longestHorizontalPath.first > m_boundingBox->width() + threshHold) {
+    //     std::cout << "Critical longest horizontal path found with total weight: " << longestHorizontalPath.first << std::endl;
+    // }
+    // if (longestVerticalPath.first > m_boundingBox->height() + threshHold) {
+    //     std::cout << "Critical longest vertical path found with total weight: " << longestVerticalPath.first << std::endl;
+    // }
 }
 
 void RegularEdgeLabeling::normalizeVertexWeights() {
