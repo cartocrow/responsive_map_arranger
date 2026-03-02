@@ -393,19 +393,19 @@ bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
 
     // Fallbacks: if any side still -1, try last-edge variants (cases where run wraps around)
     if (leftSeg == -1) {
-        int he = rel.getlastIncomingBlue(v);
+        int he = rel.getLastIncomingBlue(v);
         if (he >= 0 && he < H) leftSeg = he_to_seg[he];
     }
     if (rightSeg == -1) {
-        int he = rel.getlastOutgoingBlue(v);
+        int he = rel.getLastOutgoingBlue(v);
         if (he >= 0 && he < H) rightSeg = he_to_seg[he];
     }
     if (bottomSeg == -1) {
-        int he = rel.getlastIncomingRed(v);
+        int he = rel.getLastIncomingRed(v);
         if (he >= 0 && he < H) bottomSeg = he_to_seg[he];
     }
     if (topSeg == -1) {
-        int he = rel.getlastOutgoingRed(v);
+        int he = rel.getLastOutgoingRed(v);
         if (he >= 0 && he < H) topSeg = he_to_seg[he];
     }
 

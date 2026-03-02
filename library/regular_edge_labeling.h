@@ -100,10 +100,10 @@ public:
     int getFirstIncomingBlue(int vertexId) const;
     int getFirstOutgoingRed(int vertexId) const;
     int getFirstIncomingRed(int vertexId) const;
-    int getlastOutgoingBlue(int vertexId) const;
-    int getlastIncomingBlue(int vertexId) const;
-    int getlastOutgoingRed(int vertexId) const;
-    int getlastIncomingRed(int vertexId) const;
+    int getLastOutgoingBlue(int vertexId) const;
+    int getLastIncomingBlue(int vertexId) const;
+    int getLastOutgoingRed(int vertexId) const;
+    int getLastIncomingRed(int vertexId) const;
 
     int canonicalHalfEdge(int he) const;
 
