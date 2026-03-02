@@ -35,6 +35,7 @@ class RectangularCartogramDemo : public QMainWindow {
     std::shared_ptr<RELPainting> m_relPainting;
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
 
+
     bool m_bboxDragging = false;
     Point<Inexact> m_dragStartWorld;
     BoundingBox m_bboxBeforeDrag;
@@ -42,6 +43,7 @@ class RectangularCartogramDemo : public QMainWindow {
     double m_bboxMinWidth  = 20.0;
     double m_bboxMinHeight = 20.0;
 
+    QCheckBox* m_useSquareAspectRatios = nullptr;
     QCheckBox* m_showREL = nullptr;
 
     void loadData(const std::filesystem::path &dataPath);

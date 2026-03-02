@@ -20,7 +20,7 @@ string RegularEdgeLabeling::undirKey(const string &a, const string &b) {
 }
 
 // ---------------- buildFromJson ----------------
-void RegularEdgeLabeling::buildFromJson(const json &j) {
+void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatios) {
     // clear existing
     m_vertices.clear();
     m_labelToIndex.clear();
@@ -49,8 +49,9 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
             v.label = lbl;
             v.weight = r["weight"].get<int>();
             v.oldWeight = v.weight;
-            // note: your Vertex may have a different field name; adapt if needed
-            v.preferred_aspect_ratio = r["preferred_aspect"].get<double>();
+            if (useSquareAspectRatios)
+                v.preferred_aspect_ratio = 1.0;
+            else v.preferred_aspect_ratio = r["preferred_aspect"].get<double>();
             m_vertices.push_back(std::move(v));
             m_labelToIndex[lbl] = idx;
         }
@@ -369,6 +370,10 @@ void RegularEdgeLabeling::buildFromJson(const json &j) {
         m_vertices[vIdx].edges.swap(incident);
     }
 
+    m_initVertices = m_vertices;
+    m_initHalfEdges = m_halfEdges;
+
+
     // final REL validity check (prints diagnostics on failure)
     isValidREL();
 }
@@ -521,13 +526,55 @@ bool RegularEdgeLabeling::isValidREL() const
 }
 
 void RegularEdgeLabeling::adjustToBB() {
+
+    m_vertices = m_initVertices;
+    m_halfEdges = m_initHalfEdges;
+
     normalizeVertexWeights();
     computePreferredSizes();
 
     auto longestHorizontalPath = getLongestHorizontalPath();
     auto longestVerticalPath = getLongestVerticalPath();
 
+    std::cout << "Longest Vertical: " << longestVerticalPath.first << std::endl;
+
+
     double threshHold = 0.00015 * m_boundingBox->area();
+
+    double horizontalStress = longestHorizontalPath.first - (m_boundingBox->width() + threshHold);
+    double verticalStress = longestVerticalPath.first - (m_boundingBox->height() + threshHold);
+
+
+
+    if (verticalStress >= horizontalStress) {
+        // Collapse horizontal segments on the longest vertical path
+
+        while (verticalStress > 0) {
+            std::cout << "vertical Stress: " << verticalStress << std::endl;
+            std::cout << "horizontal stress: " << horizontalStress << std::endl;
+            for (auto v : longestVerticalPath.second) {
+                std::cout << m_vertices[v].label << std::endl;
+            }
+
+            int lowestVertexId = longestVerticalPath.second[0];
+            int nextVertexId = longestVerticalPath.second[1];
+            int halfEdgeToCollapse = -1;
+
+            for (int he : m_vertices[lowestVertexId].edges) {
+                if (m_halfEdges[m_halfEdges[he].twin].vertex == nextVertexId)
+                    halfEdgeToCollapse = he;
+            }
+
+            mergeMaxHorizontalSegment(halfEdgeToCollapse);
+
+            longestVerticalPath = getLongestVerticalPath();
+            verticalStress = longestVerticalPath.first - (m_boundingBox->height() + threshHold);
+            std::cout << "vertical Stress: " << verticalStress << std::endl;
+            std::cout << "horizontal stress: " << horizontalStress << std::endl;
+
+        }
+
+    }
 
     if (longestHorizontalPath.first > m_boundingBox->width() + threshHold) {
         std::cout << "Critical longest horizontal path found with total weight: " << longestHorizontalPath.first << std::endl;
@@ -562,11 +609,12 @@ void RegularEdgeLabeling::computePreferredSizes() {
     }
 }
 
-static std::pair<double, std::vector<int>> REL_longestPathPred_generic(const RegularEdgeLabeling &rel,
-                                                                        EdgeColor color,
-                                                                        const std::string &sourceLabel,
-                                                                        const std::string &sinkLabel,
-                                                                        std::function<double(int)> vertexCost)
+static std::pair<double, std::vector<int>> REL_longestPathPred_generic(
+    const RegularEdgeLabeling &rel,
+    EdgeColor color,
+    const std::string &sourceLabel,
+    const std::string &sinkLabel,
+    std::function<double(int)> vertexCost)
 {
     const auto &V = rel.getVertices();
     const auto &H = rel.getHalfEdges();
@@ -584,6 +632,12 @@ static std::pair<double, std::vector<int>> REL_longestPathPred_generic(const Reg
                   << sourceLabel << "'/'" << sinkLabel << "'\n";
         return { std::numeric_limits<double>::quiet_NaN(), {} };
     }
+
+    // helper: is this vertex an "inner" vertex (i.e. not one of the 4 outers)
+    auto isInner = [&](int vid) -> bool {
+        const std::string &lbl = V[vid].label;
+        return !(lbl == "West" || lbl == "East" || lbl == "North" || lbl == "South");
+    };
 
     // build adjacency over vertices using outgoing halfedges of the requested color
     std::vector<std::vector<int>> adj(n);
@@ -621,32 +675,79 @@ static std::pair<double, std::vector<int>> REL_longestPathPred_generic(const Reg
     }
 
     const double NEG_INF = -std::numeric_limits<double>::infinity();
-    std::vector<double> best(n, NEG_INF);
-    std::vector<int> pred(n, -1);
 
-    // initialize source
-    best[source] = vertexCost(source);
-    pred[source] = -1;
+    // We track for each vertex 3 states:
+    // k = 0 : path to this vertex has 0 inner vertices (so far)
+    // k = 1 : path has exactly 1 inner vertex (so far)
+    // k = 2 : path has >= 2 inner vertices (cap)
+    const int K = 3;
+    std::vector<std::array<double, 3>> best(n);
+    std::vector<std::array<int, 3>> prevVertex(n); // predecessor vertex index for (v,k)
+    std::vector<std::array<int, 3>> prevK(n);      // predecessor k for (v,k)
 
-    // DP
+    // init best to NEG_INF and prev to -1
+    for (int i = 0; i < n; ++i) {
+        for (int k = 0; k < K; ++k) {
+            best[i][k] = NEG_INF;
+            prevVertex[i][k] = -1;
+            prevK[i][k] = -1;
+        }
+    }
+
+    // initialize source state
+    int initK = isInner(source) ? 1 : 0;
+    best[source][initK] = isInner(source) ? vertexCost(source) : 0.0;
+    prevVertex[source][initK] = -1;
+    prevK[source][initK] = -1;
+
+    // DP over topo order
     for (int u : topo) {
-        if (best[u] == NEG_INF) continue;
-        for (int v : adj[u]) {
-            double cand = best[u] + vertexCost(v);
-            if (cand > best[v]) {
-                best[v] = cand;
-                pred[v] = u;
+        for (int ku = 0; ku < K; ++ku) {
+            if (best[u][ku] == NEG_INF) continue;
+            for (int v : adj[u]) {
+                int added = isInner(v) ? 1 : 0;
+                int kv = ku + added;
+                if (kv >= 2) kv = 2; // cap
+                double addCost = isInner(v) ? vertexCost(v) : 0.0;
+                double cand = best[u][ku] + addCost;
+                if (cand > best[v][kv]) {
+                    best[v][kv] = cand;
+                    prevVertex[v][kv] = u;
+                    prevK[v][kv] = ku;
+                }
             }
         }
     }
 
-    if (best[sink] == NEG_INF) {
+    // We want the best path to sink with >= 2 inner vertices => state k = 2
+    if (best[sink][2] == NEG_INF) {
         std::cerr << "REL_longestPathPred_generic: sink '" << sinkLabel
-                  << "' unreachable from '" << sourceLabel << "'\n";
+                  << "' unreachable from '" << sourceLabel << "' with >=2 inner vertices\n";
         return { std::numeric_limits<double>::quiet_NaN(), {} };
     }
 
-    return { best[sink], pred };
+    // Reconstruct the chosen path vertices by walking predecessor states
+    std::vector<int> rev; // sink -> source (will reverse)
+    int curV = sink;
+    int curK = 2;
+    while (curV != -1) {
+        rev.push_back(curV);
+        int pv = prevVertex[curV][curK];
+        int pk = prevK[curV][curK];
+        curV = pv;
+        curK = pk;
+    }
+    std::reverse(rev.begin(), rev.end()); // now source -> sink
+
+    // Build a pred vector compatible with existing callers:
+    // pred[v] = predecessor vertex for vertices on chosen path, -1 otherwise.
+    std::vector<int> pred_out(n, -1);
+    for (size_t i = 1; i < rev.size(); ++i) {
+        pred_out[rev[i]] = rev[i-1];
+    }
+    // source (rev[0]) remains pred -1
+
+    return { best[sink][2], pred_out };
 }
 
 // Return cost + vertex path (excluding outer vertices)
@@ -673,7 +774,6 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestHorizontalPat
     const std::vector<int> &pred = costAndPred.second;
 
     // backtrack from sink to source using pred
-    // find sink index (label "East")
     int sinkIdx = -1;
     for (int i = 0; i < (int)m_vertices.size(); ++i) if (m_vertices[i].label == "East") { sinkIdx = i; break; }
     if (sinkIdx == -1) return { std::numeric_limits<double>::quiet_NaN(), {} };
@@ -695,7 +795,24 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestHorizontalPat
         path.push_back(vid);
     }
 
-    return { cost, path };
+    // if result path has 1 or 0 nodes, treat as no valid path
+    if (path.size() <= 1) {
+        return { 0, {} };
+    }
+
+    // recompute cost for the filtered path using the same per-vertex metric
+    double filteredCost = 0.0;
+    for (int vid : path) {
+        const Vertex &v = this->m_vertices[vid];
+        double w = v.preferred_width;
+        if (!std::isfinite(w) || w <= 0.0) {
+            filteredCost += (std::isfinite(v.weight) ? v.weight : 0.0);
+        } else {
+            filteredCost += w;
+        }
+    }
+
+    return { filteredCost, path };
 }
 
 std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestVerticalPath() const
@@ -722,7 +839,7 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestVerticalPath(
     // find sink "North"
     int sinkIdx = -1;
     for (int i = 0; i < (int)m_vertices.size(); ++i) if (m_vertices[i].label == "North") { sinkIdx = i; break; }
-    if (sinkIdx == -1) return { std::numeric_limits<double>::quiet_NaN(), {} };
+    if (sinkIdx == -1) return { 0, {} };
 
     std::vector<int> rev;
     int cur = sinkIdx;
@@ -741,14 +858,93 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestVerticalPath(
         path.push_back(vid);
     }
 
-    return { cost, path };
+    // if result path has 1 or 0 nodes, treat as no valid path
+    if (path.size() <= 1) {
+        return { std::numeric_limits<double>::quiet_NaN(), {} };
+    }
+
+    // recompute cost for the filtered path using the same per-vertex metric
+    double filteredCost = 0.0;
+    for (int vid : path) {
+        const Vertex &v = this->m_vertices[vid];
+        double h = v.preferred_height;
+        if (!std::isfinite(h) || h <= 0.0) {
+            filteredCost += (std::isfinite(v.weight) ? v.weight : 0.0);
+        } else {
+            filteredCost += h;
+        }
+    }
+
+    return { filteredCost, path };
 }
 
-void RegularEdgeLabeling::collapseMaxHorizontalPath() {
+bool RegularEdgeLabeling::mergeMaxHorizontalSegment(int edgeId) {
+    if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
+        throw runtime_error("mergeMaxHorizontalSegment: Invalid edgeId: " + std::to_string(edgeId));
+        return false;
+    }
+    const int twinId = m_halfEdges[edgeId].twin;
+    if (twinId < 0 || twinId >= m_halfEdges.size()){
+        throw runtime_error("mergeMaxHorizontalSegment: Invalid twinEdgeId: " + std::to_string(edgeId));
+
+        return false;
+    }
+
+    int baseEdgeId = -1;
+    int endEdgeId = -1;
+
+    if (m_halfEdges[edgeId].outgoing) {
+        baseEdgeId = edgeId;
+        endEdgeId = twinId;
+    }
+    else {
+        baseEdgeId = twinId;
+        endEdgeId = edgeId;
+    }
+
+    HalfEdge baseEdge = m_halfEdges[baseEdgeId];
+    HalfEdge endEdge = m_halfEdges[endEdgeId];
+
+    int leftMostRedEdge = getlastOutgoingRed(baseEdge.vertex); // the edge that we will collapse
+    int nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(leftMostRedEdge)].twin);
+
+    // get initial leftmost red segment of the face
+    while (m_halfEdges[nextEdgeId].color == RED) {
+        leftMostRedEdge = getlastOutgoingRed(m_halfEdges[nextEdgeId].vertex);
+        nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(leftMostRedEdge)].twin);
+    }
+
+    // merge red edges from left to right
+
+
+    int previousEdgeId = -1;
+    while (leftMostRedEdge != baseEdgeId) {
+
+        std::cout << "MERGING EDGE BETWEEN: " << m_vertices[m_halfEdges[leftMostRedEdge].vertex].label << " and "
+        << m_vertices[m_halfEdges[m_halfEdges[leftMostRedEdge].twin].vertex].label << std::endl;
+        mergeLeftMostRedEdge(leftMostRedEdge);
+
+        previousEdgeId = getPreviousCyclicEdge(leftMostRedEdge);
+
+        if (m_halfEdges[previousEdgeId].color == BLUE) {
+            leftMostRedEdge = getPreviousCyclicEdge(m_halfEdges[previousEdgeId].twin);
+        }
+        else {
+            leftMostRedEdge = previousEdgeId;
+        }
+        //
+        // int currentVertex = m_halfEdges[leftMostRedEdge].vertex;
+        // leftMostRedEdge = getlastOutgoingRed(currentVertex);
+
+    }
+    mergeLeftMostRedEdge(baseEdgeId);
+
+    return true;
+
 }
 
-void RegularEdgeLabeling::collapseMaxVerticalPath() {
-
+bool RegularEdgeLabeling::mergeMaxVerticalSegment(int edgeId) {
+    return false;
 }
 
 bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
@@ -828,7 +1024,7 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
         }
 
     } // if the bottom vertex needs to go to the right
-    else if (baseVertex.vertical_order_index > endVertex.vertical_order_index) {
+    else if (baseVertex.horizontal_order_index > endVertex.horizontal_order_index) {
         // If top vertex is last in the subsequence then we first want to flip all outgoing blue edge of the end node (lowest to highest order)
         {
             int firstBLueOutId = getFirstOutgoingBlue(endEdge.vertex);
@@ -941,20 +1137,35 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
 
         // flip all outgoing red edges of the left vertex (right to left order)
         {
-            std::cout << "flipping all outoing red of left" << std::endl;
+            //if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastRedOutId].twin)].color == RED) {
+            //std::cout << "flipping all outoing red of left" << std::endl;
             int firstOutgoingEdgeId = getFirstOutgoingRed(baseEdge.vertex);
-            std::cout << "firstOUtRedId: " << firstOutgoingEdgeId << std::endl;
-            while (getlastOutgoingRed(baseEdge.vertex) != firstOutgoingEdgeId) {
-                flipEdgeDiagonally(firstOutgoingEdgeId, false);
-                firstOutgoingEdgeId = getFirstOutgoingRed(baseEdge.vertex);
+            //std::cout << "firstOUtRedId: " << firstOutgoingEdgeId << std::endl;
+            if (m_halfEdges[getNextCyclicEdge(m_halfEdges[firstOutgoingEdgeId].twin)].color == RED) {
+                std::cout << "special case" << std::endl;
+                while (getlastOutgoingRed(baseEdge.vertex) != firstOutgoingEdgeId) {
+                    flipEdgeDiagonally(firstOutgoingEdgeId, false);
+                    firstOutgoingEdgeId = getFirstOutgoingRed(baseEdge.vertex);
+                }
+                flipEdgeDiagonally(firstOutgoingEdgeId, true);
+                flipEdgeColor(firstOutgoingEdgeId);
             }
-            flipEdgeDiagonally(firstOutgoingEdgeId, true);
-            flipEdgeColor(firstOutgoingEdgeId);
+        }
+
+        {
+            std::cout << "flipping all outoing blue of left vertex" << std::endl;
+            int lastOutgoingEdgeId = getlastOutgoingBlue(baseEdge.vertex);
+            std::cout << "firstOUtRedId: " << lastOutgoingEdgeId << std::endl;
+            while (lastOutgoingEdgeId != baseEdgeId) {
+                flipEdgeDiagonally(lastOutgoingEdgeId, true);
+
+                lastOutgoingEdgeId = getFirstOutgoingBlue(baseEdge.vertex);
+            }
         }
 
         // flip incoming red edges on right vertex and recolor last one (lowest to highest order)
         {
-            std::cout << "flipping incoming blue of top vertex" << std::endl;
+            std::cout << "flipping incoming red of right vertex" << std::endl;
             int firstIncomingEdgeId = getFirstIncomingRed(endEdge.vertex);
             while (getlastIncomingRed(endEdge.vertex) != firstIncomingEdgeId) {
 
@@ -989,14 +1200,23 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
         // flip outgoing red edges on right vertex and recolor last one (highest to lowest order)
         {
             int lastOutgoingEdgeId = getlastOutgoingRed(endEdge.vertex);
-            while (getFirstOutgoingRed(endEdge.vertex) != lastOutgoingEdgeId) {
+            if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastOutgoingEdgeId].twin)].color == RED) {
+                while (getFirstOutgoingRed(endEdge.vertex) != lastOutgoingEdgeId) {
+                    flipEdgeDiagonally(lastOutgoingEdgeId, true);
+                    lastOutgoingEdgeId = getlastIncomingRed(endEdge.vertex);
+                }
+                // Last flipped edge recolor and flip in the other direction
                 flipEdgeDiagonally(lastOutgoingEdgeId, true);
-                lastOutgoingEdgeId = getlastIncomingRed(endEdge.vertex);
+                flipEdgeColor(lastOutgoingEdgeId);
             }
-            // Last flipped edge recolor and flip in the other direction
-            flipEdgeDiagonally(lastOutgoingEdgeId, true);
-            flipEdgeColor(lastOutgoingEdgeId);
         }
+
+        // int lastOutgoingEdgeId = getlastIncomingBlue(endEdge.vertex);
+        // //std::cout << "lastRedId: " << lastOutgoingEdgeId << std::endl;
+        // while (lastOutgoingEdgeId != endEdgeId) {
+        //     flipEdgeDiagonally(lastOutgoingEdgeId, true);
+        //     lastOutgoingEdgeId = getlastIncomingBlue(endEdge.vertex);
+        // }
 
         // flip all incoming red edges of the left vertex
         {

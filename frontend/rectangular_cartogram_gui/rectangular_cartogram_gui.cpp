@@ -27,15 +27,6 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     m_projectData = json::parse(f);
     processData();
 
-    // std::cout << m_relPtr->flipEdgeDiagonally(12, true) << std::endl;
-    // m_relPtr->debugCheckAfterFlip(12);
-    //
-    // m_relPtr->flipEdgeColor(12);
-    //
-    // m_relPtr->printSummary();
-
-
-
     m_rectangularDual = std::make_shared<RectangularDual>();
 
     // CREATE RECTANGULAR DUAL
@@ -54,71 +45,14 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path &dataPath) {
     m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
     m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual);
 
-    // auto constructedSTgraphs = m_rectangularDual->buildSTGraphsFromREL(*m_relPtr);
-    // auto constructedDuals = m_rectangularDual->buildDualsFromREL(*m_relPtr);
 
-    //bool buildstatus =  m_rectangularDual->buildSTandDUal(m_rel);
-
-    //std::cout << "Build st and dual stats: " << buildstatus << std::endl;
-
-    // std::cout << "ST graph construction status: " << constructedSTgraphs << std::endl;
-    // std::cout << "Dual graphs construction status: " << constructedDuals << std::endl;
-
-    // m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, RED);
-    // m_rectangularDual->debugPrintFacesForColor(*m_relPtr, RED);
-    // std::cout << " blue: " << std::endl;
-    // m_rectangularDual->debugListUnassignedHalfEdges(*m_relPtr, BLUE);
-    // m_rectangularDual->debugPrintFacesForColor(*m_relPtr, BLUE);
-
-
-    bool computedMaximalSegments = m_rectangularDual->computeMaximalSegments(*m_relPtr);
-    bool computedSegmentPositions = m_rectangularDual->computeSegmentPositions(*m_relPtr);
-    bool computedRects = m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
-
+    m_rectangularDual->computeMaximalSegments(*m_relPtr);
+    m_rectangularDual->computeSegmentPositions(*m_relPtr);
+    m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
     m_rectangularDual->fixRectangleAreas(*m_relPtr);
 
-    auto longestRed = m_relPtr->getLongestVerticalPath();
-    auto longestBlue = m_relPtr->getLongestHorizontalPath();
-
-    std::cout << "Longest Red: " << longestRed.first << std::endl;
-
-    for (auto v : longestRed.second) {
-        std::cout << m_relPtr->getVertices()[v].label << std::endl;
-    }
-
-    std::cout << "Longest Blue: " << longestBlue.first << std::endl;
-    for (auto v : longestBlue.second) {
-        std::cout << m_relPtr->getVertices()[v].label << std::endl;
-    }
-
-    // // inspect some vertices
-    // for (int v = 0; v < m_relPtr->getVertices().size(); ++v) {
-    //     const auto &V = m_relPtr->getVertices()[v];
-    //     std::cout << "V[" << v << "] '" << V.label
-    //               << "' left=" << V.left_segment
-    //               << " right=" << V.right_segment
-    //               << " bottom=" << V.bottom_segment
-    //               << " top=" << V.top_segment << "\n";
-    // }
-    //
-    // std::cout << "-------------------" << std::endl;
-    //
-    // auto maximalSegments = m_rectangularDual->getMaximalSegments();
-    //
-    // for (int s = 0; s < maximalSegments.size(); ++s) {
-    //     const auto &seg = maximalSegments[s];
-    //     std::cout << "segment " << s << " type=" << seg.type
-    //               << " halfedges=" << seg.halfedges.size()
-    //               << " incoming verts=" << seg.incoming_vertices.size()
-    //               << " outgoing verts=" << seg.outgoing_vertices.size() << "\n";
-    // }
-
-
-    //    m_renderer->addPainting(m_debugPainting, "Debugging");
-
-    //m_relPtr->flipEdgeDiagonally(12, false);
-
     m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
+
     m_renderer->addPainting(m_relPainting, "REL");
 
 }
@@ -127,7 +61,7 @@ void RectangularCartogramDemo::processData() {
     std::cout << "processing data" << std::endl;
 
     try {
-        m_rel.buildFromJson(m_projectData); // will validate & throw if errors found
+        m_rel.buildFromJson(m_projectData, m_useSquareAspectRatios->checkState()); // will validate & throw if errors found
     } catch (const std::exception& e) {
         std::cerr << "Failed to load REL: " << e.what() << std::endl;
     }
@@ -193,6 +127,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     vLayout->addWidget(inputSettings);
     vLayout->addWidget(loadDataButton);
 
+    auto* generalSettings = new QLabel("General Settings", vWidget);
+    m_useSquareAspectRatios = new QCheckBox("Use Square Aspect Ratios", vWidget);
+    m_useSquareAspectRatios->setChecked(true);
+    vLayout->addWidget(generalSettings);
+    vLayout->addWidget(m_useSquareAspectRatios);
+
+
     auto* debugSettings = new QLabel("<h3>Debug settings</h3>", vWidget);
     m_showREL = new QCheckBox("Show REL");
     m_showREL->setChecked(true);
@@ -205,6 +146,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     auto* btnFlipDiagCW = new QPushButton("Flip Diagonal ▶ (CW)");
     auto* btnFlipDiagCCW = new QPushButton("Flip Diagonal ◀ (CCW)");
     auto* btnMergeEdge = new QPushButton("Merge Edge");
+    auto* btnMergeSegment = new QPushButton("Merge Segment");
     auto* btnClearSelection = new QPushButton("Clear Selection");
 
     vLayout->addWidget(selectionLabel);
@@ -212,6 +154,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     vLayout->addWidget(btnFlipDiagCW);
     vLayout->addWidget(btnFlipDiagCCW);
     vLayout->addWidget(btnMergeEdge);
+    vLayout->addWidget(btnMergeSegment);
     vLayout->addWidget(btnClearSelection);
 
 
@@ -317,6 +260,33 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         m_renderer->update();
     });
 
+    connect(btnMergeSegment, &QPushButton::clicked, [this]() {
+        if (!m_relPtr || !m_relPainting) return;
+        const auto sels = m_relPainting->getSelectedHalfEdges();
+        if (sels.empty()) return;
+        if (sels.size() > 1) {
+            std::cerr << "Can only merge one edge at the time. " << std::endl;
+            return;
+        }
+        for (int he : sels) {
+            if (m_relPtr->getHalfEdges()[he].color == RED) {
+                m_relPtr->mergeMaxHorizontalSegment(he);
+            }
+            else if (m_relPtr->getHalfEdges()[he].color == BLUE) {
+                m_relPtr->mergeMaxVerticalSegment(he);
+            }
+            m_relPainting->clearSelection();
+        }
+
+        if (m_rectangularDual && m_relPtr->isValidREL()) {
+            m_rectangularDual->computeMaximalSegments(*m_relPtr);
+            m_rectangularDual->computeSegmentPositions(*m_relPtr);
+            m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+            m_rectangularDual->fixRectangleAreas(*m_relPtr);
+        }
+        m_renderer->update();
+    });
+
     connect(m_renderer, &GeometryWidget::clicked, [this](Point<Inexact> pt){
         if (!m_relPainting) return;
         float wx = static_cast<float>(pt.x());
@@ -385,6 +355,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
         m_relPtr->setBoundingBox(newbb);
 
+        m_rectangularDual->computeMaximalSegments(*m_relPtr);
         m_rectangularDual->computeSegmentPositions(*m_relPtr);
         m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
         m_rectangularDual->fixRectangleAreas(*m_relPtr);

@@ -53,7 +53,7 @@ public:
     RegularEdgeLabeling() = default;
     ~RegularEdgeLabeling() = default;
 
-    void buildFromJson(const json &j);
+    void buildFromJson(const json &j, bool useSquareAspectRatios);
 
     bool isValidREL() const;
 
@@ -67,8 +67,8 @@ public:
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
     std::pair<double, std::vector<int>> getLongestVerticalPath() const;
 
-    void collapseMaxHorizontalPath();
-    void collapseMaxVerticalPath();
+    bool mergeMaxHorizontalSegment(int edgeId);
+    bool mergeMaxVerticalSegment(int edgeId);
 
     bool mergeLeftMostRedEdge(int edgeId);
     bool mergeLowestBlueEdge(int edgeId);
@@ -116,6 +116,9 @@ private:
     vector<Vertex> m_vertices;
     unordered_map<string, int> m_labelToIndex;
     vector<HalfEdge> m_halfEdges;
+
+    vector<Vertex> m_initVertices;
+    vector<HalfEdge> m_initHalfEdges;
 
     optional<BoundingBox> m_boundingBox;
 
