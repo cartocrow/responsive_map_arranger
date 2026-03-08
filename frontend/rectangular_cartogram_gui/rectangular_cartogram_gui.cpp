@@ -145,7 +145,8 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     auto* btnFlipColor = new QPushButton("Flip Color");
     auto* btnFlipDiagCW = new QPushButton("Flip Diagonal ▶ (CW)");
     auto* btnFlipDiagCCW = new QPushButton("Flip Diagonal ◀ (CCW)");
-    auto* btnMergeEdge = new QPushButton("Merge Edge");
+    auto* btnMergeLeftmostEdge = new QPushButton("Merge Leftmost Edge");
+    auto* btnMergeRightMostEdge = new QPushButton("Merge Rightmost Edge");
     auto* btnMergeSegment = new QPushButton("Merge Segment");
     auto* btnClearSelection = new QPushButton("Clear Selection");
 
@@ -153,7 +154,8 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     vLayout->addWidget(btnFlipColor);
     vLayout->addWidget(btnFlipDiagCW);
     vLayout->addWidget(btnFlipDiagCCW);
-    vLayout->addWidget(btnMergeEdge);
+    vLayout->addWidget(btnMergeLeftmostEdge);
+    vLayout->addWidget(btnMergeRightMostEdge);
     vLayout->addWidget(btnMergeSegment);
     vLayout->addWidget(btnClearSelection);
 
@@ -232,7 +234,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         m_renderer->update();
     });
 
-    connect(btnMergeEdge, &QPushButton::clicked, [this]() {
+    connect(btnMergeLeftmostEdge, &QPushButton::clicked, [this]() {
         if (!m_relPtr || !m_relPainting) return;
         const auto sels = m_relPainting->getSelectedHalfEdges();
         if (sels.empty()) return;
@@ -247,6 +249,34 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
             }
             else if (m_relPtr->getHalfEdges()[he].color == BLUE) {
                 m_relPtr->mergeLowestBlueEdge(he);
+            }
+            m_relPainting->clearSelection();
+        }
+
+        if (m_rectangularDual && m_relPtr->isValidREL()) {
+            m_rectangularDual->computeMaximalSegments(*m_relPtr);
+            m_rectangularDual->computeSegmentPositions(*m_relPtr);
+            m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+            m_rectangularDual->fixRectangleAreas(*m_relPtr);
+        }
+        m_renderer->update();
+    });
+
+    connect(btnMergeRightMostEdge, &QPushButton::clicked, [this]() {
+        if (!m_relPtr || !m_relPainting) return;
+        const auto sels = m_relPainting->getSelectedHalfEdges();
+        if (sels.empty()) return;
+        if (sels.size() > 1) {
+            std::cerr << "Can only merge one edge at the time. " << std::endl;
+            return;
+        }
+        for (int he : sels) {
+
+            if (m_relPtr->getHalfEdges()[he].color == RED) {
+                m_relPtr->mergeRightMostRedEdge(he);
+            }
+            else if (m_relPtr->getHalfEdges()[he].color == BLUE) {
+                m_relPtr->mergeHighestBlueEdge(he);
             }
             m_relPainting->clearSelection();
         }

@@ -74,7 +74,9 @@ public:
     bool mergeMaxVerticalSegment(int edgeId);
 
     bool mergeLeftMostRedEdge(int edgeId);
+    bool mergeRightMostRedEdge(int edgeId);
     bool mergeLowestBlueEdge(int edgeId);
+    bool mergeHighestBlueEdge(int edgeId);
 
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
 
