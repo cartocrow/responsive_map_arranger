@@ -569,7 +569,7 @@ void RegularEdgeLabeling::adjustToBB() {
                     halfEdgeToCollapse = he;
             }
 
-            mergeMaxHorizontalSegment(halfEdgeToCollapse);
+            mergeMaxHorizontalSegmentFromLeft(halfEdgeToCollapse);
 
             longestVerticalPath = getLongestVerticalPath();
             verticalStress = longestVerticalPath.first - (m_boundingBox->height() + threshHold);
@@ -591,7 +591,7 @@ void RegularEdgeLabeling::adjustToBB() {
 
             std::cout << "selected he to merge" << std::endl;
 
-            mergeMaxVerticalSegment(halfEdgeToCollapse);
+            mergeMaxVerticalSegmentFromLeft(halfEdgeToCollapse);
             std::cout << "after merging segment " << std::endl;
             longestHorizontalPath = getLongestHorizontalPath();
             horizontalStress = longestHorizontalPath.first - (m_boundingBox->width() + threshHold);
@@ -907,7 +907,7 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestVerticalPath(
     return { filteredCost, path };
 }
 
-bool RegularEdgeLabeling::mergeMaxHorizontalSegment(int edgeId) {
+bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromLeft(int edgeId) {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         throw runtime_error("mergeMaxHorizontalSegment: Invalid edgeId: " + std::to_string(edgeId));
         return false;
@@ -944,8 +944,6 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegment(int edgeId) {
     }
 
     // merge red edges from left to right
-
-
     int previousEdgeId = -1;
     while (m_halfEdges[baseEdgeId].color != BLUE && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex) {
 
@@ -962,14 +960,69 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegment(int edgeId) {
             leftMostRedEdge = previousEdgeId;
         }
     }
-    // if (m_halfEdges[baseEdgeId].color != BLUE  && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex)
-    //     mergeLeftMostRedEdge(baseEdgeId);
 
     return true;
-
 }
 
-bool RegularEdgeLabeling::mergeMaxVerticalSegment(int edgeId) {
+bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromRight(int edgeId) {
+    if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
+        throw runtime_error("mergeMaxHorizontalSegment: Invalid edgeId: " + std::to_string(edgeId));
+        return false;
+    }
+    const int twinId = m_halfEdges[edgeId].twin;
+    if (twinId < 0 || twinId >= m_halfEdges.size()){
+        throw runtime_error("mergeMaxHorizontalSegment: Invalid twinEdgeId: " + std::to_string(edgeId));
+        return false;
+    }
+
+    int baseEdgeId = -1;
+    int endEdgeId = -1;
+
+    if (m_halfEdges[edgeId].outgoing) {
+        baseEdgeId = edgeId;
+        endEdgeId = twinId;
+    }
+    else {
+        baseEdgeId = twinId;
+        endEdgeId = edgeId;
+    }
+
+    HalfEdge baseEdge = m_halfEdges[baseEdgeId];
+    HalfEdge endEdge = m_halfEdges[endEdgeId];
+
+    int rightMostRedEdge = getFirstOutgoingRed(baseEdge.vertex); // the edge that we will collapse
+    int previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
+
+    // get initial rightmost red segment of the face
+    while (m_halfEdges[previousEdgeId].color == RED) {
+        rightMostRedEdge = getFirstOutgoingRed(m_halfEdges[previousEdgeId].vertex);
+        previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
+    }
+
+    // merge red edges from right to left
+    int nextEdgeId = -1;
+    while (m_halfEdges[baseEdgeId].color != BLUE && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex) {
+
+        std::cout << "MERGING EDGE BETWEEN: " << m_vertices[m_halfEdges[rightMostRedEdge].vertex].label << " and "
+        << m_vertices[m_halfEdges[m_halfEdges[rightMostRedEdge].twin].vertex].label << std::endl;
+        mergeRightMostRedEdge(rightMostRedEdge);
+
+        nextEdgeId = getNextCyclicEdge(rightMostRedEdge);
+
+        if (m_halfEdges[nextEdgeId].color == BLUE) {
+            std::cout << "next edge is blue: " << nextEdgeId << std::endl;
+            rightMostRedEdge = getNextCyclicEdge(m_halfEdges[nextEdgeId].twin);
+            std::cout << "new next edge id: " << nextEdgeId << std::endl;
+        }
+        else {
+            std::cout << "next edge is not blue; " << nextEdgeId << std::endl;
+            rightMostRedEdge = nextEdgeId;
+        }
+    }
+    return true;
+}
+
+bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromLeft(int edgeId) {
     if (edgeId < 0 || edgeId >= m_halfEdges.size())
         throw runtime_error("mergeMaxHorizontalSegment: Invalid edgeId: " + std::to_string(edgeId));
     const int twinId = m_halfEdges[edgeId].twin;
@@ -1017,9 +1070,10 @@ bool RegularEdgeLabeling::mergeMaxVerticalSegment(int edgeId) {
         }
     }
 
-    // if (m_halfEdges[baseEdgeId].color != RED && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex )
-    //     mergeLowestBlueEdge(baseEdgeId);
+    return true;
+}
 
+bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromRight(int edgeId) {
     return true;
 }
 
@@ -1225,7 +1279,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
             while (getLastOutgoingBlue(endEdge.vertex) != firstOutgoingEdgeId) {
 
                 flipEdgeDiagonally(firstOutgoingEdgeId, false);
-                firstOutgoingEdgeId = getLastIncomingBlue(endEdge.vertex);
+                firstOutgoingEdgeId = getFirstOutgoingBlue(endEdge.vertex);
             }
             // Last flipped edge recolor and flip
             flipEdgeDiagonally(firstOutgoingEdgeId, false);

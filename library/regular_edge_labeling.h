@@ -70,8 +70,10 @@ public:
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
     std::pair<double, std::vector<int>> getLongestVerticalPath() const;
 
-    bool mergeMaxHorizontalSegment(int edgeId);
-    bool mergeMaxVerticalSegment(int edgeId);
+    bool mergeMaxHorizontalSegmentFromLeft(int edgeId);
+    bool mergeMaxHorizontalSegmentFromRight(int edgeId);
+    bool mergeMaxVerticalSegmentFromLeft(int edgeId);
+    bool mergeMaxVerticalSegmentFromRight(int edgeId);
 
     bool mergeLeftMostRedEdge(int edgeId);
     bool mergeRightMostRedEdge(int edgeId);
