@@ -1338,7 +1338,7 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
             while (lastOutgoingEdgeId != baseEdgeId) {
                 flipEdgeDiagonally(lastOutgoingEdgeId, true);
 
-                lastOutgoingEdgeId = getFirstOutgoingBlue(baseEdge.vertex);
+                lastOutgoingEdgeId = getLastOutgoingBlue(baseEdge.vertex); //TODO: check.. is this a bug?
             }
         }
 
@@ -1349,7 +1349,7 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
             while (getLastIncomingRed(endEdge.vertex) != firstIncomingEdgeId) {
 
                 flipEdgeDiagonally(firstIncomingEdgeId, false);
-                firstIncomingEdgeId = getLastIncomingRed(endEdge.vertex);
+                firstIncomingEdgeId = getFirstIncomingRed(endEdge.vertex);
             }
             // Last flipped edge recolor and flip in the other direction
             flipEdgeDiagonally(firstIncomingEdgeId, true);
@@ -1414,6 +1414,122 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
 }
 
 bool RegularEdgeLabeling::mergeHighestBlueEdge(int edgeId) {
+    if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
+        cerr << "Invalid edgeId " << edgeId << endl;
+        return false;
+    }
+    const int twinId = m_halfEdges[edgeId].twin;
+    if (twinId < 0 || twinId >= m_halfEdges.size()){
+        cerr << "Invalid twinEdge id " << twinId << endl;
+        return false;
+    }
+
+    std::cout << "Merging rightmost blue edge: " << edgeId << std::endl;
+
+    int baseEdgeId = -1;
+    int endEdgeId = -1;
+
+    if (m_halfEdges[edgeId].outgoing) {
+        baseEdgeId = edgeId;
+        endEdgeId = twinId;
+    }
+    else {
+        baseEdgeId = twinId;
+        endEdgeId = edgeId;
+    }
+
+    HalfEdge &baseEdge = m_halfEdges[baseEdgeId];
+    HalfEdge &endEdge = m_halfEdges[endEdgeId];
+    Vertex &baseVertex = m_vertices[baseEdge.vertex];
+    Vertex &endVertex = m_vertices[endEdge.vertex];
+
+    if (baseVertex.vertical_order_index > endVertex.vertical_order_index) {
+        // flip all incoming red edges of the left vertex (right to left order)
+        {
+            //if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastRedOutId].twin)].color == RED) {
+            //std::cout << "flipping all outoing red of left" << std::endl;
+            int lastIncomingEdgeId = getLastIncomingRed(baseEdge.vertex);
+            if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastIncomingEdgeId].twin)].color == RED) {
+                std::cout << "special case" << std::endl;
+                while (getFirstIncomingRed(baseEdge.vertex) != lastIncomingEdgeId) {
+                    flipEdgeDiagonally(lastIncomingEdgeId, true);
+                    lastIncomingEdgeId = getLastIncomingRed(baseEdge.vertex);
+                }
+                flipEdgeDiagonally(lastIncomingEdgeId, true);
+                flipEdgeColor(lastIncomingEdgeId);
+            }
+        }
+
+        {
+            std::cout << "flipping all outgoing blue of left vertex" << std::endl;
+            int firstOutgoingEdgeId = getFirstOutgoingBlue(baseEdge.vertex);
+            std::cout << "firstOutgoingEdgeId: " << firstOutgoingEdgeId << std::endl;
+            while (firstOutgoingEdgeId != baseEdgeId) {
+                flipEdgeDiagonally(firstOutgoingEdgeId, false);
+
+                firstOutgoingEdgeId = getFirstOutgoingBlue(baseEdge.vertex);
+            }
+        }
+
+        // flip outgoing red edges on right vertex and recolor last one (lowest to highest order)s
+        {
+            std::cout << "flipping incoming red of right vertex" << std::endl;
+            int lastOutgoingEdgeId = getLastOutgoingRed(endEdge.vertex);
+            while (getFirstOutgoingRed(endEdge.vertex) != lastOutgoingEdgeId) {
+                flipEdgeDiagonally(lastOutgoingEdgeId, true);
+                lastOutgoingEdgeId = getLastOutgoingRed(endEdge.vertex);
+            }
+            // Last flipped edge recolor and flip in the other direction
+            flipEdgeDiagonally(lastOutgoingEdgeId, true);
+            flipEdgeColor(lastOutgoingEdgeId);
+        }
+
+        revertEdgeDirection(baseEdgeId);
+
+    } else if (baseVertex.vertical_order_index < endVertex.vertical_order_index) {
+        // flip incoming red edges on right vertex and recolor last one (highest to lowest order)
+        {
+            int firstIncomingEdgeId = getFirstIncomingRed(endEdge.vertex);
+            if (m_halfEdges[getNextCyclicEdge(m_halfEdges[firstIncomingEdgeId].twin)].color == RED) {
+
+                std::cout << "special case" << std::endl;
+                while (getLastIncomingRed(endEdge.vertex) != firstIncomingEdgeId) {
+                    flipEdgeDiagonally(firstIncomingEdgeId, false);
+                    firstIncomingEdgeId = getFirstIncomingRed(endEdge.vertex);
+                }
+                // Last flipped edge recolor and flip in the other direction
+                flipEdgeDiagonally(firstIncomingEdgeId, true);
+                flipEdgeColor(firstIncomingEdgeId);
+            }
+        }
+
+        {
+            int lastIncomingEdgeId = getLastIncomingBlue(endEdge.vertex);
+            std::cout << "lastIncomingEdgeId: " << lastIncomingEdgeId << std::endl;
+            while (lastIncomingEdgeId != endEdgeId) {
+                flipEdgeDiagonally(lastIncomingEdgeId, true);
+                lastIncomingEdgeId = getFirstIncomingBlue(endEdge.vertex);
+            }
+        }
+
+        // flip all incoming red edges of the left vertex
+        {
+            std::cout << "flipping outgoing red edges of leftp vertex" << std::endl;
+            //std::cout << "endvertexID: " << endEdge.vertex << std::endl;
+            //for (auto he : m_vertices[endEdge.vertex].edges) { std::cout << he << " "; } std::cout << std::endl;
+
+            int FirstOutgoingId = getFirstOutgoingRed(baseEdge.vertex);
+            std::cout << "FirstOutgoingId: " << FirstOutgoingId << std::endl;
+            while (getLastOutgoingRed(baseEdge.vertex) != FirstOutgoingId) {
+                flipEdgeDiagonally(FirstOutgoingId, false);
+                FirstOutgoingId = getFirstOutgoingRed(baseEdge.vertex);
+            }
+            flipEdgeDiagonally(FirstOutgoingId, true);
+            flipEdgeColor(FirstOutgoingId);
+        }
+    }
+
+    flipEdgeColor(baseEdgeId);
     return true;
 }
 
