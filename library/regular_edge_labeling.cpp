@@ -37,6 +37,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
         throw runtime_error("JSON must contain 'vertical_order' array");
     }
 
+    int i = 0;
     // 1) create vertices for all provided region labels
     for (const auto &r : j["regions"]) {
         if (!r.contains("label")) throw runtime_error("Each region must have a 'label'");
@@ -49,6 +50,8 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
             v.label = lbl;
             v.weight = r["weight"].get<int>();
             v.oldWeight = v.weight;
+            v.color = m_vertColors[i % m_vertColors.size()];
+            i++;
             if (useSquareAspectRatios)
                 v.preferred_aspect_ratio = 1.0;
             else v.preferred_aspect_ratio = r["preferred_aspect"].get<double>();

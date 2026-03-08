@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <cartocrow/core/core.h>
 #include <nlohmann/json_fwd.hpp>
 #include "geometry_types.h"
 
@@ -46,6 +47,8 @@ struct Vertex {
 
     int horizontal_order_index = -1;
     int vertical_order_index = -1;
+
+    cartocrow::Color color{255, 255, 255};
 };
 
 class RegularEdgeLabeling {
@@ -127,5 +130,7 @@ private:
 
     int findFirstEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const;
     int findLastEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const;
+
+    vector<cartocrow::Color> m_vertColors{ {166, 205, 226}, {255, 255 , 153}, {252, 190, 110}, {250, 153, 153}, {201, 177, 213}, {177, 222, 137}};
 
 };
