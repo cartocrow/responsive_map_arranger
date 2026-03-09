@@ -793,6 +793,7 @@ bool RectangularDual::computeRectanglesFromSegments(const RegularEdgeLabeling &r
         r.right  = rx;
         r.bottom = by;
         r.top    = ty;
+        r.color = verts[v].color;
         rects[v] = r;
     }
 

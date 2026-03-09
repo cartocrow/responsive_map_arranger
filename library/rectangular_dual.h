@@ -42,6 +42,8 @@ public:
         double bottom;
         double top;
 
+        cartocrow::Color color{255, 255, 255};
+
         double computeArea() {
             return (right - left) * (top - bottom);
         }

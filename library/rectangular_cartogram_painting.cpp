@@ -39,7 +39,8 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
         rect.push_back(p3);
 
         if (m_options.drawFill) {
-            renderer.setFill({ m_options.colorFill[0], m_options.colorFill[1], m_options.colorFill[2] });
+            renderer.setFill(r.color);
+            //renderer.setFill({ m_options.colorFill[0], m_options.colorFill[1], m_options.colorFill[2] });
         }
         if (m_options.drawStroke) {
             renderer.setStroke({ m_options.colorStroke[0], m_options.colorStroke[1], m_options.colorStroke[2] }, m_options.strokeWidth);
