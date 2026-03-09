@@ -58,7 +58,7 @@ public:
 
     void buildFromJson(const json &j, bool useSquareAspectRatios);
 
-    bool isValidREL() const;
+    bool isValidREL(bool debugging = false) const;
 
     void adjustToBB();
 
