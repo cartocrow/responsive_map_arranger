@@ -72,8 +72,8 @@ public:
 
     bool mergeMaxHorizontalSegmentFromLeft(int edgeId);
     bool mergeMaxHorizontalSegmentFromRight(int edgeId);
-    bool mergeMaxVerticalSegmentFromLeft(int edgeId);
-    bool mergeMaxVerticalSegmentFromRight(int edgeId);
+    bool mergeMaxVerticalSegmentFromBottom(int edgeId);
+    bool mergeMaxVerticalSegmentFromTop(int edgeId);
 
     bool mergeLeftMostRedEdge(int edgeId);
     bool mergeRightMostRedEdge(int edgeId);

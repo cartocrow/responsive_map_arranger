@@ -591,7 +591,7 @@ void RegularEdgeLabeling::adjustToBB() {
 
             std::cout << "selected he to merge" << std::endl;
 
-            mergeMaxVerticalSegmentFromLeft(halfEdgeToCollapse);
+            mergeMaxVerticalSegmentFromBottom(halfEdgeToCollapse);
             std::cout << "after merging segment " << std::endl;
             longestHorizontalPath = getLongestHorizontalPath();
             horizontalStress = longestHorizontalPath.first - (m_boundingBox->width() + threshHold);
@@ -1022,7 +1022,7 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromRight(int edgeId) {
     return true;
 }
 
-bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromLeft(int edgeId) {
+bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromBottom(int edgeId) {
     if (edgeId < 0 || edgeId >= m_halfEdges.size())
         throw runtime_error("mergeMaxHorizontalSegment: Invalid edgeId: " + std::to_string(edgeId));
     const int twinId = m_halfEdges[edgeId].twin;
@@ -1073,7 +1073,54 @@ bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromLeft(int edgeId) {
     return true;
 }
 
-bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromRight(int edgeId) {
+bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromTop(int edgeId) {
+    if (edgeId < 0 || edgeId >= m_halfEdges.size())
+        throw runtime_error("mergeMaxHorizontalSegment: Invalid edgeId: " + std::to_string(edgeId));
+    const int twinId = m_halfEdges[edgeId].twin;
+    if (twinId < 0 || twinId >= m_halfEdges.size())
+        throw runtime_error("mergeMaxHorizontalSegment: Invalid twinEdgeId: " + std::to_string(edgeId));
+
+    int baseEdgeId = -1;
+    int endEdgeId = -1;
+    if (m_halfEdges[edgeId].outgoing) {
+        baseEdgeId = edgeId;
+        endEdgeId = twinId;
+    }
+    else {
+        baseEdgeId = twinId;
+        endEdgeId = edgeId;
+    }
+
+    HalfEdge baseEdge = m_halfEdges[baseEdgeId];
+    HalfEdge endEdge = m_halfEdges[endEdgeId];
+
+    int highestBLueEdge = getLastOutgoingBlue(baseEdge.vertex); // the edge that we will collapse
+    int nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(highestBLueEdge)].twin);
+
+    // get initial highest blue segment of the face
+    while (m_halfEdges[nextEdgeId].color == BLUE) {
+        highestBLueEdge = getLastOutgoingBlue(m_halfEdges[nextEdgeId].vertex);
+        nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(highestBLueEdge)].twin);
+    }
+
+    int previousEdgeId = -1;
+    while (m_halfEdges[baseEdgeId].color != RED && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex) {
+
+        std::cout << "MERGING EDGE BETWEEN: " << m_vertices[m_halfEdges[highestBLueEdge].vertex].label << " and "
+        << m_vertices[m_halfEdges[m_halfEdges[highestBLueEdge].twin].vertex].label << std::endl;
+        mergeHighestBlueEdge(highestBLueEdge);
+        std::cout << "AFTER MERGE" << std::endl;
+
+        previousEdgeId = getPreviousCyclicEdge(highestBLueEdge);
+
+        if (m_halfEdges[previousEdgeId].color == RED) {
+            highestBLueEdge = getPreviousCyclicEdge(m_halfEdges[previousEdgeId].twin);
+        }
+        else {
+            highestBLueEdge = previousEdgeId;
+        }
+    }
+
     return true;
 }
 

@@ -305,7 +305,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
                 m_relPtr->mergeMaxHorizontalSegmentFromLeft(he);
             }
             else if (m_relPtr->getHalfEdges()[he].color == BLUE) {
-                m_relPtr->mergeMaxVerticalSegmentFromLeft(he);
+                m_relPtr->mergeMaxVerticalSegmentFromBottom(he);
             }
             m_relPainting->clearSelection();
         }
@@ -332,7 +332,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
                 m_relPtr->mergeMaxHorizontalSegmentFromRight(he);
             }
             else if (m_relPtr->getHalfEdges()[he].color == BLUE) {
-                m_relPtr->mergeMaxVerticalSegmentFromRight(he);
+                m_relPtr->mergeMaxVerticalSegmentFromTop(he);
             }
             m_relPainting->clearSelection();
         }
