@@ -1,5 +1,6 @@
 set(SOURCES
     rectangular_cartogram_gui.cpp
+    persistent_settings.cpp
 )
 
 add_executable(rectangular_cartogram_gui ${SOURCES})

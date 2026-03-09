@@ -18,6 +18,8 @@
 #include "library/rel_painting.h"
 #include "library/geometry_types.h"
 
+#include "persistent_settings.h"
+
 using json = nlohmann::json;
 
 using namespace cartocrow;
@@ -45,6 +47,8 @@ class RectangularCartogramDemo : public QMainWindow {
 
     QCheckBox* m_useSquareAspectRatios = nullptr;
     QCheckBox* m_showREL = nullptr;
+
+    PersistentSettings m_settings = PersistentSettings("settings");
 
     void loadData(const std::filesystem::path &dataPath);
     void processData();

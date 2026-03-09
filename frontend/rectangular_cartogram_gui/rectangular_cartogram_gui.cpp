@@ -159,9 +159,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 
     connect(loadDataButton, &QPushButton::clicked, [this, loadDataButton]() {
-        QString startDir = "data";
+        QString startDir = QString::fromStdString(m_settings.getString("dir", "data"));
         std::filesystem::path filePath = QFileDialog::getOpenFileName(this, tr("Select region data file"), startDir).toStdString();
         if (filePath.empty()) return;
+
+        m_settings.setString("dir", filePath.parent_path().string());
+
         loadData(filePath);
         loadDataButton->setText(QString::fromStdString(filePath.filename().string()));
     });
