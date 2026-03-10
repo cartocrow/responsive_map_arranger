@@ -18,6 +18,8 @@
 #include "library/rel_painting.h"
 #include "library/geometry_types.h"
 
+#include "library/demers.h"
+
 #include "persistent_settings.h"
 
 using json = nlohmann::json;
@@ -32,10 +34,12 @@ class RectangularCartogramDemo : public QMainWindow {
     RegularEdgeLabeling m_rel;
     std::shared_ptr<RegularEdgeLabeling> m_relPtr;
     std::shared_ptr<RectangularDual> m_rectangularDual;
+    std::shared_ptr<DemersCartogram> m_demers;
 
     GeometryWidget* m_renderer;
     std::shared_ptr<RELPainting> m_relPainting;
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
+    std::shared_ptr<DemersPainting> m_demersPainting;
 
 
     bool m_bboxDragging = false;
