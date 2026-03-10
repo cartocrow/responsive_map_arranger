@@ -24,7 +24,7 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
     if (n == 0) return;
 
     // draw rectangles
-    for (std::size_t id = 0; id < n; ++id) {
+    for (std::size_t id = 4; id < n; ++id) {
         const auto &r = m_dual->getRect(static_cast<unsigned int>(id));
         // create polygon in CCW order: (left,bottom) -> (right,bottom) -> (right,top) -> (left,top)
         const PointI p0(r.left,  r.bottom);
