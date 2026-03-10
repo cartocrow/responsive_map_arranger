@@ -5,6 +5,7 @@
     "qt5-base",
     "qt5-svg",
     "gmp",
+    "glpk",
     {
       "name": "gdal",
       "version>=": "3.8.4"

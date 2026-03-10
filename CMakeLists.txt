@@ -22,6 +22,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(CartoCrow REQUIRED)
 find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+find_library(GLPK_LIBRARY NAMES glpk)
 
 
 if (NOT EMSCRIPTEN)

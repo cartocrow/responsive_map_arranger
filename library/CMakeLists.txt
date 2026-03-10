@@ -20,6 +20,7 @@ add_library(rectangular_cartogram ${SOURCES})
 target_link_libraries(rectangular_cartogram
 	PUBLIC 
 	cartocrow::core
+	${GLPK_LIBRARY}
 )
 
 #cartocrow_install_module(<module_name>)

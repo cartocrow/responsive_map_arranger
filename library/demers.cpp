@@ -1,19 +1,6 @@
 #include "demers.h"
 
-#include <CGAL/QP_models.h>
-#include <CGAL/QP_functions.h>
-
-// choose exact integral type
-#ifdef CGAL_USE_GMP
-#include <CGAL/Gmpz.h>
-typedef CGAL::Gmpz ET;
-#else
-#include <CGAL/MP_Float.h>
-typedef CGAL::MP_Float ET;
-#endif
-
-using Program = CGAL::Quadratic_program<ET>;
-using Solution = CGAL::Quadratic_program_solution<ET>;
+#include <glpk.h>
 
 #include "geometry_types.h"
 
@@ -23,42 +10,78 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 
 	assert(rel.hasBoundingBox());
 
-	//const auto weight_to_rad = [](int weight) { return ET(weight); };
-	const auto weight_to_rad = [](int weight) { return ET(std::sqrt(weight) / 2.0); };
+	//const auto weight_to_rad = [](int weight) { return weight; };
+	const auto weight_to_rad = [](int weight) { return std::sqrt(weight) / 2.0; };
 
 	// build LP
-	Program lp(CGAL::SMALLER, true, 0, false, 0);
+	glp_prob* lp = glp_create_prob();
 
 	// given n interior vertices, the program has 2n + 1 variables
 	// 0: scale
 	// and two for each vertex (x and y)
 	// plus a bunch of helper variables...
 
-	const int scale_var = 0;
+	const int var_scale = glp_add_cols(lp, 1);
+	glp_set_col_bnds(lp, var_scale, GLP_LO, 0, 1);
+
+	// minimization objective, we minimize -scale to maximize scale
+	glp_set_obj_dir(lp, GLP_MIN);
+	glp_set_obj_coef(lp, var_scale, -1000);
 
 	BoundingBox bb = rel.getBoundingBox().value();
 	box = Rect(bb.left, bb.bottom, bb.right, bb.top);
 
 	const vector<Vertex>& vs = rel.getVertices();
-	int C = 0;
+	const int var_vertex_start = glp_add_cols(lp, 2 * (vs.size() - 4));
+
 	for (int i = 4; i < vs.size(); i++) { // skip first four (bounding vertices)
 		Vertex v = vs[i];
 
-		auto rad = weight_to_rad(v.weight);
+		double rad = weight_to_rad(v.weight);
+
+		int C = glp_add_rows(lp, 4);
 
 		// stay in box horizontally
-		const int xv = 2 * (i - 4) + 1;
-		lp.set_a(xv, C, 1); lp.set_a(scale_var, C, rad); lp.set_b(C, bb.top); C++; // v.x + scale * rad <= bb.top 
-		lp.set_a(xv, C, -1); lp.set_a(scale_var, C, rad); lp.set_b(C, -bb.bottom); C++; // v.x - scale * rad >= bb.bottom  
+		const int xv = var_vertex_start + 2 * (i - 4);
+		glp_set_col_bnds(lp, xv, GLP_FR, 0, 0);
+
+		{ // v.x + scale * rad <= bb.right 
+			const int vars[] = { 0, xv, var_scale };
+			const double facs[] = { 0,  1.0, rad };
+			glp_set_row_bnds(lp, C, GLP_UP, 0, bb.right);
+			glp_set_mat_row(lp, C, 2, vars, facs);
+			C++;
+		}
+
+		{ // v.x - scale * rad >= bb.left  
+			const int vars[] = { 0, xv, var_scale };
+			const double facs[] = { 0,  1.0, -rad };
+			glp_set_row_bnds(lp, C, GLP_LO, bb.left, 0);
+			glp_set_mat_row(lp, C, 2, vars, facs);
+			C++;
+		}
 
 		// stay in box vertically
 		const int yv = xv + 1;
-		lp.set_a(yv, C, 1); lp.set_a(scale_var, C, rad); lp.set_b(C, bb.right); C++; // v.y + scale * rad <= bb.right
-		lp.set_a(yv, C, -1); lp.set_a(scale_var, C, rad); lp.set_b(C, -bb.left); C++; // v.y - scale * rad >= bb.left
+		glp_set_col_bnds(lp, yv, GLP_FR, 0, 0);
+		{ // v.y + scale * rad <= bb.top 
+			const int vars[] = { 0, yv, var_scale };
+			const double facs[] = { 0,  1.0, rad };
+			glp_set_row_bnds(lp, C, GLP_UP, 0, bb.top);
+			glp_set_mat_row(lp, C, 2, vars, facs);
+			C++;
+		}
+
+		{ // v.x - scale * rad >= bb.bottom  
+			const int vars[] = { 0, yv, var_scale };
+			const double facs[] = { 0,  1.0, -rad };
+			glp_set_row_bnds(lp, C, GLP_LO, bb.bottom, 0);
+			glp_set_mat_row(lp, C, 2, vars, facs);
+			C++;
+		}
 	}
 
 	const vector<HalfEdge>& es = rel.getHalfEdges();
-	int he_vars = 2 * (vs.size() - 4) + 2 + 1; // first free variable for edges
 	for (HalfEdge he : es) {
 		if (he.outgoing) {
 			int from = he.vertex;
@@ -73,67 +96,95 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 			auto to_rad = weight_to_rad(vs[to].weight);
 			auto dist = from_rad + to_rad;
 
-			int from_x = 2 * (from - 4) + 1;
+			int from_x = var_vertex_start + 2 * (from - 4);
 			int from_y = from_x + 1;
-			int to_x = 2 * (to - 4) + 1;
+			int to_x = var_vertex_start + 2 * (to - 4);
 			int to_y = to_x + 1;
-			if (he.color == BLUE) { // separate horizontally
-				lp.set_a(from_x, C, 1); lp.set_a(to_x, C, -1);  lp.set_a(scale_var, C, dist); lp.set_b(C, 0); C++; // to - from >= scale * dist 
+
+			int C = glp_add_rows(lp, 7);
+			if (he.color == BLUE) {
+				// separate horizontally
+				// to.x - from.x >= scale * dist
+				const int vars[] = { 0, to_x, from_x, var_scale };
+				const double facs[] = { 0,  1, -1, -dist };
+				glp_set_row_bnds(lp, C, GLP_LO, 0, 0);
+				glp_set_mat_row(lp, C, 3, vars, facs);
+				C++;
 			}
-			else { // separate vertically
-				lp.set_a(from_y, C, 1); lp.set_a(to_y, C, -1);  lp.set_a(scale_var, C, dist); lp.set_b(C, 0); C++; // to - from >= scale * dist 
+			else {
+				// separate vertically
+				// to.y - from.y >= scale * dist 
+				const int vars[] = { 0, to_y, from_y, var_scale };
+				const double facs[] = { 0,  1, -1, -dist };
+				glp_set_row_bnds(lp, C, GLP_LO, 0, 0);
+				glp_set_mat_row(lp, C, 3, vars, facs);
+				C++;
 			}
 
-			const int h = he_vars++;
-			const int v = he_vars++;
+			const int h = glp_add_cols(lp, 2);
 
-			lp.set_a(h, C, -1); lp.set_b(C, 0); C++; // h >= 0
-			lp.set_a(v, C, -1); lp.set_b(C, 0); C++; // v >= 0
+			glp_set_col_bnds(lp, h, GLP_LO, 0, 0); // h >= 0
+			{ // h >= fromx - tox - dist
+				const int vars[] = { 0, h, to_x, from_x };
+				const double facs[] = { 0,  1, 1, -1 };
+				glp_set_row_bnds(lp, C, GLP_LO, -dist, 0);
+				glp_set_mat_row(lp, C, 3, vars, facs);
+				C++;
+			}
+			{ // h >= tox - fromx - dist
+				const int vars[] = { 0, h, to_x, from_x };
+				const double facs[] = { 0,  1, -1, 1 };
+				glp_set_row_bnds(lp, C, GLP_LO, -dist, 0);
+				glp_set_mat_row(lp, C, 3, vars, facs);
+				C++;
+			}
 
-			lp.set_a(from_x, C, 1); lp.set_a(to_x, C, -1); lp.set_a(h, C, -1); lp.set_b(C, dist); C++; // h >= fromx - tox - dist
-			lp.set_a(from_x, C, -1); lp.set_a(to_x, C, 1); lp.set_a(h, C, -1); lp.set_b(C, dist); C++; // h >= tox - fromx - dist
+			const int v = h + 1;
 
-			lp.set_a(from_y, C, 1); lp.set_a(to_y, C, -1); lp.set_a(v, C, -1); lp.set_b(C, dist); C++; // v >= fromy - toy - dist
-			lp.set_a(from_y, C, -1); lp.set_a(to_y, C, 1); lp.set_a(v, C, -1); lp.set_b(C, dist); C++; // v >= toy - fromy - dist
+			glp_set_col_bnds(lp, v, GLP_LO, 0, 0); // h >= 0
+			{ // v >= fromy - toy - dist
+				const int vars[] = { 0, v, to_y, from_y };
+				const double facs[] = { 0,  1, 1, -1 };
+				glp_set_row_bnds(lp, C, GLP_LO, -dist, 0);
+				glp_set_mat_row(lp, C, 3, vars, facs);
+				C++;
+			}
+			{ // v >= toy - fromy - dist
+				const int vars[] = { 0, v, to_y, from_y };
+				const double facs[] = { 0,  1, -1, 1 };
+				glp_set_row_bnds(lp, C, GLP_LO, -dist, 0);
+				glp_set_mat_row(lp, C, 3, vars, facs);
+				C++;
+			}
+
+			glp_set_obj_coef(lp, h, 1);
+			glp_set_obj_coef(lp, v, 1);
 		}
 	}
 
 
-	// minimization objective, we minimize -scale to maximize scale
-	lp.set_c(scale_var, -1000);
-
-
-	CGAL::print_linear_program(std::cout, lp, "Demers LP");
-
 	// solve LP
-	Solution s = CGAL::solve_linear_program(lp, ET());
-	if (!s.is_optimal()) {
+	if (0 != glp_simplex(lp, NULL)) {
 		std::cout << "Unsolvable LP?" << std::endl;
 		return;
 	}
 
-	//assert(s.solves_linear_program(lp));
-	//std::cout << s;
-
 	// construct locations
 
-	auto it = s.variable_values_begin();
-	auto scale = *it;
-	it++;
+	double scale = glp_get_col_prim(lp, var_scale);
 
-	int vi = 4;
-	while (vi < vs.size()) {
-		double x = CGAL::to_double(*it);
-		it++;
-		double y = CGAL::to_double(*it);
+	for (int i = 4; i < vs.size(); i++) { // skip first four (bounding vertices)
+		const Vertex v = vs[i];
 
-		const Vertex v = vs[vi];
+		double x = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4));
+		double y = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4) + 1);
+
 		double scaled_rad = CGAL::to_double(scale * weight_to_rad(v.weight));
 
 		locations.push_back(DemersPosition(v, x, y, scaled_rad));
-		it++;
-		vi++;
 	}
+
+	glp_delete_prob(lp);
 }
 
 void DemersPainting::paint(Renderer& renderer) const {

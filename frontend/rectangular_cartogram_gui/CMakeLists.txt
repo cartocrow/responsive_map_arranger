@@ -15,7 +15,6 @@ target_link_libraries(
     cartocrow::renderer
     CGAL::CGAL
     rectangular_cartogram
-    nlohmann_json::nlohmann_json
 )
 
 install(TARGETS rectangular_cartogram_gui DESTINATION ${INSTALL_BINARY_DIR})
