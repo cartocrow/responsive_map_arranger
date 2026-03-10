@@ -58,9 +58,14 @@ public:
 
     void buildFromJson(const json &j, bool useSquareAspectRatios);
 
-    bool isValidREL() const;
+    bool isValidREL(bool debugging = false) const;
 
     void adjustToBB();
+
+    // Returns the edgeID of the lowest cost to collapse and the direction. False = from source | True = from target (e.g., false (from left), true (from right))
+    std::pair<int, bool> getLowestCostMerge(std::vector<int> const &path) const;
+    double computeEdgeCountCost(int edgeId, bool fromSource) const;
+
 
     const vector<Vertex> &getVertices()  const { return m_vertices; }
     void updateVertexWeight(int id, int weight) { m_vertices[id].weight = weight; }

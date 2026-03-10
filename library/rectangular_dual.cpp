@@ -119,11 +119,8 @@ struct DSU {
 bool RectangularDual::hasValidSegmentCoords() const {
     for (int i = 4; i < rects.size(); ++i) {
         if (rects[i].bottom >= rects[i].top || rects[i].left >= rects[i].right) {
-            //std::cout << "rect:" << std::endl;
-            //std::cout << "bottom: " << rects[i].bottom <<  " top: " << rects[i].top << " left: " << rects[i].left << " right: " << rects[i].right << std::endl;
-
             return false;
-        };
+        }
     }
 
     return true;
@@ -149,7 +146,6 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
         std::cerr << "Invalid segment coordinates." << std::endl;
         return;
     }
-    std::cout << "fixing areas..." << std::endl;
 
     auto &vertices = rel.getVertices();
     const double frameArea = rel.getBoundingBox()->area();
@@ -203,7 +199,6 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
         deviation = computeAreaDeviation(rel);
     }
 
-    std::cout << "fixed areas" << std::endl;
 }
 
 bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {

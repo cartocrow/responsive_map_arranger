@@ -103,6 +103,7 @@ void RELPainting::paint(Renderer &renderer) const {
         const std::string &alabel = vertices[u].label;
         const std::string &blabel = vertices[v].label;
         if (isFrameLabel(alabel) && isFrameLabel(blabel)) {
+            continue;
             draw_segment(ax, ay, bx, by,
                          { m_options.colorEdgeFrame[0],
                            m_options.colorEdgeFrame[1],

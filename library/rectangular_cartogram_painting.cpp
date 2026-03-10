@@ -24,7 +24,7 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
     if (n == 0) return;
 
     // draw rectangles
-    for (std::size_t id = 0; id < n; ++id) {
+    for (std::size_t id = 4; id < n; ++id) {
         const auto &r = m_dual->getRect(static_cast<unsigned int>(id));
         // create polygon in CCW order: (left,bottom) -> (right,bottom) -> (right,top) -> (left,top)
         const PointI p0(r.left,  r.bottom);
@@ -57,7 +57,7 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
                 const auto &verts = m_relmap->getVertices();
                 if (id < verts.size()) {
                     label = verts[id].label;
-                    label.append(": " + (std::to_string(verts[id].weight)));
+                    label.append("\n [" + std::to_string(verts[id].horizontal_order_index) + ":" + std::to_string(verts[id].vertical_order_index) + "]");
                 } else {
                     std::ostringstream ss;
                     ss << "R" << id;
