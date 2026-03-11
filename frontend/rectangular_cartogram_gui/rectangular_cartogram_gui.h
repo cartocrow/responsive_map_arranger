@@ -6,6 +6,7 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QMainWindow>
+#include <QComboBox>
 #include <cartocrow/renderer/geometry_widget.h>
 
 
@@ -27,6 +28,11 @@ using json = nlohmann::json;
 using namespace cartocrow;
 using namespace cartocrow::renderer;
 
+enum CartogramType {
+    RECTANGULAR_CARTOGRAM,
+    DEMERS_CARTOGRAM
+};
+
 class RectangularCartogramDemo : public QMainWindow {
     Q_OBJECT
 
@@ -41,6 +47,7 @@ class RectangularCartogramDemo : public QMainWindow {
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
     std::shared_ptr<DemersPainting> m_demersPainting;
 
+    CartogramType m_cartogramType = RECTANGULAR_CARTOGRAM;
 
     bool m_bboxDragging = false;
     Point<Inexact> m_dragStartWorld;
@@ -51,6 +58,7 @@ class RectangularCartogramDemo : public QMainWindow {
 
     QCheckBox* m_useSquareAspectRatios = nullptr;
     QCheckBox* m_showREL = nullptr;
+    QComboBox* m_cartogramTypeComboBox = nullptr;
 
     PersistentSettings m_settings = PersistentSettings("settings");
 

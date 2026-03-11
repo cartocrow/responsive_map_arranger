@@ -14,6 +14,8 @@
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 
+#include "demers.h"
+
 
 using Inexact = CGAL::Exact_predicates_inexact_constructions_kernel;
 using PointI  = cartocrow::Point<Inexact>;

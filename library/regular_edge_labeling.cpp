@@ -50,7 +50,12 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
             v.label = lbl;
             v.weight = r["weight"].get<int>();
             v.oldWeight = v.weight;
-            v.color = m_vertColors[i % m_vertColors.size()];
+
+            if (lbl.starts_with("sea_")) {
+                v.color = cartocrow::Color{230, 230, 230};
+            } else {
+                v.color = m_vertColors[i % m_vertColors.size()];
+            }
             i++;
             if (useSquareAspectRatios)
                 v.preferred_aspect_ratio = 1.0;
@@ -385,17 +390,32 @@ static bool checkEdgeConsistency(const RegularEdgeLabeling& rel)
 {
     const auto& H = rel.getHalfEdges();
 
+    auto vertices = rel.getVertices();
+
     for (int i = 0; i < H.size(); ++i) {
         int t = H[i].twin;
-        if (t < 0 || t >= H.size()) return false;
+        if (t < 0 || t >= H.size()) {
+            std::cout << "twin edge " << t << " is invalid of vertices " << vertices[H[i].vertex].label << " and " << vertices[H[t].vertex].label << std::endl;
+
+            return false;
+        }
 
         // same color
-        if (H[i].color != H[t].color)
+        if (H[i].color != H[t].color) {
+            std::cout << "color mismatch: " << std::endl;
+            std::cout << "vertex: " << vertices[H[i].vertex].label << " color: " << H[i].color << "  vertex: " << vertices[H[t].vertex].label << " color: " << H[t].color << std::endl;
+
             return false;
+        }
 
         // exactly one outgoing
-        if (H[i].outgoing == H[t].outgoing)
+        if (H[i].outgoing == H[t].outgoing) {
+            std::cout << "edge direction mismatch: " << std::endl;
+
+            std::cout << "vertex: " << vertices[H[i].vertex].label << " dir: " << H[i].outgoing << "  vertex: " << vertices[H[t].vertex].label << " color: " << H[t].outgoing << std::endl;
+
             return false;
+        }
     }
     return true;
 }
@@ -511,7 +531,7 @@ bool RegularEdgeLabeling::isValidREL(bool debugging) const
         return false;
     }
 
-    if (!checkVertexBlocks(*this)) {
+    if (!checkVertexBlocks(*this, debugging)) {
         if (debugging) std::cout<<"REL invalid: vertex block order\n";
         return false;
     }

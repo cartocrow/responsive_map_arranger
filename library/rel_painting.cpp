@@ -13,13 +13,15 @@
 // `RegularEdgeLabeling::HalfEdge` and `RegularEdgeLabeling::Vertex` exist.
 
 RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
-                         std::shared_ptr<RectangularDual> dual)
-    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_options() {}
+                         std::shared_ptr<RectangularDual> dual,
+                         std::shared_ptr<DemersCartogram> demers)
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_options() {}
 
 RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                          std::shared_ptr<RectangularDual> dual,
+                         std::shared_ptr<DemersCartogram> demers,
                          Options opts)
-    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_options(std::move(opts)) {}
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_options(std::move(opts)) {}
 
 void RELPainting::setRegularEdgeLabeling(std::shared_ptr<RegularEdgeLabeling> rel) {
     m_rel = std::move(rel);
@@ -35,23 +37,40 @@ void RELPainting::paint(Renderer &renderer) const {
     if (nRegions == 0) return;
 
     // ---------- positions: ALWAYS use RectangularDual (user requested) ----------
-    if (!m_dual) {
-        std::cerr << "RELPainting::paint: expected RectangularDual but m_dual is null\n";
+    if (!m_dual && !m_demers) {
+        std::cerr << "RELPainting::paint: expected RectangularDual or DemersCartogram but m_dual and m_demers are null\n";
         return;
     }
-    if (m_dual->rectangles().size() != nRegions) {
-        std::cerr << "RELPainting::paint: RectangularDual size (" << m_dual->rectangles().size()
-                  << ") does not match number of REL vertices (" << nRegions << ")\n";
-        return;
-    }
+    // if (m_dual->rectangles().size() != nRegions) {
+    //     std::cerr << "RELPainting::paint: RectangularDual size (" << m_dual->rectangles().size()
+    //               << ") does not match number of REL vertices (" << nRegions << ")\n";
+    //     return;
+    // }
 
     // compute centroids as PointI-compatible doubles then construct PointI when calling renderer
     std::vector<std::pair<double,double>> pos(nRegions);
-    for (size_t i = 0; i < nRegions; ++i) {
-        const auto &r = m_dual->getRect(static_cast<unsigned int>(i));
-        const double cx = 0.5 * (r.left + r.right);
-        const double cy = 0.5 * (r.bottom + r.top);
-        pos[i] = { cx, cy };
+
+    if (m_dual) {
+        for (size_t i = 0; i < nRegions; ++i) {
+            const auto &r = m_dual->getRect(static_cast<unsigned int>(i));
+            const double cx = 0.5 * (r.left + r.right);
+            const double cy = 0.5 * (r.bottom + r.top);
+            pos[i] = { cx, cy };
+        }
+    }
+    else if (m_demers) {
+        //TODO: use Demers bounding box
+        pos[0] = { m_rel->getBoundingBox()->left, m_rel->getBoundingBox()->bottom + m_rel->getBoundingBox()->height()*0.5 };
+        pos[1] = { m_rel->getBoundingBox()->left + m_rel->getBoundingBox()->width() * 0.5, m_rel->getBoundingBox()->top };
+        pos[3] = { m_rel->getBoundingBox()->right, m_rel->getBoundingBox()->bottom + m_rel->getBoundingBox()->height()*0.5 };
+        pos[3] = { m_rel->getBoundingBox()->left + m_rel->getBoundingBox()->width() * 0.5, m_rel->getBoundingBox()->bottom };
+
+        for (size_t i = 0; i < nRegions - 4; ++i) {
+            const auto &center = m_demers->getDemersPosition(static_cast<unsigned int>(i)).center;
+            //const double cx = center.x();// = 0.5 * (r.left + r.right);
+            //const double cy = 0.5 * (r.bottom + r.top);
+            pos[i+4] = { center.x(), center.y() };
+        }
     }
 
     const double arrowSize = static_cast<double>(m_options.arrowSize);

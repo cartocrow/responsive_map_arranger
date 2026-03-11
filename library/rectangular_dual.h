@@ -58,6 +58,8 @@ public:
 
     RectangularDual() = default;
 
+    void setFromREL(RegularEdgeLabeling& rel);
+
     bool hasValidSegmentCoords() const;
 
     double computeAreaDeviation(RegularEdgeLabeling &rel);

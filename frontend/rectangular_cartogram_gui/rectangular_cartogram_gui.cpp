@@ -27,39 +27,40 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path& dataPath) {
 	m_projectData = json::parse(f);
 	processData();
 
+	m_cartogramType = static_cast<CartogramType>(m_cartogramTypeComboBox->currentData().toInt());
 
-	m_rectangularDual = std::make_shared<RectangularDual>();
+	if (m_cartogramType == RECTANGULAR_CARTOGRAM) {
+		m_rectangularDual = std::make_shared<RectangularDual>();
+		if (!m_rectangularDual->initializeFromREL(m_rel)) {
+			std::cerr << "Failed to compute rectangular dual. You might want to check for cycles" << std::endl;
+		}
 
-	// CREATE RECTANGULAR DUAL
-	if (!m_rectangularDual->initializeFromREL(m_rel)) {
-		std::cerr << "Failed to compute rectangular dual. You might want to check for cycles" << std::endl;
+		m_rectangularDual->setFromREL(*m_relPtr);
+
+		RectangularCartogramPainting::Options rectCartogramOptions;
+		m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
+		m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
+
+		m_demers = nullptr;
+	}
+	else if (m_cartogramType == DEMERS_CARTOGRAM) {
+		m_demers = std::make_shared<DemersCartogram>();
+		m_demers->setFromREL(*m_relPtr);
+
+		m_demersPainting = std::make_shared<DemersPainting>(m_demers);
+		m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
+
+		m_rectangularDual = nullptr;
 	}
 
-	// RENDERING
+	// REL RENDERING
 	RELPainting::Options relDrawingOptions;
 	relDrawingOptions.drawLabels = true;
 	relDrawingOptions.drawREL = m_showREL->isChecked();
 
-	RectangularCartogramPainting::Options rectCartogramOptions;
-
-	m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
-	m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual);
-
-
-	m_rectangularDual->computeMaximalSegments(*m_relPtr);
-	m_rectangularDual->computeSegmentPositions(*m_relPtr);
-	m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
-	m_rectangularDual->fixRectangleAreas(*m_relPtr);
-
-	m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
+	m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers);
 
 	m_renderer->addPainting(m_relPainting, "REL");
-
-	m_demers = std::make_shared<DemersCartogram>();
-	m_demers->setFromREL(*m_relPtr);
-
-	m_demersPainting = std::make_shared<DemersPainting>(m_demers);
-	m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
 }
 
 void RectangularCartogramDemo::processData() {
@@ -73,7 +74,7 @@ void RectangularCartogramDemo::processData() {
     }
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
-    m_relPtr->setBoundingBox(BoundingBox{0, 1280, 0, 880});
+    m_relPtr->setBoundingBox(BoundingBox{0, 4096 , 0, 2160 });
 
     //m_relPtr->mergeRedEdge(13);
 
@@ -130,9 +131,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	vLayout->addWidget(loadDataButton);
 
 	auto* generalSettings = new QLabel("General Settings", vWidget);
+	m_cartogramTypeComboBox = new QComboBox(vWidget);
+	m_cartogramTypeComboBox->addItem("RectangularCartogram", CartogramType::RECTANGULAR_CARTOGRAM);
+	m_cartogramTypeComboBox->addItem("DemersCartogram", CartogramType::DEMERS_CARTOGRAM);
+	m_cartogramTypeComboBox->setCurrentIndex(1);
 	m_useSquareAspectRatios = new QCheckBox("Use Square Aspect Ratios", vWidget);
 	m_useSquareAspectRatios->setChecked(true);
 	vLayout->addWidget(generalSettings);
+	vLayout->addWidget(m_cartogramTypeComboBox);
 	vLayout->addWidget(m_useSquareAspectRatios);
 
 
@@ -180,6 +186,53 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		m_renderer->update();
 		});
 
+	connect(m_cartogramTypeComboBox, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index)	{
+		m_cartogramType = static_cast<CartogramType>(m_cartogramTypeComboBox->itemData(index).toInt());
+
+		if (!m_relPtr) return;
+
+		m_renderer->clear();
+		m_rectPainting.reset();
+		m_demersPainting.reset();
+		m_rectangularDual.reset();
+		m_demers.reset();
+
+		if (m_cartogramType == RECTANGULAR_CARTOGRAM) {
+			m_rectangularDual = std::make_shared<RectangularDual>();
+			if (!m_rectangularDual->initializeFromREL(m_rel)) {
+				std::cerr << "Failed to compute rectangular dual. You might want to check for cycles" << std::endl;
+			}
+
+			m_rectangularDual->setFromREL(*m_relPtr);
+
+			RectangularCartogramPainting::Options rectCartogramOptions;
+			m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
+			m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
+
+		}
+		else if (m_cartogramType == DEMERS_CARTOGRAM) {
+			m_demers = std::make_shared<DemersCartogram>();
+			m_demers->setFromREL(*m_relPtr);
+
+			m_demersPainting = std::make_shared<DemersPainting>(m_demers);
+			m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
+
+		}
+
+		m_relPainting.reset();
+
+		// REL RENDERING
+		RELPainting::Options relDrawingOptions;
+		relDrawingOptions.drawLabels = true;
+		relDrawingOptions.drawREL = m_showREL->isChecked();
+
+		m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers);
+
+		m_renderer->addPainting(m_relPainting, "REL");
+
+		m_renderer->update();
+	});
+
 	connect(btnClearSelection, &QPushButton::clicked, [this]() {
 		if (m_relPainting) {
 			m_relPainting->clearSelection();
@@ -196,11 +249,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			if (!ok) std::cerr << "flipEdgeColor failed for halfedge " << he << "\n";
 		}
 		// after mutating REL, rebuild dual & segment geometry:
-		if (m_rectangularDual && m_relPtr->isValidREL()) {
-			m_rectangularDual->computeMaximalSegments(*m_relPtr);
-			m_rectangularDual->computeSegmentPositions(*m_relPtr);
-			m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
 		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
+		}
+
 		m_renderer->update();
 		});
 
@@ -215,10 +271,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			//bool ok = m_relPtr->flipEdgeDiagonally(heCan, /*clockwise=*/true);
 			if (!ok) std::cerr << "flipEdgeDiagonally(cw) failed for halfedge " << he << "\n";
 		}
-		if (m_rectangularDual && m_relPtr->isValidREL()) {
-			m_rectangularDual->computeMaximalSegments(*m_relPtr);
-			m_rectangularDual->computeSegmentPositions(*m_relPtr);
-			m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
+		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
 		}
 		m_renderer->update();
 		});
@@ -233,10 +291,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			//bool ok = m_relPtr->flipEdgeDiagonally(heCan, /*clockwise=*/false);
 			if (!ok) std::cerr << "flipEdgeDiagonally(ccw) failed for halfedge " << he << "\n";
 		}
-		if (m_rectangularDual && m_relPtr->isValidREL()) {
-			m_rectangularDual->computeMaximalSegments(*m_relPtr);
-			m_rectangularDual->computeSegmentPositions(*m_relPtr);
-			m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
+		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
 		}
 		m_renderer->update();
 		});
@@ -260,12 +320,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			m_relPainting->clearSelection();
 		}
 
-		if (m_rectangularDual && m_relPtr->isValidREL()) {
-			m_rectangularDual->computeMaximalSegments(*m_relPtr);
-			m_rectangularDual->computeSegmentPositions(*m_relPtr);
-			m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
-			m_rectangularDual->fixRectangleAreas(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
 		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
+		}
+
 		m_renderer->update();
 		});
 
@@ -288,12 +350,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			m_relPainting->clearSelection();
 		}
 
-		if (m_rectangularDual && m_relPtr->isValidREL()) {
-			m_rectangularDual->computeMaximalSegments(*m_relPtr);
-			m_rectangularDual->computeSegmentPositions(*m_relPtr);
-			m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
-			m_rectangularDual->fixRectangleAreas(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
 		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
+		}
+
 		m_renderer->update();
 		});
 
@@ -315,11 +379,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			m_relPainting->clearSelection();
 		}
 
-		if (m_rectangularDual && m_relPtr->isValidREL()) {
-			m_rectangularDual->computeMaximalSegments(*m_relPtr);
-			m_rectangularDual->computeSegmentPositions(*m_relPtr);
-			m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
-			m_rectangularDual->fixRectangleAreas(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
+		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
 		}
 		m_renderer->update();
 		});
@@ -342,11 +407,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			m_relPainting->clearSelection();
 		}
 
-		if (m_rectangularDual && m_relPtr->isValidREL()) {
-			m_rectangularDual->computeMaximalSegments(*m_relPtr);
-			m_rectangularDual->computeSegmentPositions(*m_relPtr);
-			m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
-			m_rectangularDual->fixRectangleAreas(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
+		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
 		}
 		m_renderer->update();
 		});
@@ -419,12 +485,15 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 		m_relPtr->setBoundingBox(newbb);
 
-		m_rectangularDual->computeMaximalSegments(*m_relPtr);
-		m_rectangularDual->computeSegmentPositions(*m_relPtr);
-		m_rectangularDual->computeRectanglesFromSegments(*m_relPtr);
-		m_rectangularDual->fixRectangleAreas(*m_relPtr);
+		bool validRel = m_relPtr->isValidREL();
+		if (m_rectangularDual && validRel) {
+			m_rectangularDual->setFromREL(*m_relPtr);
+		}
+		else if (m_demers && validRel) {
+			m_demers->setFromREL(*m_relPtr);
+		}
 
-		m_demers->setFromREL(*m_relPtr);
+		//m_demers->setFromREL(*m_relPtr);
 
 		m_renderer->update();
 		});
