@@ -59,6 +59,7 @@ class RectangularCartogramDemo : public QMainWindow {
 
     QCheckBox* m_useSquareAspectRatios = nullptr;
     QCheckBox* m_showREL = nullptr;
+    QCheckBox* m_showLinearOrders = nullptr;
     QComboBox* m_cartogramTypeComboBox = nullptr;
 
     PersistentSettings m_settings = PersistentSettings("settings");

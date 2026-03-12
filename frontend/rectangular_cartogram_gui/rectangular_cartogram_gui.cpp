@@ -135,7 +135,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	vLayout->addWidget(loadRELButton);
 	vLayout->addWidget(loadWeightsButton);
 
-	auto* generalSettings = new QLabel("General Settings", vWidget);
+	auto* generalSettings = new QLabel("<h3>General Settings</h3>", vWidget);
 	m_cartogramTypeComboBox = new QComboBox(vWidget);
 	m_cartogramTypeComboBox->addItem("RectangularCartogram", CartogramType::RECTANGULAR_CARTOGRAM);
 	m_cartogramTypeComboBox->addItem("DemersCartogram", CartogramType::DEMERS_CARTOGRAM);
@@ -150,8 +150,11 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	auto* debugSettings = new QLabel("<h3>Debug settings</h3>", vWidget);
 	m_showREL = new QCheckBox("Show REL");
 	m_showREL->setChecked(true);
+	m_showLinearOrders = new QCheckBox("Show Linear Orders");
+	m_showLinearOrders->setChecked(false);
 	vLayout->addWidget(debugSettings);
 	vLayout->addWidget(m_showREL);
+	vLayout->addWidget(m_showLinearOrders);
 
 	// EDGE SELECTION/MANIPULATION BUTTONS
 	auto* selectionLabel = new QLabel("<h3>Selection Actions</h3>", vWidget);
@@ -195,10 +198,19 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		loadWeightsButton->setText(QString::fromStdString(filePath.filename().string()));
 	});
 
-	connect(m_showREL, &QCheckBox::toggled, [this, loadRELButton]() {
+	connect(m_showREL, &QCheckBox::toggled, [this]() {
+		if (!m_relPainting) return;
+
 		m_relPainting->drawRel(m_showREL->isChecked());
 		m_renderer->update();
-		});
+	});
+
+	connect(m_showLinearOrders, &QCheckBox::toggled, [this]() {
+		if (!m_rectPainting) return;
+
+		m_rectPainting->drawLinearOrders(m_showLinearOrders->isChecked());
+		m_renderer->update();
+	});
 
 	connect(m_cartogramTypeComboBox, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index)	{
 		m_cartogramType = static_cast<CartogramType>(m_cartogramTypeComboBox->itemData(index).toInt());

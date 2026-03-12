@@ -57,7 +57,8 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
                 const auto &verts = m_relmap->getVertices();
                 if (id < verts.size()) {
                     label = verts[id].label;
-                    label.append("\n [" + std::to_string(verts[id].horizontal_order_index) + ":" + std::to_string(verts[id].vertical_order_index) + "]");
+                    if (m_options.drawLinearOrders)
+                        label.append("\n [" + std::to_string(verts[id].horizontal_order_index) + ":" + std::to_string(verts[id].vertical_order_index) + "]");
                 } else {
                     std::ostringstream ss;
                     ss << "R" << id;
