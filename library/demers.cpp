@@ -6,7 +6,6 @@
 
 
 void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
-	locations.clear();
 
 	assert(rel.hasBoundingBox());
 
@@ -15,6 +14,7 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 
 	// build LP
 	glp_prob* lp = glp_create_prob();
+	glp_set_obj_dir(lp, GLP_MIN);
 
 	// given n interior vertices, the program has 2n + 1 variables
 	// 0: scale
@@ -24,15 +24,13 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 	const int var_scale = glp_add_cols(lp, 1);
 	glp_set_col_bnds(lp, var_scale, GLP_LO, 0, 1);
 
-	// minimization objective, we minimize -scale to maximize scale
-	glp_set_obj_dir(lp, GLP_MIN);
-	glp_set_obj_coef(lp, var_scale, -1000);
-
 	BoundingBox bb = rel.getBoundingBox().value();
 	box = Rect(bb.left, bb.bottom, bb.right, bb.top);
 
 	const vector<Vertex>& vs = rel.getVertices();
 	const int var_vertex_start = glp_add_cols(lp, 2 * (vs.size() - 4));
+
+	double scale_factor = 1;
 
 	for (int i = 4; i < vs.size(); i++) { // skip first four (bounding vertices)
 		Vertex v = vs[i];
@@ -159,30 +157,112 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 
 			glp_set_obj_coef(lp, h, 1);
 			glp_set_obj_coef(lp, v, 1);
+
+			scale_factor += bb.width() + bb.height();
+		}
+	}
+
+	// minimization objective, we minimize -scale to maximize scale
+	glp_set_obj_coef(lp, var_scale, -scale_factor);
+
+	// solve LP
+	glp_smcp param;
+	glp_init_smcp(&param);
+	param.msg_lev = GLP_MSG_ERR;
+
+	bool changed = true;
+	while (changed) {
+		if (0 != glp_simplex(lp, &param)) {
+			std::cout << "Unsolvable LP?" << std::endl;
+			return;
+		}
+
+		// construct locations
+
+		double scale = glp_get_col_prim(lp, var_scale);
+
+		locations.clear();
+		for (int i = 4; i < vs.size(); i++) { // skip first four (bounding vertices)
+			const Vertex v = vs[i];
+
+			double x = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4));
+			double y = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4) + 1);
+
+			double scaled_rad = scale * weight_to_rad(v.weight);
+
+			locations.push_back(DemersPosition(v, x, y, scaled_rad));
+		}
+
+		const int n = locations.size();
+		changed = false;
+		for (int i = 0; i < n; i++) {
+			const DemersPosition a = locations[i];
+			const double a_rad = (a.rectangle.xmax() - a.rectangle.xmin()) / 2.0;
+			for (int j = i + 1; j < n; j++) {
+				const DemersPosition b = locations[j];
+				const double b_rad = (b.rectangle.xmax() - b.rectangle.xmin()) / 2.0;
+				const double scaled_dist = a_rad + b_rad - 0.000001;
+
+				const double dx = std::abs(a.center.x() - b.center.x());
+				const double dy = std::abs(a.center.y() - b.center.y());
+
+				if (dx < scaled_dist && dy < scaled_dist) {
+					// overlap
+
+					auto from_rad = weight_to_rad(vs[i+4].weight);
+					auto to_rad = weight_to_rad(vs[j+4].weight);
+					auto dist = from_rad + to_rad;
+
+					if (dx <= dy) {
+						// overlap is strongest horizontally, so separate vertically
+
+						const int C = glp_add_rows(lp, 1);
+
+						int from_y, to_y;
+						if (a.center.y() <= b.center.y()) {
+							from_y = var_vertex_start + 2 * (i)+1;
+							to_y = var_vertex_start + 2 * (j)+1;
+						}
+						else {
+							from_y = var_vertex_start + 2 * (j)+1;
+							to_y = var_vertex_start + 2 * (i)+1;
+						}
+						// to.y - from.y >= scale * dist 
+						const int vars[] = { 0, to_y, from_y, var_scale };
+						const double facs[] = { 0,  1, -1, -dist };
+						glp_set_row_bnds(lp, C, GLP_LO, 0, 0);
+						glp_set_mat_row(lp, C, 3, vars, facs);
+
+						changed = true;
+					}
+					else {
+						// overlap is strongest vertically, so separate horizontally
+
+						const int C = glp_add_rows(lp, 1);
+
+						int from_x, to_x;
+						if (a.center.x() <= b.center.x()) {
+							from_x = var_vertex_start + 2 * (i);
+							to_x = var_vertex_start + 2 * (j);
+						}
+						else {
+							from_x = var_vertex_start + 2 * (j);
+							to_x = var_vertex_start + 2 * (i);
+						}
+						// to.x - from.x >= scale * dist
+						const int vars[] = { 0, to_x, from_x, var_scale };
+						const double facs[] = { 0,  1, -1, -dist };
+						glp_set_row_bnds(lp, C, GLP_LO, 0, 0);
+						glp_set_mat_row(lp, C, 3, vars, facs);
+
+						changed = true;
+					}
+				}
+			}
 		}
 	}
 
 
-	// solve LP
-	if (0 != glp_simplex(lp, NULL)) {
-		std::cout << "Unsolvable LP?" << std::endl;
-		return;
-	}
-
-	// construct locations
-
-	double scale = glp_get_col_prim(lp, var_scale);
-
-	for (int i = 4; i < vs.size(); i++) { // skip first four (bounding vertices)
-		const Vertex v = vs[i];
-
-		double x = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4));
-		double y = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4) + 1);
-
-		double scaled_rad = CGAL::to_double(scale * weight_to_rad(v.weight));
-
-		locations.push_back(DemersPosition(v, x, y, scaled_rad));
-	}
 
 	glp_delete_prob(lp);
 }
