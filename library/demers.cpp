@@ -10,7 +10,7 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 	assert(rel.hasBoundingBox());
 
 	//const auto weight_to_rad = [](int weight) { return weight; };
-	const auto weight_to_rad = [](int weight) { return std::sqrt(weight) / 2.0; };
+	const auto radius_of = [](const Vertex& v) { return v.isLandRegion ? std::sqrt(v.weight) / 2.0 : 0; };
 
 	// build LP
 	glp_prob* lp = glp_create_prob();
@@ -33,15 +33,16 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 	double scale_factor = 1;
 
 	for (int i = 4; i < vs.size(); i++) { // skip first four (bounding vertices)
-		Vertex v = vs[i];
+		const Vertex& v = vs[i];
 
-		double rad = weight_to_rad(v.weight);
+		double rad = radius_of(v);
 
 		int C = glp_add_rows(lp, 4);
 
 		// stay in box horizontally
 		const int xv = var_vertex_start + 2 * (i - 4);
 		glp_set_col_bnds(lp, xv, GLP_FR, 0, 0);
+		glp_set_obj_coef(lp, xv, 0.0000001);
 
 		{ // v.x + scale * rad <= bb.right 
 			const int vars[] = { 0, xv, var_scale };
@@ -62,6 +63,8 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 		// stay in box vertically
 		const int yv = xv + 1;
 		glp_set_col_bnds(lp, yv, GLP_FR, 0, 0);
+		glp_set_obj_coef(lp, yv, 0.0000001);
+
 		{ // v.y + scale * rad <= bb.top 
 			const int vars[] = { 0, yv, var_scale };
 			const double facs[] = { 0,  1.0, rad };
@@ -90,8 +93,8 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 				continue;
 			}
 
-			auto from_rad = weight_to_rad(vs[from].weight);
-			auto to_rad = weight_to_rad(vs[to].weight);
+			auto from_rad = radius_of(vs[from]);
+			auto to_rad = radius_of(vs[to]);
 			auto dist = from_rad + to_rad;
 
 			int from_x = var_vertex_start + 2 * (from - 4);
@@ -170,11 +173,14 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 	glp_init_smcp(&param);
 	param.msg_lev = GLP_MSG_ERR;
 
+	int lazy = 0;
+	int rounds = 0;
 	bool changed = true;
 	while (changed) {
+		rounds++;
 		if (0 != glp_simplex(lp, &param)) {
 			std::cout << "Unsolvable LP?" << std::endl;
-			return;
+			break;
 		}
 
 		// construct locations
@@ -183,12 +189,12 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 
 		locations.clear();
 		for (int i = 4; i < vs.size(); i++) { // skip first four (bounding vertices)
-			const Vertex v = vs[i];
+			const Vertex& v = vs[i];
 
 			double x = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4));
 			double y = glp_get_col_prim(lp, var_vertex_start + 2 * (i - 4) + 1);
 
-			double scaled_rad = scale * weight_to_rad(v.weight);
+			double scaled_rad = scale * radius_of(v);
 
 			locations.push_back(DemersPosition(v, x, y, scaled_rad));
 		}
@@ -209,8 +215,8 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 				if (dx < scaled_dist && dy < scaled_dist) {
 					// overlap
 
-					auto from_rad = weight_to_rad(vs[i+4].weight);
-					auto to_rad = weight_to_rad(vs[j+4].weight);
+					auto from_rad = radius_of(vs[i+4]);
+					auto to_rad = radius_of(vs[j+4]);
 					auto dist = from_rad + to_rad;
 
 					if (dx <= dy) {
@@ -233,6 +239,7 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 						glp_set_row_bnds(lp, C, GLP_LO, 0, 0);
 						glp_set_mat_row(lp, C, 3, vars, facs);
 
+						lazy++;
 						changed = true;
 					}
 					else {
@@ -255,6 +262,7 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 						glp_set_row_bnds(lp, C, GLP_LO, 0, 0);
 						glp_set_mat_row(lp, C, 3, vars, facs);
 
+						lazy++;
 						changed = true;
 					}
 				}
@@ -262,8 +270,8 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 		}
 	}
 
-
-
+	std::cout << "Solved in " << rounds << " rounds; " << lazy << " lazy constraints added." << std::endl;
+ 
 	glp_delete_prob(lp);
 }
 
