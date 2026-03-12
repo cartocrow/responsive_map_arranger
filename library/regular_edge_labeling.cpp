@@ -53,8 +53,10 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
 
             if (lbl.starts_with("sea_")) {
                 v.color = cartocrow::Color{230, 230, 230};
+                v.isLandRegion = false;
             } else {
                 v.color = m_vertColors[i % m_vertColors.size()];
+                v.isLandRegion = true;
             }
             i++;
             if (useSquareAspectRatios)

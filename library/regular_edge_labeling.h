@@ -33,6 +33,8 @@ struct Vertex {
     string label;
     int oldWeight;
     int weight;
+
+    bool isLandRegion = true;
     // edges of the vertex in COUNTERCLOCKWISE order (combinatorial / cyclic)
     vector<int> edges;
 
