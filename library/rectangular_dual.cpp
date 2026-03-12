@@ -16,7 +16,11 @@ using namespace std;
 
 // ---------- accessors ----------
 const RectangularDual::Rect &RectangularDual::getRect(std::uint32_t id) const {
-    if (id >= rects.size()) throw std::out_of_range("RectangularDual::getRect: id out of range");
+    if (id >= rects.size()) {
+        std::cout << rects.size() << std::endl;
+        std::cout << id << std::endl;
+        throw std::out_of_range("RectangularDual::getRect: id out of range");
+    }
     return rects[id];
 }
 
@@ -127,10 +131,15 @@ void RectangularDual::setFromREL(RegularEdgeLabeling &rel) {
     fixRectangleAreas(rel);
 }
 
-bool RectangularDual::hasValidSegmentCoords() const {
+bool RectangularDual::hasValidSegmentCoords(RegularEdgeLabeling &rel) const {
     for (int i = 4; i < rects.size(); ++i) {
         if (rects[i].bottom >= rects[i].top || rects[i].left >= rects[i].right) {
-            //std::cout << rects[i
+            // std::cout << "no valid segments for: " <<  rel.getVertices()[i].label << std::endl;
+            // std::cout << "bottom: " << rects[i].bottom << ", top: " << rects[i].top << std::endl;
+            // std::cout << "left: " << rects[i].left << ", right: " << rects[i].right << std::endl;
+            // std::cout << "leftGradient: " << maximalSegments[rel.getVertices()[i].left_segment].gradientValue << std::endl;
+            // std::cout << "rightSegment: " << maximalSegments[rel.getVertices()[i].right_segment].gradientValue << std::endl;
+
             return false;
         }
     }
@@ -154,7 +163,7 @@ double RectangularDual::computeAreaDeviation(RegularEdgeLabeling &rel) {
 }
 
 void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
-    if (!hasValidSegmentCoords()) {
+    if (!hasValidSegmentCoords(rel)) {
         std::cerr << "Invalid segment coordinates." << std::endl;
         return;
     }
@@ -194,17 +203,29 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
 
         computeRectanglesFromSegments(rel);
 
-        if (hasValidSegmentCoords() && computeAreaDeviation(rel) < deviation) {
+        if (hasValidSegmentCoords(rel) && computeAreaDeviation(rel) < deviation) {
             epsilon *= 2;
         } else {
-            while (!hasValidSegmentCoords() || computeAreaDeviation(rel) > deviation) { // If rects not valid -> trace back sliding segment
+            while (!hasValidSegmentCoords(rel) || computeAreaDeviation(rel) > deviation) { // If rects not valid -> trace back sliding segment
+                //std::cout << "epsilon: " << epsilon << std::endl;
                 epsilon *= 0.5;
+                if (epsilon == 0) {
+                    //epsilon = numeric_limits<long double>::min();
+                    throw std::invalid_argument("epsilon cannot be zero.");
+                }
+
                 for (Segment &segment : maximalSegments) {
                     if (segment.fixedSegment) continue;
                     segment.coord -= segment.gradientValue * epsilon ;
+                    //std:: cout << "gradiantValue: "  << segment.gradientValue << std::endl;
+
                 }
+                   // std::cout << "no valid segment coords" << std::endl;
+                    //std::cout << "epsilon: " << epsilon << std::endl;
+
+                //}
                 computeRectanglesFromSegments(rel);
-                std::cout << "has valid segment coords: " << hasValidSegmentCoords() << std::endl;
+                //std::cout << "has valid segment coords: " << hasValidSegmentCoords(rel) << std::endl;
             }
         }
 
@@ -698,8 +719,6 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
 
 bool RectangularDual::computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size) {
     //const auto &
-
-
     const auto &verts = rel.getVertices();
     const int V = static_cast<int>(verts.size());
     if (V == 0) {
@@ -711,95 +730,16 @@ bool RectangularDual::computeRectanglesFromSegments(const RegularEdgeLabeling &r
         return false;
     }
 
-    // collect min/max of real segment coordinates
-    double minSegX = std::numeric_limits<double>::infinity();
-    double maxSegX = -std::numeric_limits<double>::infinity();
-    double minSegY = std::numeric_limits<double>::infinity();
-    double maxSegY = -std::numeric_limits<double>::infinity();
-
-    for (const auto &s : maximalSegments) {
-        if (s.type == SEGMENT_HORIZONTAL) {
-            if (std::isfinite(s.coord)) {
-                minSegX = std::min(minSegX, s.coord);
-                maxSegX = std::max(maxSegX, s.coord);
-            }
-        } else if (s.type == SEGMENT_VERTICAL) {
-            if (std::isfinite(s.coord)) {
-                minSegY = std::min(minSegY, s.coord);
-                maxSegY = std::max(maxSegY, s.coord);
-            }
-        }
-    }
-
-    // If any direction has no real segments, provide reasonable defaults.
-    // We choose a 1-cell frame around 0..cell_size so vertices touching frame behave correctly.
-    if (!std::isfinite(minSegX) || !std::isfinite(maxSegX)) {
-        minSegX = 0.0;
-        maxSegX = cell_size;
-    }
-    if (!std::isfinite(minSegY) || !std::isfinite(maxSegY)) {
-        minSegY = 0.0;
-        maxSegY = cell_size;
-    }
-
-    // define frame coordinates OUTSIDE the segment extremes
-    // (important: frame should be beyond the outermost segment coords)
-    double leftFrameX  = minSegX - cell_size;
-    double rightFrameX = maxSegX + cell_size;
-    double bottomFrameY = minSegY - cell_size;
-    double topFrameY    = maxSegY + cell_size;
-
     // Resize rects to number of vertices
     rects.clear();
-    rects.resize((size_t)V);
+    rects.resize(static_cast<size_t>(V));
 
-    // helpers: read coordinate from a segment id but validate type
-    auto getHorizCoord = [&](int segId)->double {
-        if (segId < 0 || segId >= (int)maximalSegments.size()) return std::numeric_limits<double>::quiet_NaN();
-        const Segment &s = maximalSegments[segId];
-        if (s.type != SEGMENT_HORIZONTAL) return std::numeric_limits<double>::quiet_NaN();
-        return s.coord;
-    };
-    auto getVertCoord = [&](int segId)->double {
-        if (segId < 0 || segId >= (int)maximalSegments.size()) return std::numeric_limits<double>::quiet_NaN();
-        const Segment &s = maximalSegments[segId];
-        if (s.type != SEGMENT_VERTICAL) return std::numeric_limits<double>::quiet_NaN();
-        return s.coord;
-    };
-
-    for (int v = 0; v < V; ++v) {
-        // pull coords (may be NaN if invalid / missing)
-        double lx = getHorizCoord(verts[v].left_segment);
-        double rx = getHorizCoord(verts[v].right_segment);
-        double by = getVertCoord(verts[v].bottom_segment);
-        double ty = getVertCoord(verts[v].top_segment);
-
-        // If a side index is -1, map to frame coordinates (which are outside extremes).
-        if (verts[v].left_segment  < 0) lx = leftFrameX;
-        if (verts[v].right_segment < 0) rx = rightFrameX;
-        if (verts[v].bottom_segment < 0) by = bottomFrameY;
-        if (verts[v].top_segment  < 0) ty = topFrameY;
-
-        // If a segment id was present but coord invalid (NaN), fall back to frame or nearby value.
-        if (!std::isfinite(lx)) {
-            // fallback: use minSegX (but keep some spacing)
-            lx = leftFrameX + cell_size; // push one cell inside frame
-        }
-        if (!std::isfinite(rx)) {
-            rx = rightFrameX - cell_size;
-        }
-        if (!std::isfinite(by)) {
-            by = bottomFrameY + cell_size;
-        }
-        if (!std::isfinite(ty)) {
-            ty = topFrameY - cell_size;
-        }
-
+    for (int v = 4; v < V; ++v) {
         Rect r;
-        r.left   = lx;
-        r.right  = rx;
-        r.bottom = by;
-        r.top    = ty;
+        r.left   = maximalSegments[verts[v].left_segment].coord;
+        r.right  = maximalSegments[verts[v].right_segment].coord;
+        r.bottom = maximalSegments[verts[v].bottom_segment].coord;
+        r.top    = maximalSegments[verts[v].top_segment].coord;
         r.color = verts[v].color;
         rects[v] = r;
     }

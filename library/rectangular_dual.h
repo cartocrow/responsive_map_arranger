@@ -60,7 +60,7 @@ public:
 
     void setFromREL(RegularEdgeLabeling& rel);
 
-    bool hasValidSegmentCoords() const;
+    bool hasValidSegmentCoords(RegularEdgeLabeling& rel) const;
 
     double computeAreaDeviation(RegularEdgeLabeling &rel);
 
@@ -68,7 +68,7 @@ public:
 
     bool computeMaximalSegments(RegularEdgeLabeling &rel);
     std::vector<Segment> getMaximalSegments() const { return maximalSegments; };
-    bool computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size = 50.0);
+    bool computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size = 1.0);
     bool computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size = 0.0);
 
     void debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const;
