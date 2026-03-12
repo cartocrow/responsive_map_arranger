@@ -140,10 +140,16 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	m_cartogramTypeComboBox->addItem("RectangularCartogram", CartogramType::RECTANGULAR_CARTOGRAM);
 	m_cartogramTypeComboBox->addItem("DemersCartogram", CartogramType::DEMERS_CARTOGRAM);
 	m_cartogramTypeComboBox->setCurrentIndex(1);
+	m_mergeHeuristicComboBox = new QComboBox(vWidget);
+	m_mergeHeuristicComboBox->addItem("low-edge-count", LOWEST_EDGE_COUNT);
+	m_mergeHeuristicComboBox->addItem("high-seg-low-dir-count", HIGHEST_SEGMENT_LOWEST_DIR_COUNT);
+	m_mergeHeuristicComboBox->setCurrentIndex(0);
+
 	m_useSquareAspectRatios = new QCheckBox("Use Square Aspect Ratios", vWidget);
 	m_useSquareAspectRatios->setChecked(true);
 	vLayout->addWidget(generalSettings);
 	vLayout->addWidget(m_cartogramTypeComboBox);
+	vLayout->addWidget(m_mergeHeuristicComboBox);
 	vLayout->addWidget(m_useSquareAspectRatios);
 
 
@@ -256,6 +262,18 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 		m_renderer->addPainting(m_relPainting, "REL");
 
+		m_renderer->update();
+	});
+
+	connect(m_cartogramTypeComboBox, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index) {
+		m_mergeHeuristic = static_cast<MergeHeuristic>(m_cartogramTypeComboBox->itemData(index).toInt());
+
+		if (!m_relPtr) return;
+
+		m_relPtr->setMergeHeuristic(m_mergeHeuristic);
+		m_relPtr->adjustToBB();
+
+		setCartogramFromREL();
 		m_renderer->update();
 	});
 

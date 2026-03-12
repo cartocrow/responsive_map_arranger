@@ -48,7 +48,8 @@ class RectangularCartogramDemo : public QMainWindow {
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
     std::shared_ptr<DemersPainting> m_demersPainting;
 
-    CartogramType m_cartogramType = RECTANGULAR_CARTOGRAM;
+    CartogramType m_cartogramType;
+    MergeHeuristic m_mergeHeuristic;
 
     bool m_bboxDragging = false;
     Point<Inexact> m_dragStartWorld;
@@ -61,6 +62,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QCheckBox* m_showREL = nullptr;
     QCheckBox* m_showLinearOrders = nullptr;
     QComboBox* m_cartogramTypeComboBox = nullptr;
+    QComboBox* m_mergeHeuristicComboBox = nullptr;
 
     PersistentSettings m_settings = PersistentSettings("settings");
 

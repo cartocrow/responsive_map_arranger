@@ -651,8 +651,26 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
             if (m_halfEdges[m_halfEdges[he].twin].vertex == path[i+1])
                 edge = he;
         }
-        double costFromSource = computeEdgeCountCost(edge, true);
-        double costFromTarget = computeEdgeCountCost(edge, false);
+        double costFromSource = 0.0;
+        double costFromTarget = 0.0;
+
+        switch (m_mergeHeuristic) {
+            case LOWEST_EDGE_COUNT:
+                costFromSource = computeLowestEdgeCountCost(edge, true);
+                costFromTarget = computeLowestEdgeCountCost(edge, false);
+                break;
+            case HIGHEST_SEGMENT_LOWEST_DIR_COUNT:
+                //TODO: implement
+                costFromSource = computeLowestEdgeCountCost(edge, true);
+                costFromTarget = computeLowestEdgeCountCost(edge, false);
+                break;
+            default: // default to LOWEST_EDGE_COUNT
+                costFromSource = computeLowestEdgeCountCost(edge, true);
+                costFromTarget = computeLowestEdgeCountCost(edge, false);
+        }
+
+        costFromSource = computeLowestEdgeCountCost(edge, true);
+        costFromTarget = computeLowestEdgeCountCost(edge, false);
 
         bool fromSource = costFromSource <= costFromTarget;
         double lowestCostOfTwo = min(costFromSource, costFromTarget);
@@ -665,7 +683,7 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
     return lowestCostMerge;
 }
 
-double RegularEdgeLabeling::computeEdgeCountCost(int edgeId, bool fromSource) const {
+double RegularEdgeLabeling::computeLowestEdgeCountCost(int edgeId, bool fromSource) const {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         cerr << "Invalid edgeId " << edgeId << endl;
         return false;
