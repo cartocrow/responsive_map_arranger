@@ -36,7 +36,8 @@ enum CartogramType {
 class RectangularCartogramDemo : public QMainWindow {
     Q_OBJECT
 
-    json m_projectData;
+    json m_RELData;
+    json m_weightData;
     RegularEdgeLabeling m_rel;
     std::shared_ptr<RegularEdgeLabeling> m_relPtr;
     std::shared_ptr<RectangularDual> m_rectangularDual;
@@ -62,8 +63,10 @@ class RectangularCartogramDemo : public QMainWindow {
 
     PersistentSettings m_settings = PersistentSettings("settings");
 
-    void loadData(const std::filesystem::path &dataPath);
+    void loadRELData(const std::filesystem::path &dataPath);
+    void loadWeightData(const std::filesystem::path &dataPath);
     void processData();
+    void setCartogramFromREL() const;
 public:
     RectangularCartogramDemo();
 };

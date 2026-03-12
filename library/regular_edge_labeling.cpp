@@ -388,6 +388,41 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
     isValidREL();
 }
 
+void RegularEdgeLabeling::setDataValuesFromJson(const json &j) {
+    if (!j.is_object()) {
+        throw std::runtime_error("setDataValuesFromJson: expected a JSON object");
+    }
+
+    std::unordered_map<std::string, Vertex*> vertexByLabel;
+    for (auto &v : m_vertices) {
+        vertexByLabel[v.label] = &v;
+    }
+
+    // Assign values from JSON
+    for (auto it = j.begin(); it != j.end(); ++it) {
+        const std::string &region = it.key();
+
+        auto found = vertexByLabel.find(region);
+        if (found == vertexByLabel.end()) {
+            std::cout << "[WARNING]: region '" << region
+                      << "' not found in vertices\n";
+            continue;
+        }
+
+        if (!it.value().is_number()) {
+            std::cerr << "[WARNING]: value for region '" << region
+                      << "' is not numeric, skipping\n";
+            continue;
+        }
+
+        found->second->oldWeight = it.value().get<double>();
+        found->second->weight = it.value().get<double>();
+    }
+
+    normalizeVertexWeights();
+    computePreferredSizes();
+}
+
 static bool checkEdgeConsistency(const RegularEdgeLabeling& rel)
 {
     const auto& H = rel.getHalfEdges();
@@ -689,7 +724,7 @@ double RegularEdgeLabeling::computeEdgeCountCost(int edgeId, bool fromSource) co
 void RegularEdgeLabeling::normalizeVertexWeights() {
     int total = 0;
     for (Vertex &v : m_vertices) {
-        total += v.weight;
+        total += v.oldWeight;
     }
 
     double ratio = m_boundingBox->area() / total;

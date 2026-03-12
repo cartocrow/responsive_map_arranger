@@ -60,6 +60,8 @@ public:
 
     void buildFromJson(const json &j, bool useSquareAspectRatios);
 
+    void setDataValuesFromJson(const json &j);
+
     bool isValidREL(bool debugging = false) const;
 
     void adjustToBB();

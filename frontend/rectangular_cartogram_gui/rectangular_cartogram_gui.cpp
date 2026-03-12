@@ -14,7 +14,7 @@
 using json = nlohmann::json;
 
 
-void RectangularCartogramDemo::loadData(const std::filesystem::path& dataPath) {
+void RectangularCartogramDemo::loadRELData(const std::filesystem::path& dataPath) {
 	std::cout << "loading data from " << dataPath << std::endl;
 
 	auto ext = dataPath.extension();
@@ -24,7 +24,7 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path& dataPath) {
 		return;
 	}
 	std::ifstream f(dataPath);
-	m_projectData = json::parse(f);
+	m_RELData = json::parse(f);
 	processData();
 
 	m_cartogramType = static_cast<CartogramType>(m_cartogramTypeComboBox->currentData().toInt());
@@ -63,12 +63,30 @@ void RectangularCartogramDemo::loadData(const std::filesystem::path& dataPath) {
 	m_renderer->addPainting(m_relPainting, "REL");
 }
 
+void RectangularCartogramDemo::loadWeightData(const std::filesystem::path &dataPath) {
+	std::cout << "loading data from " << dataPath << std::endl;
+
+	auto ext = dataPath.extension();
+
+	if (ext != ".json") {
+		std::cerr << "Cannot load data from file type " << ext << std::endl;
+		return;
+	}
+	std::ifstream f(dataPath);
+	m_weightData = json::parse(f);
+
+	if (m_relPtr) {
+		m_relPtr->setDataValuesFromJson(m_weightData);
+		setCartogramFromREL();
+	}
+}
+
 void RectangularCartogramDemo::processData() {
 
     std::cout << "processing data" << std::endl;
 
     try {
-        m_rel.buildFromJson(m_projectData, m_useSquareAspectRatios->checkState()); // will validate & throw if errors found
+        m_rel.buildFromJson(m_RELData, m_useSquareAspectRatios->checkState()); // will validate & throw if errors found
     } catch (const std::exception& e) {
         std::cerr << "Failed to load REL: " << e.what() << std::endl;
     }
@@ -76,39 +94,24 @@ void RectangularCartogramDemo::processData() {
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
     m_relPtr->setBoundingBox(BoundingBox{0, 4096 , 0, 2160 });
 
-    //m_relPtr->mergeRedEdge(13);
-
-    //m_rel.printSummary();
-
-    // std::cout << "========================" << std::endl;
-    //
-    // const auto &V = m_relPtr->getVertices();
-    // const auto &H = m_relPtr->getHalfEdges();
-    // std::cout << "=== REL HalfEdges ===\n";
-    // for (int i = 0; i < (int)H.size(); ++i) {
-    //     const auto &h = H[i];
-    //     int twin = h.twin;
-    //     std::cout << "he#" << i
-    //               << " vertex=" << h.vertex << "('" << (h.vertex>=0?V[h.vertex].label:"?") << "')"
-    //               << " twin=" << twin
-    //               << " twin->v=" << (twin>=0 && twin < (int)H.size() ? std::to_string(H[twin].vertex) : std::string("nil"))
-    //               << " color=" << (h.color==BLUE?"BLUE":(h.color==RED?"RED":"BLACK"))
-    //               << " out=" << h.outgoing
-    //               << " id_str=" << h.id_str
-    //               << "\n";
-    // }
-    // std::cout << "=== Vertex incident lists ===\n";
-    // for (int v = 0; v < (int)V.size(); ++v) {
-    //     std::cout << "V["<<v<<"] '"<<V[v].label<<"' edges:";
-    //     for (int he : V[v].edges) {
-    //         std::cout << " " << he;
-    //     }
-    //     std::cout << "\n";
-    // }
-
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
     m_relPtr->isValidREL(true);
 
+	if (!m_weightData.is_null()) {
+		m_relPtr->setDataValuesFromJson(m_weightData);
+	}
+
+}
+
+void RectangularCartogramDemo::setCartogramFromREL() const {
+	if (!m_relPtr || !m_relPtr->isValidREL()) return;
+
+	if (m_rectangularDual) {
+		m_rectangularDual->setFromREL(*m_relPtr);
+	}
+	else if (m_demers) {
+		m_demers->setFromREL(*m_relPtr);
+	}
 }
 
 RectangularCartogramDemo::RectangularCartogramDemo() {
@@ -126,9 +129,11 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	dockWidget->setWidget(vWidget);
 
 	auto* inputSettings = new QLabel("<h3>Input</h3>", vWidget);
-	auto loadDataButton = new QPushButton("Load Data (json)");
+	auto loadRELButton = new QPushButton("Load REL (json)");
+	auto loadWeightsButton = new QPushButton("Load weights (json)");
 	vLayout->addWidget(inputSettings);
-	vLayout->addWidget(loadDataButton);
+	vLayout->addWidget(loadRELButton);
+	vLayout->addWidget(loadWeightsButton);
 
 	auto* generalSettings = new QLabel("General Settings", vWidget);
 	m_cartogramTypeComboBox = new QComboBox(vWidget);
@@ -170,18 +175,27 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	vLayout->addWidget(btnClearSelection);
 
 
-	connect(loadDataButton, &QPushButton::clicked, [this, loadDataButton]() {
+	connect(loadRELButton, &QPushButton::clicked, [this, loadRELButton]() {
 		QString startDir = QString::fromStdString(m_settings.getString("dir", "data"));
 		std::filesystem::path filePath = QFileDialog::getOpenFileName(this, tr("Select region data file"), startDir).toStdString();
 		if (filePath.empty()) return;
 
 		m_settings.setString("dir", filePath.parent_path().string());
 
-		loadData(filePath);
-		loadDataButton->setText(QString::fromStdString(filePath.filename().string()));
+		loadRELData(filePath);
+		loadRELButton->setText(QString::fromStdString(filePath.filename().string()));
 		});
 
-	connect(m_showREL, &QCheckBox::toggled, [this, loadDataButton]() {
+	connect(loadWeightsButton, &QPushButton::clicked, [this, loadWeightsButton]() {
+		QString startDir = QString::fromStdString(m_settings.getString("dir", "data"));
+		std::filesystem::path filePath = QFileDialog::getOpenFileName(this, tr("Select region data file"), startDir).toStdString();
+		if (filePath.empty()) return;
+
+		loadWeightData(filePath);
+		loadWeightsButton->setText(QString::fromStdString(filePath.filename().string()));
+	});
+
+	connect(m_showREL, &QCheckBox::toggled, [this, loadRELButton]() {
 		m_relPainting->drawRel(m_showREL->isChecked());
 		m_renderer->update();
 		});
