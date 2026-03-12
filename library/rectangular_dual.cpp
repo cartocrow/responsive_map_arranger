@@ -130,6 +130,7 @@ void RectangularDual::setFromREL(RegularEdgeLabeling &rel) {
 bool RectangularDual::hasValidSegmentCoords() const {
     for (int i = 4; i < rects.size(); ++i) {
         if (rects[i].bottom >= rects[i].top || rects[i].left >= rects[i].right) {
+            //std::cout << rects[i
             return false;
         }
     }
@@ -203,7 +204,7 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
                     segment.coord -= segment.gradientValue * epsilon ;
                 }
                 computeRectanglesFromSegments(rel);
-
+                std::cout << "has valid segment coords: " << hasValidSegmentCoords() << std::endl;
             }
         }
 

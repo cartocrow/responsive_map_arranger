@@ -394,7 +394,7 @@ void RegularEdgeLabeling::setDataValuesFromJson(const json &j) {
     }
 
     std::unordered_map<std::string, Vertex*> vertexByLabel;
-    for (auto &v : m_vertices) {
+    for (auto &v : m_initVertices) {
         vertexByLabel[v.label] = &v;
     }
 
@@ -419,8 +419,12 @@ void RegularEdgeLabeling::setDataValuesFromJson(const json &j) {
         found->second->weight = it.value().get<double>();
     }
 
-    normalizeVertexWeights();
-    computePreferredSizes();
+    adjustToBB();
+    // m_vertices = m_initVertices;
+    // m_halfEdges = m_initHalfEdges;
+    //
+    // normalizeVertexWeights();
+    // computePreferredSizes();
 }
 
 static bool checkEdgeConsistency(const RegularEdgeLabeling& rel)
@@ -742,7 +746,7 @@ double RegularEdgeLabeling::computeLowestEdgeCountCost(int edgeId, bool fromSour
 void RegularEdgeLabeling::normalizeVertexWeights() {
     int total = 0;
     for (Vertex &v : m_vertices) {
-        total += v.oldWeight;
+        total += v.weight;
     }
 
     double ratio = m_boundingBox->area() / total;
@@ -952,7 +956,7 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestHorizontalPat
 
     // if result path has 1 or 0 nodes, treat as no valid path
     if (path.size() <= 1) {
-        return { 0, {} };
+        return { std::numeric_limits<double>::quiet_NaN(), {} };
     }
 
     // recompute cost for the filtered path using the same per-vertex metric
@@ -1178,8 +1182,8 @@ bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromBottom(int edgeId) {
     int nextEdgeId = -1;
     while (m_halfEdges[baseEdgeId].color != RED && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex) {
 
-        // std::cout << "MERGING EDGE BETWEEN: " << m_vertices[m_halfEdges[lowestBLueEdge].vertex].label << " and "
-        // << m_vertices[m_halfEdges[m_halfEdges[lowestBLueEdge].twin].vertex].label << std::endl;
+         //std::cout << "bottom: MERGING EDGE BETWEEN: " << m_vertices[m_halfEdges[lowestBLueEdge].vertex].label << " and "
+         //<< m_vertices[m_halfEdges[m_halfEdges[lowestBLueEdge].twin].vertex].label << std::endl;
         mergeLowestBlueEdge(lowestBLueEdge);
 
         nextEdgeId = getNextCyclicEdge(lowestBLueEdge);
@@ -1228,8 +1232,8 @@ bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromTop(int edgeId) {
     int previousEdgeId = -1;
     while (m_halfEdges[baseEdgeId].color != RED && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex) {
 
-        // std::cout << "MERGING EDGE BETWEEN: " << m_vertices[m_halfEdges[highestBLueEdge].vertex].label << " and "
-        // << m_vertices[m_halfEdges[m_halfEdges[highestBLueEdge].twin].vertex].label << std::endl;
+         //std::cout << "top: MERGING EDGE BETWEEN: " << m_vertices[m_halfEdges[highestBLueEdge].vertex].label << " and "
+         //<< m_vertices[m_halfEdges[m_halfEdges[highestBLueEdge].twin].vertex].label << std::endl;
         mergeHighestBlueEdge(highestBLueEdge);
 
         previousEdgeId = getPreviousCyclicEdge(highestBLueEdge);
@@ -1547,10 +1551,13 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
             int lastOutgoingEdgeId = getLastOutgoingRed(endEdge.vertex);
             if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastOutgoingEdgeId].twin)].color == RED) {
                 while (getFirstOutgoingRed(endEdge.vertex) != lastOutgoingEdgeId) {
+                    //std::cout << "flip outred of right vertex" << std::endl;
                     flipEdgeDiagonally(lastOutgoingEdgeId, true);
-                    lastOutgoingEdgeId = getLastIncomingRed(endEdge.vertex);
+                    lastOutgoingEdgeId = getLastOutgoingRed(endEdge.vertex);
                 }
                 // Last flipped edge recolor and flip in the other direction
+                //std::cout << "flip outred of right vertex and recolor (last one)" << std::endl;
+
                 flipEdgeDiagonally(lastOutgoingEdgeId, true);
                 flipEdgeColor(lastOutgoingEdgeId);
             }
@@ -1558,6 +1565,7 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
 
         int firstIncomingEdgeId = getFirstIncomingBlue(endEdge.vertex);
         while (firstIncomingEdgeId != endEdgeId) {
+            //std::cout << "should not happen" << endl;
             flipEdgeDiagonally(firstIncomingEdgeId, false);
             firstIncomingEdgeId = getFirstIncomingBlue(endEdge.vertex);
         }
@@ -1566,9 +1574,12 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
         {
             int lastOutgoingId = getLastIncomingRed(baseEdge.vertex);
             while (getFirstIncomingRed(baseEdge.vertex) != lastOutgoingId) {
+                //std::cout << "flip inred of left vertex" << std::endl;
+
                 flipEdgeDiagonally(lastOutgoingId, true);
                 lastOutgoingId = getLastIncomingRed(baseEdge.vertex);
             }
+            //std::cout << "flip inred of left vertex and recolor (last one)" << std::endl;
             flipEdgeDiagonally(lastOutgoingId, true);
             flipEdgeColor(lastOutgoingId);
         }
@@ -1668,7 +1679,7 @@ bool RegularEdgeLabeling::mergeHighestBlueEdge(int edgeId) {
             int lastIncomingEdgeId = getLastIncomingBlue(endEdge.vertex);
             while (lastIncomingEdgeId != endEdgeId) {
                 flipEdgeDiagonally(lastIncomingEdgeId, true);
-                lastIncomingEdgeId = getFirstIncomingBlue(endEdge.vertex);
+                lastIncomingEdgeId = getLastIncomingBlue(endEdge.vertex);
             }
         }
 
