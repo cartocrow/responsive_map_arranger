@@ -508,7 +508,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	// Update bounding box while dragging
 	connect(m_renderer, &GeometryWidget::dragMoved, this, [this](Point<Inexact> pt) {
 		if (!m_bboxDragging) return;
-		if (!m_relPtr || !m_rectangularDual) return;
+		if (!m_relPtr) return;
 
 		//std::cout << "updating bb" << std::endl;
 
