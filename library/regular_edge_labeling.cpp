@@ -50,7 +50,14 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
             v.label = lbl;
             v.weight = r["weight"].get<int>();
             v.oldWeight = v.weight;
-            v.color = m_vertColors[i % m_vertColors.size()];
+
+            if (lbl.starts_with("sea_")) {
+                v.color = cartocrow::Color{230, 230, 230};
+                v.isLandRegion = false;
+            } else {
+                v.color = m_vertColors[i % m_vertColors.size()];
+                v.isLandRegion = true;
+            }
             i++;
             if (useSquareAspectRatios)
                 v.preferred_aspect_ratio = 1.0;
@@ -381,21 +388,71 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
     isValidREL();
 }
 
+void RegularEdgeLabeling::setDataValuesFromJson(const json &j) {
+    if (!j.is_object()) {
+        throw std::runtime_error("setDataValuesFromJson: expected a JSON object");
+    }
+
+    std::unordered_map<std::string, Vertex*> vertexByLabel;
+    for (auto &v : m_vertices) {
+        vertexByLabel[v.label] = &v;
+    }
+
+    // Assign values from JSON
+    for (auto it = j.begin(); it != j.end(); ++it) {
+        const std::string &region = it.key();
+
+        auto found = vertexByLabel.find(region);
+        if (found == vertexByLabel.end()) {
+            std::cout << "[WARNING]: region '" << region
+                      << "' not found in vertices\n";
+            continue;
+        }
+
+        if (!it.value().is_number()) {
+            std::cerr << "[WARNING]: value for region '" << region
+                      << "' is not numeric, skipping\n";
+            continue;
+        }
+
+        found->second->oldWeight = it.value().get<double>();
+        found->second->weight = it.value().get<double>();
+    }
+
+    normalizeVertexWeights();
+    computePreferredSizes();
+}
+
 static bool checkEdgeConsistency(const RegularEdgeLabeling& rel)
 {
     const auto& H = rel.getHalfEdges();
 
+    auto vertices = rel.getVertices();
+
     for (int i = 0; i < H.size(); ++i) {
         int t = H[i].twin;
-        if (t < 0 || t >= H.size()) return false;
+        if (t < 0 || t >= H.size()) {
+            std::cout << "twin edge " << t << " is invalid of vertices " << vertices[H[i].vertex].label << " and " << vertices[H[t].vertex].label << std::endl;
+
+            return false;
+        }
 
         // same color
-        if (H[i].color != H[t].color)
+        if (H[i].color != H[t].color) {
+            std::cout << "color mismatch: " << std::endl;
+            std::cout << "vertex: " << vertices[H[i].vertex].label << " color: " << H[i].color << "  vertex: " << vertices[H[t].vertex].label << " color: " << H[t].color << std::endl;
+
             return false;
+        }
 
         // exactly one outgoing
-        if (H[i].outgoing == H[t].outgoing)
+        if (H[i].outgoing == H[t].outgoing) {
+            std::cout << "edge direction mismatch: " << std::endl;
+
+            std::cout << "vertex: " << vertices[H[i].vertex].label << " dir: " << H[i].outgoing << "  vertex: " << vertices[H[t].vertex].label << " color: " << H[t].outgoing << std::endl;
+
             return false;
+        }
     }
     return true;
 }
@@ -511,7 +568,7 @@ bool RegularEdgeLabeling::isValidREL(bool debugging) const
         return false;
     }
 
-    if (!checkVertexBlocks(*this)) {
+    if (!checkVertexBlocks(*this, debugging)) {
         if (debugging) std::cout<<"REL invalid: vertex block order\n";
         return false;
     }
@@ -594,8 +651,26 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
             if (m_halfEdges[m_halfEdges[he].twin].vertex == path[i+1])
                 edge = he;
         }
-        double costFromSource = computeEdgeCountCost(edge, true);
-        double costFromTarget = computeEdgeCountCost(edge, false);
+        double costFromSource = 0.0;
+        double costFromTarget = 0.0;
+
+        switch (m_mergeHeuristic) {
+            case LOWEST_EDGE_COUNT:
+                costFromSource = computeLowestEdgeCountCost(edge, true);
+                costFromTarget = computeLowestEdgeCountCost(edge, false);
+                break;
+            case HIGHEST_SEGMENT_LOWEST_DIR_COUNT:
+                //TODO: implement
+                costFromSource = computeLowestEdgeCountCost(edge, true);
+                costFromTarget = computeLowestEdgeCountCost(edge, false);
+                break;
+            default: // default to LOWEST_EDGE_COUNT
+                costFromSource = computeLowestEdgeCountCost(edge, true);
+                costFromTarget = computeLowestEdgeCountCost(edge, false);
+        }
+
+        costFromSource = computeLowestEdgeCountCost(edge, true);
+        costFromTarget = computeLowestEdgeCountCost(edge, false);
 
         bool fromSource = costFromSource <= costFromTarget;
         double lowestCostOfTwo = min(costFromSource, costFromTarget);
@@ -608,7 +683,7 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
     return lowestCostMerge;
 }
 
-double RegularEdgeLabeling::computeEdgeCountCost(int edgeId, bool fromSource) const {
+double RegularEdgeLabeling::computeLowestEdgeCountCost(int edgeId, bool fromSource) const {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         cerr << "Invalid edgeId " << edgeId << endl;
         return false;
@@ -667,7 +742,7 @@ double RegularEdgeLabeling::computeEdgeCountCost(int edgeId, bool fromSource) co
 void RegularEdgeLabeling::normalizeVertexWeights() {
     int total = 0;
     for (Vertex &v : m_vertices) {
-        total += v.weight;
+        total += v.oldWeight;
     }
 
     double ratio = m_boundingBox->area() / total;

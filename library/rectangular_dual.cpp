@@ -116,6 +116,17 @@ struct DSU {
     }
 };
 
+void RectangularDual::setFromREL(RegularEdgeLabeling &rel) {
+    //cout << "computing max segments" << endl;
+    computeMaximalSegments(rel);
+    //cout << "computing segment positions" << endl;
+    computeSegmentPositions(rel);
+    //cout << "computing rectangles" << endl;
+    computeRectanglesFromSegments(rel);
+    //cout << "fixing rectangles" << endl;
+    fixRectangleAreas(rel);
+}
+
 bool RectangularDual::hasValidSegmentCoords() const {
     for (int i = 4; i < rects.size(); ++i) {
         if (rects[i].bottom >= rects[i].top || rects[i].left >= rects[i].right) {

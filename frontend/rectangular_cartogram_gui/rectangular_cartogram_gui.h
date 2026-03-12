@@ -6,6 +6,7 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QMainWindow>
+#include <QComboBox>
 #include <cartocrow/renderer/geometry_widget.h>
 
 
@@ -27,10 +28,16 @@ using json = nlohmann::json;
 using namespace cartocrow;
 using namespace cartocrow::renderer;
 
+enum CartogramType {
+    RECTANGULAR_CARTOGRAM,
+    DEMERS_CARTOGRAM
+};
+
 class RectangularCartogramDemo : public QMainWindow {
     Q_OBJECT
 
-    json m_projectData;
+    json m_RELData;
+    json m_weightData;
     RegularEdgeLabeling m_rel;
     std::shared_ptr<RegularEdgeLabeling> m_relPtr;
     std::shared_ptr<RectangularDual> m_rectangularDual;
@@ -41,6 +48,8 @@ class RectangularCartogramDemo : public QMainWindow {
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
     std::shared_ptr<DemersPainting> m_demersPainting;
 
+    CartogramType m_cartogramType;
+    MergeHeuristic m_mergeHeuristic;
 
     bool m_bboxDragging = false;
     Point<Inexact> m_dragStartWorld;
@@ -51,11 +60,16 @@ class RectangularCartogramDemo : public QMainWindow {
 
     QCheckBox* m_useSquareAspectRatios = nullptr;
     QCheckBox* m_showREL = nullptr;
+    QCheckBox* m_showLinearOrders = nullptr;
+    QComboBox* m_cartogramTypeComboBox = nullptr;
+    QComboBox* m_mergeHeuristicComboBox = nullptr;
 
     PersistentSettings m_settings = PersistentSettings("settings");
 
-    void loadData(const std::filesystem::path &dataPath);
+    void loadRELData(const std::filesystem::path &dataPath);
+    void loadWeightData(const std::filesystem::path &dataPath);
     void processData();
+    void setCartogramFromREL() const;
 public:
     RectangularCartogramDemo();
 };

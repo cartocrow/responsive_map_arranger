@@ -7,22 +7,6 @@
 #include "regular_edge_labeling.h"
 
 class DemersPainting;
-class DemersPosition;
-
-class DemersCartogram {
-public:
-	DemersCartogram() = default;
-
-	void setFromREL(RegularEdgeLabeling& rel);
-private:
-
-	using Rect = cartocrow::Rectangle<cartocrow::Inexact>;
-
-	Rect box;
-	std::vector<DemersPosition> locations;
-
-	friend class DemersPainting;
-};
 
 struct DemersPosition {
 	using Pt = cartocrow::Point<cartocrow::Inexact>;
@@ -35,6 +19,24 @@ struct DemersPosition {
 
 	DemersPosition(const Vertex& v, double x, double y, double rad) : color(v.color), label(v.label), center(x, y), rectangle(x - rad, y - rad, x + rad, y + rad) {}
 };
+
+class DemersCartogram {
+public:
+	DemersCartogram() = default;
+
+	void setFromREL(RegularEdgeLabeling& rel);
+
+	const DemersPosition& getDemersPosition(int index) const { return locations.at(index); }
+private:
+
+	using Rect = cartocrow::Rectangle<cartocrow::Inexact>;
+
+	Rect box;
+	std::vector<DemersPosition> locations;
+
+	friend class DemersPainting;
+};
+
 
 class DemersPainting : public cartocrow::renderer::GeometryPainting {
 public:

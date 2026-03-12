@@ -13,6 +13,11 @@ using json = nlohmann::json;
 
 using namespace std;
 
+enum MergeHeuristic {
+    LOWEST_EDGE_COUNT, // For all max-segments computes the direction when the least edges
+    HIGHEST_SEGMENT_LOWEST_DIR_COUNT // For all max-segments takes the segment with most edges, and then the dir with least edges
+};
+
 enum EdgeColor {
     RED = 0,
     BLUE = 1,
@@ -33,6 +38,8 @@ struct Vertex {
     string label;
     int oldWeight;
     int weight;
+
+    bool isLandRegion = true;
     // edges of the vertex in COUNTERCLOCKWISE order (combinatorial / cyclic)
     vector<int> edges;
 
@@ -58,13 +65,16 @@ public:
 
     void buildFromJson(const json &j, bool useSquareAspectRatios);
 
+    void setDataValuesFromJson(const json &j);
+    void setMergeHeuristic(const MergeHeuristic merge_heuristic) { m_mergeHeuristic = merge_heuristic; }
+
     bool isValidREL(bool debugging = false) const;
 
     void adjustToBB();
 
     // Returns the edgeID of the lowest cost to collapse and the direction. False = from source | True = from target (e.g., false (from left), true (from right))
     std::pair<int, bool> getLowestCostMerge(std::vector<int> const &path) const;
-    double computeEdgeCountCost(int edgeId, bool fromSource) const;
+    double computeLowestEdgeCountCost(int edgeId, bool fromSource) const;
 
 
     const vector<Vertex> &getVertices()  const { return m_vertices; }
@@ -133,6 +143,8 @@ private:
     vector<HalfEdge> m_initHalfEdges;
 
     optional<BoundingBox> m_boundingBox;
+
+    MergeHeuristic m_mergeHeuristic = LOWEST_EDGE_COUNT;
 
     static string dirKey(const std::string &a, const std::string &b);
     static string undirKey(const std::string &a, const std::string &b);
