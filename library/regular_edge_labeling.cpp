@@ -8,6 +8,10 @@
 #include <queue>
 #include <CGAL/MP_Float_impl.h>
 
+#include <cartocrow/core/core.h>
+#include <cartocrow/core/region_map.h>
+#include <cartocrow/core/region_arrangement.h>
+
 using json = nlohmann::json;
 using namespace std;
 
@@ -420,11 +424,62 @@ void RegularEdgeLabeling::setDataValuesFromJson(const json &j) {
     }
 
     adjustToBB();
-    // m_vertices = m_initVertices;
-    // m_halfEdges = m_initHalfEdges;
+}
+
+cartocrow::PolygonWithHoles<cartocrow::Exact> getShape(const cartocrow::RegionArrangement::Face_const_handle face) {
+    cartocrow::Polygon<cartocrow::Exact> polygon;
+    const auto circ = face->outer_ccb();
+    auto curr = circ;
+    int n = 0;
+    do {
+        const auto p = curr->source()->point();
+        n++;
+        polygon.push_back(p);
+    } while (++curr != circ);
+    std::cout << n << std::endl;
+    return cartocrow::PolygonWithHoles<cartocrow::Exact>(polygon);
+}
+
+void RegularEdgeLabeling::setValuesFromRegionMap(const cartocrow::RegionMap& map) {
+    std::unordered_map<std::string, Vertex*> vertexByLabel;
+    for (auto &v : m_initVertices) {
+        vertexByLabel[v.label] = &v;
+    }
+
+    for (const auto &[name, region] : map) {
+        std::cout << name << std::endl;
+        std::cout << region.name << std::endl;
+
+        auto found = vertexByLabel.find(name);
+
+        if (found == vertexByLabel.end()) {
+            std::cout << "[WARNING]: region '" << region.name << "' not found in vertices\n";
+            continue;
+        }
+
+        found->second->color = region.color;
+    }
+    adjustToBB();
+
+    // for (auto it = map.begin(); it != map.end(); ++it) {
+    //     std::cout << "iteration of regions" << std::endl;
+    //     auto region = it->second;
     //
-    // normalizeVertexWeights();
-    // computePreferredSizes();
+    //     auto found = vertexByLabel.find(region.name);
+    //
+    //     if (found == vertexByLabel.end()) {
+    //         std::cout << "[WARNING]: region '" << region.name << "' not found in vertices\n";
+    //         continue;
+    //     }
+    //
+    //     found->second->color = region.color;
+    //     auto shape = getShape(&region.shape);
+    //     double aspect_ratio = shape.bbox().x_span() / shape.bbox().y_span();
+    //     found->second->preferred_aspect_ratio = aspect_ratio;
+    // }
+    return;
+
+    adjustToBB();
 }
 
 static bool checkEdgeConsistency(const RegularEdgeLabeling& rel)

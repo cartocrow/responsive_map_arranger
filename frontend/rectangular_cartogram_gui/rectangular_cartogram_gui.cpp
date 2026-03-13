@@ -44,7 +44,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path& dataPath
 		m_demers = std::make_shared<DemersCartogram>();
 		m_demers->setFromREL(*m_relPtr);
 
-		m_demersPainting = std::make_shared<DemersPainting>(m_demers);
+		m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
 		m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
 
 		m_rectangularDual = nullptr;
@@ -76,6 +76,24 @@ void RectangularCartogramDemo::loadWeightData(const std::filesystem::path &dataP
 		m_relPtr->setDataValuesFromJson(m_weightData);
 		setCartogramFromREL();
 	}
+}
+
+void RectangularCartogramDemo::loadMap(const std::filesystem::path &mapPath) {
+	std::cout << "loading map from " << mapPath << std::endl;
+
+	auto ext = mapPath.extension();
+	if (ext != ".ipe") {
+		std::cerr << "Cannot load map from file type " << ext << std::endl;
+		return;
+	}
+
+	m_regionMap = ipeToRegionMap(mapPath);
+
+	if (m_relPtr) {
+		m_relPtr->setValuesFromRegionMap(m_regionMap);
+		m_renderer->update();
+	}
+
 }
 
 void RectangularCartogramDemo::processData() {
@@ -128,9 +146,11 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	auto* inputSettings = new QLabel("<h3>Input</h3>", vWidget);
 	auto loadRELButton = new QPushButton("Load REL (json)");
 	auto loadWeightsButton = new QPushButton("Load weights (json)");
+	auto loadMapButton = new QPushButton("Load map (ipe)");
 	vLayout->addWidget(inputSettings);
 	vLayout->addWidget(loadRELButton);
 	vLayout->addWidget(loadWeightsButton);
+	vLayout->addWidget(loadMapButton);
 
 	auto* generalSettings = new QLabel("<h3>General Settings</h3>", vWidget);
 	m_cartogramTypeComboBox = new QComboBox(vWidget);
@@ -201,6 +221,15 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		loadWeightsButton->setText(QString::fromStdString(filePath.filename().string()));
 	});
 
+	connect(loadMapButton, &QPushButton::clicked, [this, loadMapButton]() {
+		QString startDir = QString::fromStdString(m_settings.getString("dir", "data"));
+		std::filesystem::path filePath = QFileDialog::getOpenFileName(this, tr("Select map file"), startDir).toStdString();
+		if (filePath.empty()) return;
+
+		loadMap(filePath);
+		loadMapButton->setText(QString::fromStdString(filePath.filename().string()));
+	});
+
 	connect(m_showREL, &QCheckBox::toggled, [this]() {
 		if (!m_relPainting) return;
 
@@ -240,7 +269,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			m_demers = std::make_shared<DemersCartogram>();
 			m_demers->setFromREL(*m_relPtr);
 
-			m_demersPainting = std::make_shared<DemersPainting>(m_demers);
+			m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
 			m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
 
 		}

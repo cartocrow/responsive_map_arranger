@@ -286,8 +286,10 @@ void DemersPainting::paint(Renderer& renderer) const {
 	renderer.draw(m_cartogram->box);
 
 	renderer.setMode(Renderer::fill | Renderer::stroke);
-	for (DemersPosition dp : m_cartogram->locations) {
-		renderer.setFill(dp.color);
+	for (size_t i = 0; i < m_cartogram->locations.size(); i++) {
+		DemersPosition dp = m_cartogram->locations[i];
+
+		renderer.setFill(m_REL->getVertices()[i+4].color);
 		renderer.draw(dp.rectangle);
 
 		renderer.setFill({ 0,0,0 });

@@ -42,10 +42,11 @@ class DemersPainting : public cartocrow::renderer::GeometryPainting {
 public:
 	using Renderer = cartocrow::renderer::GeometryRenderer;
 
-	DemersPainting(std::shared_ptr<DemersCartogram> cartogram) : m_cartogram(cartogram) {};
+	DemersPainting(std::shared_ptr<DemersCartogram> cartogram, std::shared_ptr<RegularEdgeLabeling> rel) : m_cartogram(cartogram), m_REL(rel) {};
 
 	void paint(Renderer& renderer) const override;
 
 private:
 	std::shared_ptr<DemersCartogram> m_cartogram;
+	std::shared_ptr<RegularEdgeLabeling> m_REL;
 };

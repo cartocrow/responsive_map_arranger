@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 #include <cartocrow/core/core.h>
+#include <cartocrow/core/region_map.h>
 #include <nlohmann/json_fwd.hpp>
 #include "geometry_types.h"
 
@@ -66,6 +67,7 @@ public:
     void buildFromJson(const json &j, bool useSquareAspectRatios);
 
     void setDataValuesFromJson(const json &j);
+    void setValuesFromRegionMap(const cartocrow::RegionMap& map);
     void setMergeHeuristic(const MergeHeuristic merge_heuristic) { m_mergeHeuristic = merge_heuristic; }
 
     bool isValidREL(bool debugging = false) const;
