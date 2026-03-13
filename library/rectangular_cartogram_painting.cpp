@@ -23,8 +23,17 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
     const std::size_t n = m_dual->size();
     if (n == 0) return;
 
+    const auto &verts = m_relmap->getVertices();
+
+    // draw boundingbox
+    renderer.setStroke({ 0,0,0 }, 1);
+    renderer.setMode(Renderer::stroke);
+    renderer.draw(m_dual->getBox());
+
     // draw rectangles
     for (std::size_t id = 4; id < n; ++id) {
+        if (!verts[id].isLandRegion) continue;
+
         const auto &r = m_dual->getRect(static_cast<unsigned int>(id));
         // create polygon in CCW order: (left,bottom) -> (right,bottom) -> (right,top) -> (left,top)
         const PointI p0(r.left,  r.bottom);
@@ -50,11 +59,12 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
 
         // draw label in center
         if (m_options.drawLabels) {
+
+            renderer.setStroke(cartocrow::Color(255, 255, 255), m_options.strokeWidth);
             // determine label string: prefer relmap labels if provided, otherwise use numeric id
             std::string label;
             if (m_relmap) {
                 // safe bounds check: ensure rel has enough vertices and id is valid
-                const auto &verts = m_relmap->getVertices();
                 if (id < verts.size()) {
                     label = verts[id].label;
                     if (m_options.drawLinearOrders)

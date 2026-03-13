@@ -43,6 +43,11 @@ struct DSU {
 };
 
 void RectangularDual::setFromREL() {
+
+    assert(rel.hasBoundingBox());
+    BoundingBox bb = m_REL->getBoundingBox().value();
+    box = Rectangle(bb.left, bb.bottom, bb.right, bb.top);
+
     //cout << "computing max segments" << endl;
     computeMaximalSegments();
     //cout << "computing segment positions" << endl;

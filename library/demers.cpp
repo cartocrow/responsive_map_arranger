@@ -292,7 +292,9 @@ void DemersPainting::paint(Renderer& renderer) const {
 		renderer.setFill(m_REL->getVertices()[i+4].color);
 		renderer.draw(dp.rectangle);
 
-		renderer.setFill({ 0,0,0 });
-		renderer.drawText(dp.center, dp.label);
+		if (m_drawLabels) {
+			renderer.setFill({ 0,0,0 });
+			renderer.drawText(dp.center, dp.label);
+		}
 	}
 };

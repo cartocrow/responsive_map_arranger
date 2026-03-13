@@ -49,6 +49,7 @@ public:
 
     void setOptions(Options o) { m_options = std::move(o); }
     void drawLinearOrders(bool draw) { m_options.drawLinearOrders = draw; }
+    void drawLabels(bool draw) { m_options.drawLabels = draw; }
 
 private:
     std::shared_ptr<RectangularDual> m_dual;

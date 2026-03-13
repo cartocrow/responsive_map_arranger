@@ -66,6 +66,9 @@ public:
     const Rect &getRect(std::uint32_t id) const;
     const std::vector<Rect> &rectangles() const noexcept { return rects; }
 
+    using Rectangle = cartocrow::Rectangle<cartocrow::Inexact>;
+    const Rectangle getBox() const noexcept { return box; }
+
 private:
 
     // helper functions (implemented in cpp)
@@ -86,6 +89,9 @@ private:
 
 
     shared_ptr<RegularEdgeLabeling> m_REL;
+
+    Rectangle box;
+
     std::vector<Segment> maximalSegments;
 
     // adjacency lists (size = number of rectangles/vertices)

@@ -35,6 +35,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path& dataPath
 		m_rectangularDual->setFromREL();
 
 		RectangularCartogramPainting::Options rectCartogramOptions;
+		rectCartogramOptions.drawLabels = m_drawLabels->isChecked();
 		m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
 		m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
 
@@ -45,6 +46,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path& dataPath
 		m_demers->setFromREL(*m_relPtr);
 
 		m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
+		m_demersPainting->drawLabels(m_drawLabels->isChecked());
 		m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
 
 		m_rectangularDual = nullptr;
@@ -176,10 +178,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	auto* debugSettings = new QLabel("<h3>Debug settings</h3>", vWidget);
 	m_showREL = new QCheckBox("Show REL");
 	m_showREL->setChecked(false);
+	m_drawLabels = new QCheckBox("Draw labels");
+	m_drawLabels->setChecked(true);
 	m_showLinearOrders = new QCheckBox("Show Linear Orders");
 	m_showLinearOrders->setChecked(false);
 	vLayout->addWidget(debugSettings);
 	vLayout->addWidget(m_showREL);
+	vLayout->addWidget(m_drawLabels);
 	vLayout->addWidget(m_showLinearOrders);
 
 	// EDGE SELECTION/MANIPULATION BUTTONS
@@ -240,6 +245,16 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		m_renderer->update();
 	});
 
+	connect(m_drawLabels, &QCheckBox::toggled, [this]() {
+		if (m_rectPainting)
+			m_rectPainting->drawLabels(m_drawLabels->isChecked());
+
+		if (m_demers)
+			m_demersPainting->drawLabels(m_drawLabels->isChecked());
+
+		m_renderer->update();
+	});
+
 	connect(m_showLinearOrders, &QCheckBox::toggled, [this]() {
 		if (!m_rectPainting) return;
 
@@ -264,6 +279,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			m_rectangularDual->setFromREL();
 
 			RectangularCartogramPainting::Options rectCartogramOptions;
+			rectCartogramOptions.drawLabels = m_drawLabels->isChecked();
 			m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr, rectCartogramOptions);
 			m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
 
@@ -273,6 +289,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			m_demers->setFromREL(*m_relPtr);
 
 			m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
+			m_demersPainting->drawLabels(m_drawLabels->isChecked());
 			m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
 
 		}

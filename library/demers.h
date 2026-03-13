@@ -46,7 +46,11 @@ public:
 
 	void paint(Renderer& renderer) const override;
 
+	void drawLabels(bool draw) { m_drawLabels = draw; }
+
 private:
 	std::shared_ptr<DemersCartogram> m_cartogram;
 	std::shared_ptr<RegularEdgeLabeling> m_REL;
+
+	bool m_drawLabels = true;
 };
