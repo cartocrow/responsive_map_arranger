@@ -49,46 +49,18 @@ public:
         }
     };
 
-    struct STGraph {
-        int source = -1;
-        int sink = -1;
-        std::vector<std::vector<int>> out; // adjacency out: u -> list of v
-        std::vector<std::vector<int>> in; // adjacency in: v -> list of u
-    };
+    RectangularDual(const shared_ptr<RegularEdgeLabeling> &rel) : m_REL(rel) {};
 
-    RectangularDual() = default;
-
-    void setFromREL(RegularEdgeLabeling& rel);
+    void setFromREL();
 
     bool hasValidSegmentCoords() const;
-    bool hasValidSegmentCoords(RegularEdgeLabeling& rel) const;
-
-    double computeAreaDeviation(RegularEdgeLabeling &rel);
-
-    void fixRectangleAreas(RegularEdgeLabeling &rel);
-
-    bool computeMaximalSegments(RegularEdgeLabeling &rel);
+    double computeAreaDeviation();
+    void fixRectangleAreas();
+    bool computeMaximalSegments();
     std::vector<Segment> getMaximalSegments() const { return maximalSegments; };
-    bool computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size = 1.0);
-    bool computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size = 0.0);
+    bool computeSegmentPositions(double cell_size = 1.0);
+    bool computeRectanglesFromSegments();
 
-    void debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const;
-    void debugDumpVertexSegments(const RegularEdgeLabeling &rel, int v) const;
-
-    bool buildSTandDUal(const RegularEdgeLabeling &rel) ;
-
-    bool buildSTGraphsFromREL(const RegularEdgeLabeling &rel);
-    void debugListUnassignedHalfEdges(const RegularEdgeLabeling &rel, EdgeColor color) const;
-
-    // Build rectangular dual from RELmap (legacy)
-    // cell_size: scale for each grid cell (visual size).
-    bool initializeFromREL(const RELmap &rel, double cell_size = 40.0);
-
-    // NEW: Build rectangular dual directly from RegularEdgeLabeling
-    // This reads explicit outgoing half-edges and interprets:
-    //   BLUE  => horizontal constraint (left -> right)
-    //   RED   => vertical constraint (bottom -> top)
-    bool initializeFromREL(const RegularEdgeLabeling &rel, double cell_size = 40.0);
 
     std::size_t size() const noexcept { return rects.size(); }
     const Rect &getRect(std::uint32_t id) const;
@@ -97,9 +69,6 @@ public:
 private:
 
     // helper functions (implemented in cpp)
-    bool buildDAGsFromRELmap(const RELmap &rel);
-    bool buildDAGsFromRegularEdgeLabeling(const RegularEdgeLabeling &rel);
-
     bool topoSort(const std::vector<std::vector<std::uint32_t>> &adj,
                   std::vector<std::uint32_t> &order) const;
 
@@ -116,18 +85,8 @@ private:
                       std::vector<int> &bottomIndex, int &maxTop) const;
 
 
+    shared_ptr<RegularEdgeLabeling> m_REL;
     std::vector<Segment> maximalSegments;
-
-    STGraph G1;
-    STGraph G2;
-    // dual graphs of G1 and G2: each face is represented as a vertex, and two faces with common edge have an edge in the dual.
-    STGraph G1dual;
-    STGraph G2Dual;
-
-    std::vector<int> faceOfHalfEdge_G1; // size = #halfedges (or 0), -1 for not-part-of-G1
-    std::vector<int> faceOfHalfEdge_G2; // same for G2
-    int F1 = 0; // number of faces in G1
-    int F2 = 0; // number of faces in G2
 
     // adjacency lists (size = number of rectangles/vertices)
     // horAdj: left -> right edges (blue)

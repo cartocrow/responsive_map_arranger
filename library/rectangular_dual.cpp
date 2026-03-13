@@ -24,84 +24,6 @@ const RectangularDual::Rect &RectangularDual::getRect(std::uint32_t id) const {
     return rects[id];
 }
 
-// ---------- legacy: buildDAGsFromRELmap (kept if you still need it) ----------
-bool RectangularDual::buildDAGsFromRELmap(const RELmap &rel) {
-    // This function reconstructs horAdj and verAdj from RELmap
-    // It's optional; if you have an existing implementation, call that instead.
-    // For safety, we assume RELmap provides:
-    //   rel.size(), rel.get(i).blue_out (vector<uint32_t>), rel.get(i).red_out (vector<uint32_t>)
-    size_t n = rel.size();
-    horAdj.clear(); horAdj.resize(n);
-    verAdj.clear(); verAdj.resize(n);
-
-    for (std::uint32_t u = 0; u < n; ++u) {
-        const auto &r = rel.get(u);
-        // blue_out: left -> right
-        for (auto v : r.blue_out) {
-            if (v < n) horAdj[u].push_back(v);
-        }
-        // red_out: bottom -> top
-        for (auto v : r.red_out) {
-            if (v < n) verAdj[u].push_back(v);
-        }
-    }
-    return true;
-}
-
-bool RectangularDual::buildDAGsFromRegularEdgeLabeling(const RegularEdgeLabeling &rel) {
-    const auto &verts = rel.getVertices();
-    const auto &halfedges = rel.getHalfEdges();
-    size_t n = verts.size();
-    if (n == 0) return false;
-    horAdj.clear(); horAdj.resize(n);
-    verAdj.clear(); verAdj.resize(n);
-
-    // iterate explicit outgoing halfedges and classify by color
-    for (int hi = 0; hi < (int)halfedges.size(); ++hi) {
-        const auto &h = halfedges[hi];
-        if (!h.outgoing) continue;
-        //if (!h.is_explicit) continue;
-        int u = h.vertex;
-        if (h.twin < 0 || h.twin >= (int)halfedges.size()) continue;
-        int v = halfedges[h.twin].vertex;
-        if (u < 0 || v < 0 || u >= (int)n || v >= (int)n) continue;
-        if (h.color == BLUE) {
-            horAdj[u].push_back((uint32_t)v); // left -> right
-        } else if (h.color == RED) {
-            verAdj[u].push_back((uint32_t)v); // bottom -> top
-        } else {
-            // ignore other colors in layout
-        }
-    }
-    return true;
-}
-
-static bool auto_detect_exterior(const RegularEdgeLabeling &rel, std::array<int, 4> &outIndices) {
-    outIndices = { -1, -1, -1, -1 };
-    const auto &vertices = rel.getVertices();
-    for (int i = 0; i < vertices.size(); ++i) {
-        const std::string &label = vertices[i].label;
-
-        if (label == "South") {
-            outIndices[0] = i;
-            continue;
-        }
-        if (label == "West") {
-            outIndices[1] = i;
-            continue;
-        }
-        if (label == "North") {
-            outIndices[2] = i;
-            continue;
-        }
-        if (label == "East") {
-            outIndices[3] = i;
-            continue;
-        }
-    }
-    return (outIndices[0] >= 0 && outIndices[1] >= 0 && outIndices[2] >= 0 && outIndices[3] >= 0);
-}
-
 // small DSU
 struct DSU {
     std::vector<int> p, r;
@@ -120,15 +42,15 @@ struct DSU {
     }
 };
 
-void RectangularDual::setFromREL(RegularEdgeLabeling &rel) {
+void RectangularDual::setFromREL() {
     //cout << "computing max segments" << endl;
-    computeMaximalSegments(rel);
+    computeMaximalSegments();
     //cout << "computing segment positions" << endl;
-    computeSegmentPositions(rel);
+    computeSegmentPositions();
     //cout << "computing rectangles" << endl;
-    computeRectanglesFromSegments(rel);
+    computeRectanglesFromSegments();
     //cout << "fixing rectangles" << endl;
-    fixRectangleAreas(rel);
+    fixRectangleAreas();
 }
 
 bool RectangularDual::hasValidSegmentCoords() const {
@@ -136,33 +58,22 @@ bool RectangularDual::hasValidSegmentCoords() const {
     for (size_t i = 4; i < n; ++i) {
         const auto &r = rects[i];
         if (r.bottom >= r.top - 0.1 || r.left >= r.right - 0.1) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool RectangularDual::hasValidSegmentCoords(RegularEdgeLabeling &rel) const {
-    for (int i = 4; i < rects.size(); ++i) {
-        if (rects[i].bottom >= rects[i].top - 0.1 || rects[i].left >= rects[i].right - 0.1) {
-            // std::cout << "no valid segments for: " <<  rel.getVertices()[i].label << std::endl;
+            // std::cout << "no valid segments for: " <<  m_REL->getVertices()[i].label << std::endl;
             // std::cout << "bottom: " << rects[i].bottom << ", top: " << rects[i].top << std::endl;
             // std::cout << "left: " << rects[i].left << ", right: " << rects[i].right << std::endl;
-            // std::cout << "leftGradient: " << maximalSegments[rel.getVertices()[i].left_segment].gradientValue << std::endl;
-            // std::cout << "rightGradient: " << maximalSegments[rel.getVertices()[i].right_segment].gradientValue << std::endl;
-            // std::cout << "topGradient: " << maximalSegments[rel.getVertices()[i].top_segment].gradientValue << std::endl;
-            // std::cout << "bottomGradient: " << maximalSegments[rel.getVertices()[i].bottom_segment].gradientValue << std::endl;
-
+            // std::cout << "leftGradient: " << maximalSegments[m_REL->getVertices()[i].left_segment].gradientValue << std::endl;
+            // std::cout << "rightGradient: " << maximalSegments[m_REL->getVertices()[i].right_segment].gradientValue << std::endl;
+            // std::cout << "topGradient: " << maximalSegments[m_REL->getVertices()[i].top_segment].gradientValue << std::endl;
+            // std::cout << "bottomGradient: " << maximalSegments[m_REL->getVertices()[i].bottom_segment].gradientValue << std::endl;
             return false;
         }
     }
-
     return true;
 }
 
-double RectangularDual::computeAreaDeviation(RegularEdgeLabeling &rel) {
+double RectangularDual::computeAreaDeviation() {
     double total = 0;
-    auto &vertices = rel.getVertices();
+    auto &vertices = m_REL->getVertices();
 
     for (size_t i = 4; i < vertices.size(); ++i) {
 
@@ -172,16 +83,16 @@ double RectangularDual::computeAreaDeviation(RegularEdgeLabeling &rel) {
     return sqrt(total);
 }
 
-void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
+void RectangularDual::fixRectangleAreas() {
     if (!hasValidSegmentCoords()) {
         std::cerr << "Invalid segment coordinates." << std::endl;
         return;
     }
 
-    auto &vertices = rel.getVertices();
+    auto &vertices = m_REL->getVertices();
     //const double frameArea = rel.getBoundingBox()->area();
     double epsilon = 1.0;
-    double deviation = computeAreaDeviation(rel);
+    double deviation = computeAreaDeviation();
 
     //std::cout << "FIXING AREAS" << std::endl;
 
@@ -214,12 +125,12 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
             segment.coord += segment.gradientValue * epsilon ;
         }
 
-        computeRectanglesFromSegments(rel);
+        computeRectanglesFromSegments();
 
-        if (hasValidSegmentCoords() && computeAreaDeviation(rel) < deviation) {
+        if (hasValidSegmentCoords() && computeAreaDeviation() < deviation) {
             epsilon *= 2;
         } else {
-            while (!hasValidSegmentCoords() || computeAreaDeviation(rel) > deviation) { // If rects not valid -> trace back sliding segment
+            while (!hasValidSegmentCoords() || computeAreaDeviation() > deviation) { // If rects not valid -> trace back sliding segment
                 epsilon *= 0.5;
                 //std::cout << "epsilon: " << epsilon << std::endl;
                 if (epsilon == 0) {
@@ -231,17 +142,17 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
                     segment.coord -= segment.gradientValue * epsilon ;
                 }
 
-                computeRectanglesFromSegments(rel);
+                computeRectanglesFromSegments();
             }
         }
 
-        deviation = computeAreaDeviation(rel);
+        deviation = computeAreaDeviation();
     }
 }
 
-bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
-    const auto &relHalfedges = rel.getHalfEdges();
-    const auto &relVertices  = rel.getVertices();
+bool RectangularDual::computeMaximalSegments() {
+    const auto &relHalfedges = m_REL->getHalfEdges();
+    const auto &relVertices  = m_REL->getVertices();
     const int H = (int)relHalfedges.size();
     const int V = (int)relVertices.size();
     if (H == 0) { std::cerr << "computeMaximalSegments: no halfedges\n"; return false; }
@@ -411,70 +322,70 @@ bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
     int leftSeg = -1, rightSeg = -1, bottomSeg = -1, topSeg = -1;
 
     // Horizontal: left = segment of first incoming BLUE, right = segment of first outgoing BLUE
-    int he_left = rel.getFirstIncomingBlue(v);   // returns half-edge index at v (incoming BLUE)
+    int he_left = m_REL->getFirstIncomingBlue(v);   // returns half-edge index at v (incoming BLUE)
     if (he_left >= 0 && he_left < H) leftSeg = he_to_seg[he_left];
 
-    int he_right = rel.getFirstOutgoingBlue(v);  // returns half-edge index at v (outgoing BLUE)
+    int he_right = m_REL->getFirstOutgoingBlue(v);  // returns half-edge index at v (outgoing BLUE)
     if (he_right >= 0 && he_right < H) rightSeg = he_to_seg[he_right];
 
     // Vertical: bottom = segment of first incoming RED, top = segment of first outgoing RED
-    int he_bottom = rel.getFirstIncomingRed(v);
+    int he_bottom = m_REL->getFirstIncomingRed(v);
     if (he_bottom >= 0 && he_bottom < H) bottomSeg = he_to_seg[he_bottom];
 
-    int he_top = rel.getFirstOutgoingRed(v);
+    int he_top = m_REL->getFirstOutgoingRed(v);
     if (he_top >= 0 && he_top < H) topSeg = he_to_seg[he_top];
 
     // Fallbacks: if any side still -1, try last-edge variants (cases where run wraps around)
     if (leftSeg == -1) {
-        int he = rel.getLastIncomingBlue(v);
+        int he = m_REL->getLastIncomingBlue(v);
         if (he >= 0 && he < H) leftSeg = he_to_seg[he];
     }
     if (rightSeg == -1) {
-        int he = rel.getLastOutgoingBlue(v);
+        int he = m_REL->getLastOutgoingBlue(v);
         if (he >= 0 && he < H) rightSeg = he_to_seg[he];
     }
     if (bottomSeg == -1) {
-        int he = rel.getLastIncomingRed(v);
+        int he = m_REL->getLastIncomingRed(v);
         if (he >= 0 && he < H) bottomSeg = he_to_seg[he];
     }
     if (topSeg == -1) {
-        int he = rel.getLastOutgoingRed(v);
+        int he = m_REL->getLastOutgoingRed(v);
         if (he >= 0 && he < H) topSeg = he_to_seg[he];
     }
 
     // Final fallback: if still missing, pick any candidate deterministically (min) — preserves robustness.
     if (leftSeg == -1) {
         // find any incoming BLUE half-edge and use its segment
-        for (int he : rel.getVertices()[v].edges) {
+        for (int he : m_REL->getVertices()[v].edges) {
             if (he < 0 || he >= H) continue;
-            const HalfEdge &h = rel.getHalfEdges()[he];
+            const HalfEdge &h = m_REL->getHalfEdges()[he];
             if (h.color == BLUE && !h.outgoing) { leftSeg = he_to_seg[he]; break; }
         }
     }
     if (rightSeg == -1) {
-        for (int he : rel.getVertices()[v].edges) {
+        for (int he : m_REL->getVertices()[v].edges) {
             if (he < 0 || he >= H) continue;
-            const HalfEdge &h = rel.getHalfEdges()[he];
+            const HalfEdge &h = m_REL->getHalfEdges()[he];
             if (h.color == BLUE && h.outgoing) { rightSeg = he_to_seg[he]; break; }
         }
     }
     if (bottomSeg == -1) {
-        for (int he : rel.getVertices()[v].edges) {
+        for (int he : m_REL->getVertices()[v].edges) {
             if (he < 0 || he >= H) continue;
-            const HalfEdge &h = rel.getHalfEdges()[he];
+            const HalfEdge &h = m_REL->getHalfEdges()[he];
             if (h.color == RED && !h.outgoing) { bottomSeg = he_to_seg[he]; break; }
         }
     }
     if (topSeg == -1) {
-        for (int he : rel.getVertices()[v].edges) {
+        for (int he : m_REL->getVertices()[v].edges) {
             if (he < 0 || he >= H) continue;
-            const HalfEdge &h = rel.getHalfEdges()[he];
+            const HalfEdge &h = m_REL->getHalfEdges()[he];
             if (h.color == RED && h.outgoing) { topSeg = he_to_seg[he]; break; }
         }
     }
 
     // write safe-to-call setter
-    rel.setVertexSegmentIndices(v, leftSeg, rightSeg, bottomSeg, topSeg);
+    m_REL->setVertexSegmentIndices(v, leftSeg, rightSeg, bottomSeg, topSeg);
 }
 
     // debug summary
@@ -493,7 +404,7 @@ bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
             std::cerr << "Warning: segment " << si << " has zero halfedges\n";
         }
         for (int he : s.halfedges) {
-            if (he < 0 || he >= (int)rel.getHalfEdges().size()) {
+            if (he < 0 || he >= (int)m_REL->getHalfEdges().size()) {
                 std::cerr << "ERROR: segment " << si << " contains invalid halfedge index " << he << "\n";
             }
         }
@@ -502,7 +413,7 @@ bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {
     return true;
 }
 
-bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, double cell_size) {
+bool RectangularDual::computeSegmentPositions(double cell_size) {
     // build compact index maps for existing segments
     const int S = (int)maximalSegments.size();
     int hcount = 0, vcount = 0;
@@ -522,7 +433,7 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
     std::vector<std::vector<std::uint32_t>> horAdj(hcount + 2);
     std::vector<std::vector<std::uint32_t>> verAdj(vcount + 2);
 
-    const auto &verts = rel.getVertices();
+    const auto &verts = m_REL->getVertices();
     const int V = (int)verts.size();
 
     // helper to map possibly -1 segment id to horizontal/vertical node index
@@ -616,8 +527,8 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
     int bottomFrameY = vy[bottomFrameIdx], topFrameY = vy[topFrameIdx];
 
     // If REL provides a bounding box, map integer levels into that box.
-    if (rel.hasBoundingBox()) {
-        auto obb = rel.getBoundingBox();
+    if (m_REL->hasBoundingBox()) {
+        auto obb = m_REL->getBoundingBox();
         if (obb) {
             const BoundingBox &bb = *obb;
             // bounding box is assumed to satisfy right > left and top > bottom
@@ -722,9 +633,9 @@ bool RectangularDual::computeSegmentPositions(const RegularEdgeLabeling &rel, do
     return true;
 }
 
-bool RectangularDual::computeRectanglesFromSegments(const RegularEdgeLabeling &rel, double cell_size) {
+bool RectangularDual::computeRectanglesFromSegments() {
     //const auto &
-    const auto &verts = rel.getVertices();
+    const auto &verts = m_REL->getVertices();
     const int V = static_cast<int>(verts.size());
     if (V == 0) {
         std::cerr << "computeRectanglesFromSegments: REL has no vertices\n";
@@ -749,254 +660,6 @@ bool RectangularDual::computeRectanglesFromSegments(const RegularEdgeLabeling &r
         rects[v] = r;
     }
 
-    return true;
-}
-
-
-// debug: dump a segment's halfedges and the half-edge directions
-void RectangularDual::debugDumpSegment(int segId, const RegularEdgeLabeling &rel) const {
-    if (segId < 0 || segId >= (int)maximalSegments.size()) {
-        std::cout << "debugDumpSegment: segId out of range\n"; return;
-    }
-    const auto &seg = maximalSegments[segId];
-    std::cout << "Segment " << segId << " type=" << static_cast<int>(seg.type)
-              << " halfedges=" << seg.halfedges.size() << "\n";
-    for (int he : seg.halfedges) {
-        const auto &h = rel.getHalfEdges()[he];
-        int twin = h.twin;
-        int dest = (twin >= 0 ? rel.getHalfEdges()[twin].vertex : -1);
-        std::cout << " he#" << he
-                  << " origin=" << h.vertex << "('" << rel.getVertices()[h.vertex].label << "')"
-                  << " -> dest=" << dest
-                  << (dest >= 0 ? ("('" + rel.getVertices()[dest].label + "')") : std::string(""))
-                  << " color=" << (h.color==BLUE?"BLUE":(h.color==RED?"RED":"UNK"))
-                  << " out=" << h.outgoing << "\n";
-    }
-    std::cout << " incoming verts (side A): ";
-    for (int v : seg.incoming_vertices) std::cout << rel.getVertices()[v].label << " ";
-    std::cout << "\n outgoing verts (side B): ";
-    for (int v : seg.outgoing_vertices) std::cout << rel.getVertices()[v].label << " ";
-    std::cout << "\n";
-}
-
-// debug: dump vertex candidate segments and chosen ones
-void RectangularDual::debugDumpVertexSegments(const RegularEdgeLabeling &rel, int v) const {
-    const auto &verts = rel.getVertices();
-    const auto &hes  = rel.getHalfEdges();
-    std::cout << "Vertex " << v << " '" << verts[v].label << "' incident half-edges (CCW):\n";
-    for (int he : verts[v].edges) {
-        const auto &h = hes[he];
-        int twin = h.twin;
-        int dest = (twin >= 0 ? hes[twin].vertex : -1);
-        std::cout << " he#" << he << " -> " << dest
-                  << " color=" << (h.color==BLUE?"BLUE":(h.color==RED?"RED":"UNK"))
-                  << " out=" << h.outgoing << "\n";
-    }
-    std::cout << "Assigned segments: left=" << verts[v].left_segment
-              << " right=" << verts[v].right_segment
-              << " bottom=" << verts[v].bottom_segment
-              << " top=" << verts[v].top_segment << "\n";
-}
-
-bool RectangularDual::buildSTandDUal(const RegularEdgeLabeling &rel) {
-    auto one = buildSTGraphsFromREL(rel);
-    return one;
-}
-
-bool RectangularDual::buildSTGraphsFromREL(const RegularEdgeLabeling &rel)
-{
-    const auto &V  = rel.getVertices();
-    const auto &HE = rel.getHalfEdges();
-
-    const int n = (int)V.size();
-    if (n == 0) return false;
-
-    std::array<int,4> ext;
-    if (!auto_detect_exterior(rel, ext)) {
-        std::cerr << "Failed to detect exterior vertices\n";
-        return false;
-    }
-
-    const int vS = ext[0];
-    const int vW = ext[1];
-    const int vN = ext[2];
-    const int vE = ext[3];
-
-    // clear graphs
-    G1.out.assign(n, {});
-    G1.in .assign(n, {});
-    G2.out.assign(n, {});
-    G2.in .assign(n, {});
-
-    G1.source = vS;  G1.sink = vN;
-    G2.source = vW;  G2.sink = vE;
-
-    // ---- process each EDGE ONCE ----
-    std::vector<bool> used(HE.size(), false);
-
-    for (int i=0;i<HE.size();++i)
-    {
-        if (used[i]) continue;
-        int t = HE[i].twin;
-        if (t < 0) continue;
-
-        used[i]=used[t]=true;
-
-        int u = HE[i].vertex;
-        int v = HE[t].vertex;
-
-        if (u<0||v<0||u>=n||v>=n) continue;
-
-        // skip edges between two exterior vertices
-        auto is_ext = [&](int x){
-            return x==vS||x==vW||x==vN||x==vE;
-        };
-        if (is_ext(u)&&is_ext(v)) continue;
-
-        auto c = HE[i].color;
-
-        // orientation is defined by the outgoing flag of the pair
-        int from,to;
-        if (HE[i].outgoing) { from=u; to=v; }
-        else                { from=v; to=u; }
-
-        if (c == RED)
-        {
-            // vertical relation (below -> above)
-            G1.out[from].push_back(to);
-            G1.in[to].push_back(from);
-        }
-        else if (c == BLUE)
-        {
-            // horizontal relation (left -> right)
-            G2.out[from].push_back(to);
-            G2.in[to].push_back(from);
-        }
-    }
-
-    // ---- add exterior frame edges (REQUIRED FOR ST) ----
-
-    auto add = [&](STGraph& G,int a,int b){
-        G.out[a].push_back(b);
-        G.in[b].push_back(a);
-    };
-
-    // vertical graph (bottom → top)
-    add(G1,vS,vW);
-    add(G1,vS,vE);
-    add(G1,vW,vN);
-    add(G1,vE,vN);
-
-    // horizontal graph (left → right)
-    add(G2,vW,vS);
-    add(G2,vW,vN);
-    add(G2,vS,vE);
-    add(G2,vN,vE);
-
-    // ---- deduplicate ----
-    auto dedup=[&](STGraph& G){
-        for(int i=0;i<n;++i){
-            auto &o=G.out[i];
-            std::sort(o.begin(),o.end());
-            o.erase(std::unique(o.begin(),o.end()),o.end());
-
-            auto &in=G.in[i];
-            std::sort(in.begin(),in.end());
-            in.erase(std::unique(in.begin(),in.end()),in.end());
-        }
-    };
-    dedup(G1); dedup(G2);
-
-    std::cout<<"G1.source="<<G1.source<<" G1.sink="<<G1.sink<<"\n";
-    std::cout<<"G2.source="<<G2.source<<" G2.sink="<<G2.sink<<"\n";
-
-    return true;
-}
-
-
-void RectangularDual::debugListUnassignedHalfEdges(const RegularEdgeLabeling &rel, EdgeColor color) const {
-    const auto &hes = rel.getHalfEdges();
-    const auto &faceMap = (color==RED ? faceOfHalfEdge_G1 : faceOfHalfEdge_G2);
-    std::cout << "Unassigned halfedges (color " << (color==RED?"RED":"BLUE") << "):\n";
-    for (int h = 0; h < (int)hes.size(); ++h) {
-        if (!hes[h].outgoing) continue;
-        if (hes[h].color != color) continue;
-        if (h >= (int)faceMap.size() || faceMap[h] == -1) {
-            std::cout << " he#" << h << " (" << rel.otherLabelOfHalfEdge(h) << " ?) vertex=" << hes[h].vertex << "\n";
-        }
-    }
-}
-
-bool RectangularDual::initializeFromREL(const RELmap &rel, double cell_size) {
-    // preserve old behaviour: build DAGs from RELmap, topo sort, pack, build rects
-    if (!buildDAGsFromRELmap(rel)) return false;
-
-    // topo sort
-    vector<uint32_t> topoH, topoV;
-    if (!topoSort(horAdj, topoH)) {
-        cerr << "RectangularDual::initializeFromREL: horizontal graph contains a cycle\n";
-        return false;
-    }
-    if (!topoSort(verAdj, topoV)) {
-        cerr << "RectangularDual::initializeFromREL: vertical graph contains a cycle\n";
-        return false;
-    }
-
-    vector<int> leftIndex(horAdj.size(), 0);
-    int maxRight = 0;
-    packHorizontal(horAdj, topoH, leftIndex, maxRight);
-
-    vector<int> bottomIndex(verAdj.size(), 0);
-    int maxTop = 0;
-    packVertical(verAdj, topoV, bottomIndex, maxTop);
-
-    // build unit-cell rectangles
-    rects.clear();
-    rects.resize(horAdj.size());
-    for (size_t i = 0; i < horAdj.size(); ++i) {
-        Rect r;
-        r.left = static_cast<double>(leftIndex[i]) * cell_size;
-        r.right = static_cast<double>(leftIndex[i] + 1) * cell_size;
-        r.bottom = static_cast<double>(bottomIndex[i]) * cell_size;
-        r.top = static_cast<double>(bottomIndex[i] + 1) * cell_size;
-        rects[i] = r;
-    }
-    return true;
-}
-
-bool RectangularDual::initializeFromREL(const RegularEdgeLabeling &rel, double cell_size) {
-    if (!buildDAGsFromRegularEdgeLabeling(rel)) return false;
-
-    // topo sort
-    vector<uint32_t> topoH, topoV;
-    if (!topoSort(horAdj, topoH)) {
-        cerr << "RectangularDual::initializeFromREL: horizontal graph contains a cycle\n";
-        return false;
-    }
-    if (!topoSort(verAdj, topoV)) {
-        cerr << "RectangularDual::initializeFromREL: vertical graph contains a cycle\n";
-        return false;
-    }
-
-    vector<int> leftIndex(horAdj.size(), 0);
-    int maxRight = 0;
-    packHorizontal(horAdj, topoH, leftIndex, maxRight);
-
-    vector<int> bottomIndex(verAdj.size(), 0);
-    int maxTop = 0;
-    packVertical(verAdj, topoV, bottomIndex, maxTop);
-
-    // build unit-cell rectangles
-    rects.clear();
-    rects.resize(horAdj.size());
-    for (size_t i = 0; i < horAdj.size(); ++i) {
-        Rect r;
-        r.left = static_cast<double>(leftIndex[i]) * cell_size;
-        r.right = static_cast<double>(leftIndex[i] + 1) * cell_size;
-        r.bottom = static_cast<double>(bottomIndex[i]) * cell_size;
-        r.top = static_cast<double>(bottomIndex[i] + 1) * cell_size;
-        rects[i] = r;
-    }
     return true;
 }
 
