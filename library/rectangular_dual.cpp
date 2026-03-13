@@ -96,7 +96,7 @@ void RectangularDual::fixRectangleAreas() {
 
     //std::cout << "FIXING AREAS" << std::endl;
 
-    while (deviation > 0.01) {// * frameArea) {
+    while (deviation > 0.2) {// * frameArea) {
         for (Segment &segment : maximalSegments) {
             if (segment.fixedSegment) continue;
             segment.gradientValue = 0.0;

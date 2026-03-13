@@ -14,6 +14,7 @@
 
 using json = nlohmann::json;
 using namespace std;
+using namespace cartocrow;
 
 // ---------------- static helpers ----------------
 string RegularEdgeLabeling::dirKey(const string &a, const string &b) {
@@ -426,8 +427,8 @@ void RegularEdgeLabeling::setDataValuesFromJson(const json &j) {
     adjustToBB();
 }
 
-cartocrow::PolygonWithHoles<cartocrow::Exact> getShape(const cartocrow::RegionArrangement::Face_const_handle face) {
-    cartocrow::Polygon<cartocrow::Exact> polygon;
+PolygonWithHoles<Exact> getShape(const RegionArrangement::Face_const_handle face) {
+    Polygon<Exact> polygon;
     const auto circ = face->outer_ccb();
     auto curr = circ;
     int n = 0;
@@ -437,19 +438,16 @@ cartocrow::PolygonWithHoles<cartocrow::Exact> getShape(const cartocrow::RegionAr
         polygon.push_back(p);
     } while (++curr != circ);
     std::cout << n << std::endl;
-    return cartocrow::PolygonWithHoles<cartocrow::Exact>(polygon);
+    return cartocrow::PolygonWithHoles<Exact>(polygon);
 }
 
-void RegularEdgeLabeling::setValuesFromRegionMap(const cartocrow::RegionMap& map) {
+void RegularEdgeLabeling::setValuesFromRegionMap(const RegionMap& map) {
     std::unordered_map<std::string, Vertex*> vertexByLabel;
     for (auto &v : m_initVertices) {
         vertexByLabel[v.label] = &v;
     }
 
     for (const auto &[name, region] : map) {
-        std::cout << name << std::endl;
-        std::cout << region.name << std::endl;
-
         auto found = vertexByLabel.find(name);
 
         if (found == vertexByLabel.end()) {
@@ -458,27 +456,24 @@ void RegularEdgeLabeling::setValuesFromRegionMap(const cartocrow::RegionMap& map
         }
 
         found->second->color = region.color;
+        std::vector<PolygonWithHoles<Exact>> polygons;
+        region.shape.polygons_with_holes(std::back_inserter(polygons));
+
+        std::vector<std::pair<PolygonWithHoles<Exact>, Number<Exact>>> parts;
+
+        for (const auto &p : polygons) {
+            parts.push_back(pair(p, area(p)));
+        }
+
+        std::sort(parts.begin(), parts.end(), [](const auto &p1, const auto &p2) {
+            return p1.second > p2.second;
+        });
+
+        auto bb = parts.front().first.bbox();
+
+        found->second->preferred_aspect_ratio = bb.x_span() / bb.y_span();
+
     }
-    adjustToBB();
-
-    // for (auto it = map.begin(); it != map.end(); ++it) {
-    //     std::cout << "iteration of regions" << std::endl;
-    //     auto region = it->second;
-    //
-    //     auto found = vertexByLabel.find(region.name);
-    //
-    //     if (found == vertexByLabel.end()) {
-    //         std::cout << "[WARNING]: region '" << region.name << "' not found in vertices\n";
-    //         continue;
-    //     }
-    //
-    //     found->second->color = region.color;
-    //     auto shape = getShape(&region.shape);
-    //     double aspect_ratio = shape.bbox().x_span() / shape.bbox().y_span();
-    //     found->second->preferred_aspect_ratio = aspect_ratio;
-    // }
-    return;
-
     adjustToBB();
 }
 
@@ -660,10 +655,13 @@ void RegularEdgeLabeling::adjustToBB() {
     //std::cout << "Longest Vertical: " << longestVerticalPath.first << std::endl;
 
 
-    double threshHold = 0.00015 * m_boundingBox->area();
+    double threshHold = 0.0015 * m_boundingBox->area();
+    double threshHoldRelaxation = 0.5;
+    double horizontalThreshHold = m_boundingBox->width() + threshHoldRelaxation * m_boundingBox->width();
+    double verticalThreshHold = m_boundingBox->height() + threshHoldRelaxation * m_boundingBox->height();
 
-    double horizontalStress = longestHorizontalPath.first - (m_boundingBox->width() + threshHold);
-    double verticalStress = longestVerticalPath.first - (m_boundingBox->height() + threshHold);
+    double horizontalStress = longestHorizontalPath.first - horizontalThreshHold;
+    double verticalStress = longestVerticalPath.first - verticalThreshHold;
 
     //std::cout << "vertical Stress: " << verticalStress << std::endl;
     //std::cout << "horizontal stress: " << horizontalStress << std::endl;
@@ -680,7 +678,7 @@ void RegularEdgeLabeling::adjustToBB() {
                 mergeMaxHorizontalSegmentFromRight(merge.first);
 
             longestVerticalPath = getLongestVerticalPath();
-            verticalStress = longestVerticalPath.first - (m_boundingBox->height() + threshHold);
+            verticalStress = longestVerticalPath.first - verticalThreshHold;
             // std::cout << "vertical Stress: " << verticalStress << std::endl;
             // std::cout << "horizontal stress: " << horizontalStress << std::endl;
         }
@@ -694,7 +692,7 @@ void RegularEdgeLabeling::adjustToBB() {
             else mergeMaxVerticalSegmentFromTop(merge.first);
 
             longestHorizontalPath = getLongestHorizontalPath();
-            horizontalStress = longestHorizontalPath.first - (m_boundingBox->width() + threshHold);
+            horizontalStress = longestHorizontalPath.first - horizontalThreshHold;
         }
     }
 }

@@ -91,6 +91,8 @@ void RectangularCartogramDemo::loadMap(const std::filesystem::path &mapPath) {
 
 	if (m_relPtr) {
 		m_relPtr->setValuesFromRegionMap(m_regionMap);
+		setCartogramFromREL();
+
 		m_renderer->update();
 	}
 
