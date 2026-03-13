@@ -648,6 +648,7 @@ void RegularEdgeLabeling::adjustToBB() {
     normalizeVertexWeights();
     computePreferredSizes();
 
+    if (!m_adaptiveLayoutEnabled) return;
 
     auto longestHorizontalPath = getLongestHorizontalPath();
     auto longestVerticalPath = getLongestVerticalPath();

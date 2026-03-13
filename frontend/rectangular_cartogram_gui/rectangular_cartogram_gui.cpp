@@ -112,10 +112,12 @@ void RectangularCartogramDemo::processData() {
     }
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
+	m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
     m_relPtr->setBoundingBox(BoundingBox{0, 1920 , 0, 1080 });
 
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
     m_relPtr->isValidREL(true);
+
 
 	if (!m_weightData.is_null()) {
 		m_relPtr->setDataValuesFromJson(m_weightData);
@@ -167,9 +169,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	m_mergeHeuristicComboBox->addItem("high-seg-low-dir-count", HIGHEST_SEGMENT_LOWEST_DIR_COUNT);
 	m_mergeHeuristicComboBox->setCurrentIndex(0);
 
+	m_useAdaptiveLayout = new QCheckBox("Use Adaptive Layout", vWidget);
+	m_useAdaptiveLayout->setChecked(true);
 	m_useSquareAspectRatios = new QCheckBox("Use Square Aspect Ratios", vWidget);
 	m_useSquareAspectRatios->setChecked(true);
 	vLayout->addWidget(generalSettings);
+	vLayout->addWidget(m_useAdaptiveLayout);
 	vLayout->addWidget(m_cartogramTypeComboBox);
 	vLayout->addWidget(m_mergeHeuristicComboBox);
 	vLayout->addWidget(m_useSquareAspectRatios);
@@ -236,6 +241,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 		loadMap(filePath);
 		loadMapButton->setText(QString::fromStdString(filePath.filename().string()));
+	});
+
+	connect(m_useAdaptiveLayout, &QCheckBox::toggled, [this]() {
+		if (!m_relPtr) return;
+
+		m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
+		m_relPtr->adjustToBB();
+		setCartogramFromREL();
 	});
 
 	connect(m_showREL, &QCheckBox::toggled, [this]() {

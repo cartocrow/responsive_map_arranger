@@ -69,6 +69,7 @@ public:
     void setDataValuesFromJson(const json &j);
     void setValuesFromRegionMap(const cartocrow::RegionMap& map);
     void setMergeHeuristic(const MergeHeuristic merge_heuristic) { m_mergeHeuristic = merge_heuristic; }
+    void enableAdaptiveLayout(bool enable) { m_adaptiveLayoutEnabled = enable; };
 
     bool isValidREL(bool debugging = false) const;
 
@@ -145,6 +146,8 @@ private:
     vector<HalfEdge> m_initHalfEdges;
 
     optional<BoundingBox> m_boundingBox;
+
+    bool m_adaptiveLayoutEnabled = true;
 
     MergeHeuristic m_mergeHeuristic = LOWEST_EDGE_COUNT;
 
