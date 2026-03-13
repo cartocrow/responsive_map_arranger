@@ -50,8 +50,17 @@ void RELPainting::paint(Renderer &renderer) const {
     // compute centroids as PointI-compatible doubles then construct PointI when calling renderer
     std::vector<std::pair<double,double>> pos(nRegions);
 
+    // Outer vertices
+    auto relBB = m_rel->getBoundingBox();
+    auto widthMiddle = relBB->left + relBB->width() * 0.5;
+    auto heightMiddle = relBB->bottom + relBB->height()*0.5;
+    pos[0] = { relBB->left, heightMiddle };
+    pos[1] = { widthMiddle, relBB->top };
+    pos[2] = { relBB->right, heightMiddle };
+    pos[3] = { widthMiddle, relBB->bottom };
+
     if (m_dual) {
-        for (size_t i = 0; i < nRegions; ++i) {
+        for (size_t i = 4; i < nRegions; ++i) {
             const auto &r = m_dual->getRect(static_cast<unsigned int>(i));
             const double cx = 0.5 * (r.left + r.right);
             const double cy = 0.5 * (r.bottom + r.top);
@@ -59,12 +68,6 @@ void RELPainting::paint(Renderer &renderer) const {
         }
     }
     else if (m_demers) {
-        //TODO: use Demers bounding box
-        pos[0] = { m_rel->getBoundingBox()->left, m_rel->getBoundingBox()->bottom + m_rel->getBoundingBox()->height()*0.5 };
-        pos[1] = { m_rel->getBoundingBox()->left + m_rel->getBoundingBox()->width() * 0.5, m_rel->getBoundingBox()->top };
-        pos[3] = { m_rel->getBoundingBox()->right, m_rel->getBoundingBox()->bottom + m_rel->getBoundingBox()->height()*0.5 };
-        pos[3] = { m_rel->getBoundingBox()->left + m_rel->getBoundingBox()->width() * 0.5, m_rel->getBoundingBox()->bottom };
-
         for (size_t i = 0; i < nRegions - 4; ++i) {
             const auto &center = m_demers->getDemersPosition(static_cast<unsigned int>(i)).center;
             //const double cx = center.x();// = 0.5 * (r.left + r.right);
