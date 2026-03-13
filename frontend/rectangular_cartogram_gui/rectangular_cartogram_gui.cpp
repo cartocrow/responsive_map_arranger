@@ -56,6 +56,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path& dataPath
 	relDrawingOptions.drawREL = m_showREL->isChecked();
 
 	m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers);
+	m_relPainting->drawRel(m_showREL->isChecked());
 
 	m_renderer->addPainting(m_relPainting, "REL");
 }
@@ -174,7 +175,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 	auto* debugSettings = new QLabel("<h3>Debug settings</h3>", vWidget);
 	m_showREL = new QCheckBox("Show REL");
-	m_showREL->setChecked(true);
+	m_showREL->setChecked(false);
 	m_showLinearOrders = new QCheckBox("Show Linear Orders");
 	m_showLinearOrders->setChecked(false);
 	vLayout->addWidget(debugSettings);

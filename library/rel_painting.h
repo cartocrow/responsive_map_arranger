@@ -25,7 +25,7 @@ using Renderer = cartocrow::renderer::GeometryRenderer;
 class RELPainting : public cartocrow::renderer::GeometryPainting {
 public:
     struct Options {
-        bool drawREL = true;
+        bool drawREL = false;
         bool drawEdgeArrowheads = true;
         bool drawLabels = true;
         double horizontalSpacing = 120.0;
