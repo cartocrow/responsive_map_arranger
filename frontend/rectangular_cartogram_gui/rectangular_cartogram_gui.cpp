@@ -92,7 +92,7 @@ void RectangularCartogramDemo::processData() {
     }
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
-    m_relPtr->setBoundingBox(BoundingBox{0, 4096 , 0, 2160 });
+    m_relPtr->setBoundingBox(BoundingBox{0, 1920 , 0, 1080 });
 
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
     m_relPtr->isValidREL(true);

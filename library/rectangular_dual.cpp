@@ -131,14 +131,27 @@ void RectangularDual::setFromREL(RegularEdgeLabeling &rel) {
     fixRectangleAreas(rel);
 }
 
+bool RectangularDual::hasValidSegmentCoords() const {
+    const size_t n = rects.size();
+    for (size_t i = 4; i < n; ++i) {
+        const auto &r = rects[i];
+        if (r.bottom >= r.top - 0.1 || r.left >= r.right - 0.1) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool RectangularDual::hasValidSegmentCoords(RegularEdgeLabeling &rel) const {
     for (int i = 4; i < rects.size(); ++i) {
-        if (rects[i].bottom >= rects[i].top || rects[i].left >= rects[i].right) {
+        if (rects[i].bottom >= rects[i].top - 0.1 || rects[i].left >= rects[i].right - 0.1) {
             // std::cout << "no valid segments for: " <<  rel.getVertices()[i].label << std::endl;
             // std::cout << "bottom: " << rects[i].bottom << ", top: " << rects[i].top << std::endl;
             // std::cout << "left: " << rects[i].left << ", right: " << rects[i].right << std::endl;
             // std::cout << "leftGradient: " << maximalSegments[rel.getVertices()[i].left_segment].gradientValue << std::endl;
-            // std::cout << "rightSegment: " << maximalSegments[rel.getVertices()[i].right_segment].gradientValue << std::endl;
+            // std::cout << "rightGradient: " << maximalSegments[rel.getVertices()[i].right_segment].gradientValue << std::endl;
+            // std::cout << "topGradient: " << maximalSegments[rel.getVertices()[i].top_segment].gradientValue << std::endl;
+            // std::cout << "bottomGradient: " << maximalSegments[rel.getVertices()[i].bottom_segment].gradientValue << std::endl;
 
             return false;
         }
@@ -149,33 +162,31 @@ bool RectangularDual::hasValidSegmentCoords(RegularEdgeLabeling &rel) const {
 
 double RectangularDual::computeAreaDeviation(RegularEdgeLabeling &rel) {
     double total = 0;
-
     auto &vertices = rel.getVertices();
 
-    for (int i = 4; i < vertices.size(); ++i) {
-        auto rectArea = rects[i].computeArea();
-        double targetArea = vertices[i].weight;
+    for (size_t i = 4; i < vertices.size(); ++i) {
 
-        total += (rectArea - targetArea) * (rectArea - targetArea);
+        double rectDeviation = vertices[i].weight / rects[i].computeArea() - 1;
+        total +=  rectDeviation * rectDeviation; // (rectArea - (targetArea) * (rectArea - targetArea);// / (rectArea);
     }
     return sqrt(total);
-
 }
 
 void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
-    if (!hasValidSegmentCoords(rel)) {
+    if (!hasValidSegmentCoords()) {
         std::cerr << "Invalid segment coordinates." << std::endl;
         return;
     }
 
     auto &vertices = rel.getVertices();
-    const double frameArea = rel.getBoundingBox()->area();
+    //const double frameArea = rel.getBoundingBox()->area();
     double epsilon = 1.0;
     double deviation = computeAreaDeviation(rel);
 
-    while (deviation > 0.0001 * frameArea) {
-        for (Segment &segment : maximalSegments) {
+    //std::cout << "FIXING AREAS" << std::endl;
 
+    while (deviation > 0.01) {// * frameArea) {
+        for (Segment &segment : maximalSegments) {
             if (segment.fixedSegment) continue;
             segment.gradientValue = 0.0;
         }
@@ -190,10 +201,12 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
             double area = width * height;
             double targetArea = v.weight;
 
-            maximalSegments[v.top_segment].gradientValue += (targetArea - area) * width;
-            maximalSegments[v.bottom_segment].gradientValue -= (targetArea - area) * width;
-            maximalSegments[v.right_segment].gradientValue += (targetArea - area) * height;
-            maximalSegments[v.left_segment].gradientValue -= (targetArea - area) * height;
+            double gradientShift = targetArea * (targetArea / area - 1) / (area*area);
+
+            maximalSegments[v.top_segment].gradientValue +=  gradientShift * width; // (targetArea - area) / (area*area) * width;//
+            maximalSegments[v.bottom_segment].gradientValue -= gradientShift * width; // (targetArea - area) / (area*area) * width;// width;
+            maximalSegments[v.right_segment].gradientValue += gradientShift * height; // (targetArea - area) / (area*area) * height;// height;
+            maximalSegments[v.left_segment].gradientValue -= gradientShift * height; //(targetArea - area) / (area*area) * height;// height;
         }
 
         for (Segment &segment : maximalSegments){//  (Segment segment : maximalSegments) {
@@ -203,35 +216,27 @@ void RectangularDual::fixRectangleAreas(RegularEdgeLabeling &rel) {
 
         computeRectanglesFromSegments(rel);
 
-        if (hasValidSegmentCoords(rel) && computeAreaDeviation(rel) < deviation) {
+        if (hasValidSegmentCoords() && computeAreaDeviation(rel) < deviation) {
             epsilon *= 2;
         } else {
-            while (!hasValidSegmentCoords(rel) || computeAreaDeviation(rel) > deviation) { // If rects not valid -> trace back sliding segment
-                //std::cout << "epsilon: " << epsilon << std::endl;
+            while (!hasValidSegmentCoords() || computeAreaDeviation(rel) > deviation) { // If rects not valid -> trace back sliding segment
                 epsilon *= 0.5;
+                //std::cout << "epsilon: " << epsilon << std::endl;
                 if (epsilon == 0) {
-                    //epsilon = numeric_limits<long double>::min();
                     throw std::invalid_argument("epsilon cannot be zero.");
                 }
 
                 for (Segment &segment : maximalSegments) {
                     if (segment.fixedSegment) continue;
                     segment.coord -= segment.gradientValue * epsilon ;
-                    //std:: cout << "gradiantValue: "  << segment.gradientValue << std::endl;
-
                 }
-                   // std::cout << "no valid segment coords" << std::endl;
-                    //std::cout << "epsilon: " << epsilon << std::endl;
 
-                //}
                 computeRectanglesFromSegments(rel);
-                //std::cout << "has valid segment coords: " << hasValidSegmentCoords(rel) << std::endl;
             }
         }
 
         deviation = computeAreaDeviation(rel);
     }
-
 }
 
 bool RectangularDual::computeMaximalSegments(RegularEdgeLabeling &rel) {

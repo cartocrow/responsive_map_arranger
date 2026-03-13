@@ -60,6 +60,7 @@ public:
 
     void setFromREL(RegularEdgeLabeling& rel);
 
+    bool hasValidSegmentCoords() const;
     bool hasValidSegmentCoords(RegularEdgeLabeling& rel) const;
 
     double computeAreaDeviation(RegularEdgeLabeling &rel);
