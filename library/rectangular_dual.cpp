@@ -82,7 +82,7 @@ double RectangularDual::computeAreaDeviation() {
 
     for (size_t i = 4; i < vertices.size(); ++i) {
 
-        double rectDeviation = vertices[i].weight / rects[i].computeArea() - 1;
+        double rectDeviation = vertices[i].weight / rects[i].area() - 1;
         total +=  rectDeviation * rectDeviation; // (rectArea - (targetArea) * (rectArea - targetArea);// / (rectArea);
     }
     return sqrt(total);
@@ -666,6 +666,22 @@ bool RectangularDual::computeRectanglesFromSegments() {
     }
 
     return true;
+}
+
+double RectangularDual::aspectRatioDeviation(int rectId) const {
+    double preveredAspectRatio = m_REL->getVertices()[rectId].preferred_aspect_ratio;
+    double aspectRatio = rects[rectId].aspectRatio();
+
+    return abs(preveredAspectRatio - aspectRatio);
+}
+
+double RectangularDual::totalAspectRatioDeviation() const {
+    double totalDeviation = 0.0;
+    for (size_t i = 4; i < rects.size(); ++i) {
+        totalDeviation += aspectRatioDeviation(i);
+    }
+
+    return totalDeviation;
 }
 
 // ---------- topoSort: Kahn (returns false on cycle) ----------

@@ -193,6 +193,11 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	vLayout->addWidget(m_drawLabels);
 	vLayout->addWidget(m_showLinearOrders);
 
+	auto* statsLabel= new QLabel("<h3>Stats</h3>", vWidget);
+	auto* btnAspectRatioDeviation = new QPushButton("Aspect Ratio Deviation");
+	vLayout->addWidget(statsLabel);
+	vLayout->addWidget(btnAspectRatioDeviation);
+
 	// EDGE SELECTION/MANIPULATION BUTTONS
 	auto* selectionLabel = new QLabel("<h3>Selection Actions</h3>", vWidget);
 	auto* btnFlipColor = new QPushButton("Flip Color");
@@ -332,6 +337,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 		setCartogramFromREL();
 		m_renderer->update();
+	});
+
+	connect(btnAspectRatioDeviation, &QPushButton::clicked, [this]() {
+		if (!m_rectPainting) return;
+
+		std::cout << "Total aspect ratio deviation = " << m_rectangularDual->totalAspectRatioDeviation() << std::endl;
 	});
 
 	connect(btnClearSelection, &QPushButton::clicked, [this]() {

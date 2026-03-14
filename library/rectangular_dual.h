@@ -44,8 +44,12 @@ public:
 
         cartocrow::Color color{255, 255, 255};
 
-        double computeArea() {
+        double area() const {
             return (right - left) * (top - bottom);
+        }
+
+        double aspectRatio() const {
+            return (right - left) / (top - bottom);
         }
     };
 
@@ -68,6 +72,10 @@ public:
 
     using Rectangle = cartocrow::Rectangle<cartocrow::Inexact>;
     const Rectangle getBox() const noexcept { return box; }
+
+    // STATISTICS
+    double aspectRatioDeviation(int vertexId) const;
+    double totalAspectRatioDeviation() const;
 
 private:
 
