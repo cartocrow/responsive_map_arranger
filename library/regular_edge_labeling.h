@@ -16,7 +16,8 @@ using namespace std;
 
 enum MergeHeuristic {
     LOWEST_EDGE_COUNT, // For all max-segments computes the direction when the least edges
-    HIGHEST_SEGMENT_LOWEST_DIR_COUNT // For all max-segments takes the segment with most edges, and then the dir with least edges
+    HIGHEST_SEGMENT_LOWEST_DIR_COUNT, // For all max-segments takes the segment with most edges, and then the dir with least edges
+    LOWEST_WEIGHT // for all max-segments computes the direction where the sum of vertex weights is smallest
 };
 
 enum EdgeColor {
@@ -77,7 +78,8 @@ public:
 
     // Returns the edgeID of the lowest cost to collapse and the direction. False = from source | True = from target (e.g., false (from left), true (from right))
     std::pair<int, bool> getLowestCostMerge(std::vector<int> const &path) const;
-    double computeLowestEdgeCountCost(int edgeId, bool fromSource) const;
+    double mergeEdgeCountCost(int edgeId, bool fromSource) const;
+    double mergeWeightCost(int edgeId, bool fromSource) const;
 
 
     const vector<Vertex> &getVertices()  const { return m_vertices; }

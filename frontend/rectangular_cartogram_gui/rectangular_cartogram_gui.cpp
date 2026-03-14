@@ -167,6 +167,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	m_mergeHeuristicComboBox = new QComboBox(vWidget);
 	m_mergeHeuristicComboBox->addItem("low-edge-count", LOWEST_EDGE_COUNT);
 	m_mergeHeuristicComboBox->addItem("high-seg-low-dir-count", HIGHEST_SEGMENT_LOWEST_DIR_COUNT);
+	m_mergeHeuristicComboBox->addItem("min-weight-moved", LOWEST_WEIGHT);
 	m_mergeHeuristicComboBox->setCurrentIndex(0);
 
 	m_useAdaptiveLayout = new QCheckBox("Use Adaptive Layout", vWidget);
@@ -321,8 +322,8 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		m_renderer->update();
 	});
 
-	connect(m_cartogramTypeComboBox, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index) {
-		m_mergeHeuristic = static_cast<MergeHeuristic>(m_cartogramTypeComboBox->itemData(index).toInt());
+	connect(m_mergeHeuristicComboBox, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index) {
+		m_mergeHeuristic = static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->itemData(index).toInt());
 
 		if (!m_relPtr) return;
 

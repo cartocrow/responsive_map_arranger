@@ -655,7 +655,6 @@ void RegularEdgeLabeling::adjustToBB() {
 
     //std::cout << "Longest Vertical: " << longestVerticalPath.first << std::endl;
 
-
     double threshHold = 0.0015 * m_boundingBox->area();
     double threshHoldRelaxation = 0.5;
     double horizontalThreshHold = m_boundingBox->width() + threshHoldRelaxation * m_boundingBox->width();
@@ -663,9 +662,6 @@ void RegularEdgeLabeling::adjustToBB() {
 
     double horizontalStress = longestHorizontalPath.first - horizontalThreshHold;
     double verticalStress = longestVerticalPath.first - verticalThreshHold;
-
-    //std::cout << "vertical Stress: " << verticalStress << std::endl;
-    //std::cout << "horizontal stress: " << horizontalStress << std::endl;
 
     if (verticalStress >= horizontalStress) {
         // Collapse horizontal segments on the longest vertical path
@@ -680,8 +676,6 @@ void RegularEdgeLabeling::adjustToBB() {
 
             longestVerticalPath = getLongestVerticalPath();
             verticalStress = longestVerticalPath.first - verticalThreshHold;
-            // std::cout << "vertical Stress: " << verticalStress << std::endl;
-            // std::cout << "horizontal stress: " << horizontalStress << std::endl;
         }
     }
     else {
@@ -714,21 +708,25 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
 
         switch (m_mergeHeuristic) {
             case LOWEST_EDGE_COUNT:
-                costFromSource = computeLowestEdgeCountCost(edge, true);
-                costFromTarget = computeLowestEdgeCountCost(edge, false);
+                costFromSource = mergeEdgeCountCost(edge, true);
+                costFromTarget = mergeEdgeCountCost(edge, false);
                 break;
             case HIGHEST_SEGMENT_LOWEST_DIR_COUNT:
                 //TODO: implement
-                costFromSource = computeLowestEdgeCountCost(edge, true);
-                costFromTarget = computeLowestEdgeCountCost(edge, false);
+                costFromSource = mergeEdgeCountCost(edge, true);
+                costFromTarget = mergeEdgeCountCost(edge, false);
+                break;
+            case LOWEST_WEIGHT:
+                costFromSource = mergeWeightCost(edge, true);
+                costFromTarget = mergeWeightCost(edge, false);
                 break;
             default: // default to LOWEST_EDGE_COUNT
-                costFromSource = computeLowestEdgeCountCost(edge, true);
-                costFromTarget = computeLowestEdgeCountCost(edge, false);
+                costFromSource = mergeEdgeCountCost(edge, true);
+                costFromTarget = mergeEdgeCountCost(edge, false);
         }
 
-        costFromSource = computeLowestEdgeCountCost(edge, true);
-        costFromTarget = computeLowestEdgeCountCost(edge, false);
+        //costFromSource = computeLowestEdgeCountCost(edge, true);
+        //costFromTarget = computeLowestEdgeCountCost(edge, false);
 
         bool fromSource = costFromSource <= costFromTarget;
         double lowestCostOfTwo = min(costFromSource, costFromTarget);
@@ -741,7 +739,7 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
     return lowestCostMerge;
 }
 
-double RegularEdgeLabeling::computeLowestEdgeCountCost(int edgeId, bool fromSource) const {
+double RegularEdgeLabeling::mergeEdgeCountCost(int edgeId, bool fromSource) const {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         cerr << "Invalid edgeId " << edgeId << endl;
         return false;
@@ -795,6 +793,63 @@ double RegularEdgeLabeling::computeLowestEdgeCountCost(int edgeId, bool fromSour
     }
 
     return edgeCount;
+}
+
+double RegularEdgeLabeling::mergeWeightCost(int edgeId, bool fromSource) const {
+    int baseEdgeId = -1;
+
+    if (m_halfEdges[edgeId].outgoing)
+        baseEdgeId = edgeId;
+    else baseEdgeId = m_halfEdges[edgeId].twin;
+
+    const HalfEdge &baseEdge = m_halfEdges[baseEdgeId];
+    const Vertex &baseVertex = m_vertices[baseEdge.vertex];
+
+    unordered_set<int> merge_vertices;
+
+    if ((fromSource && baseEdge.color == RED) || (!fromSource && baseEdge.color == BLUE)) {
+        // next cyclic
+        int currentEdgeId = baseEdgeId;
+        int nextCyclicEdgeId = getNextCyclicEdge(currentEdgeId);
+
+        do {
+            HalfEdge he = m_halfEdges[currentEdgeId];
+            merge_vertices.insert(he.vertex);
+            merge_vertices.insert(m_halfEdges[he.twin].vertex);
+            //edgeCount++;
+            nextCyclicEdgeId = getNextCyclicEdge(currentEdgeId);
+
+            if (m_halfEdges[nextCyclicEdgeId].color != baseEdge.color) {
+                nextCyclicEdgeId = getNextCyclicEdge(m_halfEdges[nextCyclicEdgeId].twin);
+            }
+            currentEdgeId = nextCyclicEdgeId;
+        }
+        while (m_halfEdges[nextCyclicEdgeId].color == baseEdge.color);
+    } else {
+        // previous cyclic
+        int currentEdgeId = baseEdgeId;
+        int previousCyclicEdge = getPreviousCyclicEdge(currentEdgeId);
+
+        do {
+            HalfEdge he = m_halfEdges[currentEdgeId];
+            merge_vertices.insert(he.vertex);
+            merge_vertices.insert(m_halfEdges[he.twin].vertex);
+
+            previousCyclicEdge = getPreviousCyclicEdge(currentEdgeId);
+
+            if (m_halfEdges[previousCyclicEdge].color != baseEdge.color) {
+                previousCyclicEdge = getPreviousCyclicEdge(m_halfEdges[previousCyclicEdge].twin);
+            }
+            currentEdgeId = previousCyclicEdge;
+        } while (m_halfEdges[previousCyclicEdge].color == baseEdge.color);
+    }
+
+    double totalWeight = 0;
+    for (const auto &v : merge_vertices) {
+        totalWeight += m_vertices[v].weight;
+    }
+
+    return totalWeight;
 }
 
 void RegularEdgeLabeling::normalizeVertexWeights() {
