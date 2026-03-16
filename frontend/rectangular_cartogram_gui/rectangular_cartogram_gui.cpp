@@ -134,6 +134,8 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
 	else if (m_demers) {
 		m_demers->setFromREL(*m_relPtr);
 	}
+
+	m_renderer->update();
 }
 
 RectangularCartogramDemo::RectangularCartogramDemo() {
@@ -352,7 +354,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		m_relPtr->adjustToBB();
 
 		setCartogramFromREL();
-		m_renderer->update();
 	});
 
 	connect(btnAspectRatioDeviation, &QPushButton::clicked, [this]() {
@@ -378,8 +379,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		}
 		// after mutating REL, rebuild dual & segment geometry:
 		setCartogramFromREL();
-
-		m_renderer->update();
 		});
 
 	connect(btnFlipDiagCW, &QPushButton::clicked, [this]() {
@@ -394,7 +393,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			if (!ok) std::cerr << "flipEdgeDiagonally(cw) failed for halfedge " << he << "\n";
 		}
 		setCartogramFromREL();
-		m_renderer->update();
 		});
 
 	connect(btnFlipDiagCCW, &QPushButton::clicked, [this]() {
@@ -408,7 +406,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 			if (!ok) std::cerr << "flipEdgeDiagonally(ccw) failed for halfedge " << he << "\n";
 		}
 		setCartogramFromREL();
-		m_renderer->update();
 		});
 
 	connect(btnMergeLeftmostEdge, &QPushButton::clicked, [this]() {
@@ -432,7 +429,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 		setCartogramFromREL();
 
-		m_renderer->update();
 		});
 
 	connect(btnMergeRightMostEdge, &QPushButton::clicked, [this]() {
@@ -456,7 +452,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 		setCartogramFromREL();
 
-		m_renderer->update();
 		});
 
 	connect(btnMergeSegmentFromLeft, &QPushButton::clicked, [this]() {
@@ -478,7 +473,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		}
 
 		setCartogramFromREL();
-		m_renderer->update();
 		});
 
 	connect(btnMergeSegmentFromRight, &QPushButton::clicked, [this]() {
@@ -500,7 +494,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		}
 
 		setCartogramFromREL();
-		m_renderer->update();
 		});
 
 	connect(m_renderer, &GeometryWidget::clicked, [this](Point<Inexact> pt) {
@@ -572,10 +565,6 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		m_relPtr->setBoundingBox(newbb);
 
 		setCartogramFromREL();
-
-		//m_demers->setFromREL(*m_relPtr);
-
-		m_renderer->update();
 		});
 
 	connect(m_renderer, &GeometryWidget::dragEnded, this, [this](const Point<Inexact>& pt) {
