@@ -655,10 +655,9 @@ void RegularEdgeLabeling::adjustToBB() {
 
     //std::cout << "Longest Vertical: " << longestVerticalPath.first << std::endl;
 
-    double threshHold = 0.0015 * m_boundingBox->area();
-    double threshHoldRelaxation = 0.5;
-    double horizontalThreshHold = m_boundingBox->width() + threshHoldRelaxation * m_boundingBox->width();
-    double verticalThreshHold = m_boundingBox->height() + threshHoldRelaxation * m_boundingBox->height();
+    //double threshHold = 0.0015 * m_boundingBox->area();
+    double horizontalThreshHold = m_boundingBox->width() + m_threshHoldRelaxation * m_boundingBox->width();
+    double verticalThreshHold = m_boundingBox->height() + m_threshHoldRelaxation * m_boundingBox->height();
 
     double horizontalStress = longestHorizontalPath.first - horizontalThreshHold;
     double verticalStress = longestVerticalPath.first - verticalThreshHold;

@@ -172,10 +172,18 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
 	m_useAdaptiveLayout = new QCheckBox("Use Adaptive Layout", vWidget);
 	m_useAdaptiveLayout->setChecked(true);
+	auto relaxationLabel = new QLabel("Critical Relaxation", vWidget);
+	m_threshHoldRelaxation = new QDoubleSpinBox(vWidget);
+	m_threshHoldRelaxation->setValue(0.5);
+	m_threshHoldRelaxation->setMinimum(0);
+	m_threshHoldRelaxation->setMaximum(1);
+	m_threshHoldRelaxation->setSingleStep(0.1);
 	m_useSquareAspectRatios = new QCheckBox("Use Square Aspect Ratios", vWidget);
 	m_useSquareAspectRatios->setChecked(true);
 	vLayout->addWidget(generalSettings);
 	vLayout->addWidget(m_useAdaptiveLayout);
+	vLayout->addWidget(relaxationLabel);
+	vLayout->addWidget(m_threshHoldRelaxation);
 	vLayout->addWidget(m_cartogramTypeComboBox);
 	vLayout->addWidget(m_mergeHeuristicComboBox);
 	vLayout->addWidget(m_useSquareAspectRatios);
@@ -253,6 +261,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 		if (!m_relPtr) return;
 
 		m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
+		m_relPtr->adjustToBB();
+		setCartogramFromREL();
+	});
+
+	connect(m_threshHoldRelaxation, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+		if (!m_relPtr) return;
+
+		m_relPtr->setThreshHoldRelaxation(m_threshHoldRelaxation->value());
 		m_relPtr->adjustToBB();
 		setCartogramFromREL();
 	});

@@ -71,6 +71,7 @@ public:
     void setValuesFromRegionMap(const cartocrow::RegionMap& map);
     void setMergeHeuristic(const MergeHeuristic merge_heuristic) { m_mergeHeuristic = merge_heuristic; }
     void enableAdaptiveLayout(bool enable) { m_adaptiveLayoutEnabled = enable; };
+    void setThreshHoldRelaxation(double slack) { m_threshHoldRelaxation = slack; };
 
     bool isValidREL(bool debugging = false) const;
 
@@ -150,6 +151,7 @@ private:
     optional<BoundingBox> m_boundingBox;
 
     bool m_adaptiveLayoutEnabled = true;
+    double m_threshHoldRelaxation = 0.5;
 
     MergeHeuristic m_mergeHeuristic = LOWEST_EDGE_COUNT;
 

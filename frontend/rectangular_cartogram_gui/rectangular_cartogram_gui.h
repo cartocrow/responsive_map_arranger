@@ -60,6 +60,7 @@ class RectangularCartogramDemo : public QMainWindow {
     double m_bboxMinHeight = 20.0;
 
     QCheckBox* m_useAdaptiveLayout = nullptr;
+    QDoubleSpinBox* m_threshHoldRelaxation = nullptr;
     QCheckBox* m_useSquareAspectRatios = nullptr;
     QCheckBox* m_showREL = nullptr;
     QCheckBox* m_drawLabels = nullptr;
