@@ -286,10 +286,13 @@ void DemersPainting::paint(Renderer& renderer) const {
 	renderer.draw(m_cartogram->box);
 
 	renderer.setMode(Renderer::fill | Renderer::stroke);
+
+	auto relVertices = m_REL->getVertices();
 	for (size_t i = 0; i < m_cartogram->locations.size(); i++) {
+		if (!relVertices[i +4].isLandRegion) continue;
 		DemersPosition dp = m_cartogram->locations[i];
 
-		renderer.setFill(m_REL->getVertices()[i+4].color);
+		renderer.setFill(relVertices[i+4].color);
 		renderer.draw(dp.rectangle);
 
 		if (m_drawLabels) {
