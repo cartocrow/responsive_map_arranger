@@ -113,7 +113,7 @@ void RectangularCartogramDemo::processData() {
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
 	m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
-    m_relPtr->setBoundingBox(BoundingBox{0, 1920 , 0, 1080 });
+    m_relPtr->setBoundingBox(BoundingBox{0, 1980 , 0, 1020 });
 
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
     m_relPtr->isValidREL(true);
@@ -165,12 +165,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	m_cartogramTypeComboBox = new QComboBox(vWidget);
 	m_cartogramTypeComboBox->addItem("RectangularCartogram", CartogramType::RECTANGULAR_CARTOGRAM);
 	m_cartogramTypeComboBox->addItem("DemersCartogram", CartogramType::DEMERS_CARTOGRAM);
-	m_cartogramTypeComboBox->setCurrentIndex(1);
+	m_cartogramTypeComboBox->setCurrentIndex(0);
 	m_mergeHeuristicComboBox = new QComboBox(vWidget);
 	m_mergeHeuristicComboBox->addItem("low-edge-count", LOWEST_EDGE_COUNT);
 	m_mergeHeuristicComboBox->addItem("high-seg-low-dir-count", HIGHEST_SEGMENT_LOWEST_DIR_COUNT);
 	m_mergeHeuristicComboBox->addItem("min-weight-moved", LOWEST_WEIGHT);
-	m_mergeHeuristicComboBox->setCurrentIndex(0);
+	m_mergeHeuristicComboBox->setCurrentIndex(2);
 
 	m_useAdaptiveLayout = new QCheckBox("Use Adaptive Layout", vWidget);
 	m_useAdaptiveLayout->setChecked(true);

@@ -860,7 +860,7 @@ void RegularEdgeLabeling::normalizeVertexWeights() {
     double ratio = m_boundingBox->area() / total;
 
     for (Vertex &v : m_vertices) {
-        v.weight *= ratio;
+        v.weight = v.oldWeight * ratio;
     }
 }
 
@@ -1510,7 +1510,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
             if (m_halfEdges[getNextCyclicEdge(m_halfEdges[firstBlueInId].twin)].color == BLUE) {
                 while (getLastIncomingBlue(baseEdge.vertex) != firstBlueInId) {
 
-                    flipEdgeDiagonally(firstBlueInId, true);
+                    flipEdgeDiagonally(firstBlueInId, false);
                     firstBlueInId = getFirstIncomingBlue(baseEdge.vertex);
                 }
                 // Last flipped edge recolor and flip in the other direction
@@ -1529,7 +1529,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
             }
         }
 
-        // flip incoming blue edges on top vertex and recolor last one (lowest to highest order)
+        // flip outgoing blue edges on top vertex and recolor last one (lowest to highest order)
         {
             int firstOutgoingEdgeId = getFirstOutgoingBlue(endEdge.vertex);
             while (getLastOutgoingBlue(endEdge.vertex) != firstOutgoingEdgeId) {
