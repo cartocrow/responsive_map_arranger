@@ -11,6 +11,7 @@
 #include <cartocrow/core/core.h>
 #include <cartocrow/core/region_map.h>
 #include <cartocrow/core/region_arrangement.h>
+#include <cartocrow/renderer/geometry_renderer.h>
 
 using json = nlohmann::json;
 using namespace std;
@@ -447,8 +448,12 @@ void RegularEdgeLabeling::setValuesFromRegionMap(const RegionMap& map) {
         vertexByLabel[v.label] = &v;
     }
 
+    std::cout << "setting region values" << std::endl;
+
     for (const auto &[name, region] : map) {
         auto found = vertexByLabel.find(name);
+
+        std::cout << name << std::endl;
 
         if (found == vertexByLabel.end()) {
             std::cout << "[WARNING]: region '" << region.name << "' not found in vertices\n";
@@ -653,6 +658,9 @@ void RegularEdgeLabeling::adjustToBB() {
     auto longestHorizontalPath = getLongestHorizontalPath();
     auto longestVerticalPath = getLongestVerticalPath();
 
+    m_initLongestHorizontalPath = longestHorizontalPath.second.size();
+    m_initLongestVerticalPath = longestVerticalPath.second.size();
+
     //std::cout << "Longest Vertical: " << longestVerticalPath.first << std::endl;
 
     //double threshHold = 0.0015 * m_boundingBox->area();
@@ -662,7 +670,10 @@ void RegularEdgeLabeling::adjustToBB() {
     double horizontalStress = longestHorizontalPath.first - horizontalThreshHold;
     double verticalStress = longestVerticalPath.first - verticalThreshHold;
 
+    bool mergingVertically = false;
+
     if (verticalStress >= horizontalStress) {
+        mergingVertically = true;
         // Collapse horizontal segments on the longest vertical path
         while (verticalStress > 0) {
             // merge.first = edge id | merge.second = direction.
@@ -676,6 +687,7 @@ void RegularEdgeLabeling::adjustToBB() {
             longestVerticalPath = getLongestVerticalPath();
             verticalStress = longestVerticalPath.first - verticalThreshHold;
         }
+
     }
     else {
         while (horizontalStress > 0) {
@@ -689,6 +701,11 @@ void RegularEdgeLabeling::adjustToBB() {
             horizontalStress = longestHorizontalPath.first - horizontalThreshHold;
         }
     }
+
+    if (mergingVertically)
+        adjustSeaRegionSizes(true, getLongestHorizontalPath().second.size());
+    else adjustSeaRegionSizes(false, getLongestVerticalPath().second.size());
+
 }
 
 std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> const &path) const {
@@ -860,7 +877,7 @@ void RegularEdgeLabeling::normalizeVertexWeights() {
     double ratio = m_boundingBox->area() / total;
 
     for (Vertex &v : m_vertices) {
-        v.weight = v.oldWeight * ratio;
+        v.weight = v.weight * ratio;
     }
 }
 
@@ -874,6 +891,29 @@ void RegularEdgeLabeling::computePreferredSizes() {
         v.preferred_width = w;
         v.preferred_height = h;
     }
+}
+
+void RegularEdgeLabeling::adjustSeaRegionSizes(bool vertically, int longestPath) {
+    double t = 1;
+    if (vertically) {
+        t = clamp(static_cast<double>(longestPath - m_initLongestHorizontalPath) / ((m_vertices.size() - 4) - m_initLongestHorizontalPath), 0.00001, 1.0);
+    } else {
+        t = clamp(static_cast<double>(longestPath - m_initLongestVerticalPath) / ((m_vertices.size() - 4) - m_initLongestVerticalPath), 0.00001, 1.0);
+    }
+
+    for (Vertex &v : m_vertices) {
+        if (!v.isLandRegion) {
+
+
+
+            std::cout << "oldweight: " << v.weight << std::endl;
+            v.weight = clamp(v.weight * (1-t), 1.0, static_cast<double>(v.weight));
+            std::cout << "newweight: " << v.weight << std::endl;
+            std::cout << "t: " << t << std::endl;
+        }
+    }
+
+    normalizeVertexWeights();
 }
 
 static std::pair<double, std::vector<int>> REL_longestPathPred_generic(

@@ -87,6 +87,7 @@ public:
     void updateVertexWeight(int id, int weight) { m_vertices[id].weight = weight; }
     void normalizeVertexWeights();
     void computePreferredSizes();
+    void adjustSeaRegionSizes(bool vertically, int longestPath);
 
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
     std::pair<double, std::vector<int>> getLongestVerticalPath() const;
@@ -147,6 +148,9 @@ private:
 
     vector<Vertex> m_initVertices;
     vector<HalfEdge> m_initHalfEdges;
+
+    int m_initLongestVerticalPath;
+    int m_initLongestHorizontalPath;
 
     optional<BoundingBox> m_boundingBox;
 
