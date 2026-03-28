@@ -113,8 +113,8 @@ void RectangularCartogramDemo::processData() {
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
 	m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
+	m_relPtr->setMergeHeuristic(static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentIndex()));
     m_relPtr->setBoundingBox(BoundingBox{0, 1980 , 0, 1020 });
-	m_relPtr->setMergeHeuristic(static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentData().toInt()));
 
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
     m_relPtr->isValidREL(true);
@@ -168,9 +168,9 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	m_cartogramTypeComboBox->addItem("DemersCartogram", CartogramType::DEMERS_CARTOGRAM);
 	m_cartogramTypeComboBox->setCurrentIndex(0);
 	m_mergeHeuristicComboBox = new QComboBox(vWidget);
-	m_mergeHeuristicComboBox->addItem("low-edge-count", LOWEST_EDGE_COUNT);
-	m_mergeHeuristicComboBox->addItem("high-seg-low-dir-count", HIGHEST_SEGMENT_LOWEST_DIR_COUNT);
-	m_mergeHeuristicComboBox->addItem("min-weight-moved", LOWEST_WEIGHT);
+	m_mergeHeuristicComboBox->addItem("min-edge", MIN_EDGE);
+	m_mergeHeuristicComboBox->addItem("min-weight", MIN_WEIGHT);
+	m_mergeHeuristicComboBox->addItem("min-edge-min-weight", MIN_EDGE_MIN_WEIGHT);
 	m_mergeHeuristicComboBox->setCurrentIndex(2);
 
 	m_useAdaptiveLayout = new QCheckBox("Use Adaptive Layout", vWidget);
@@ -347,11 +347,9 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	});
 
 	connect(m_mergeHeuristicComboBox, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index) {
-		m_mergeHeuristic = static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->itemData(index).toInt());
-
 		if (!m_relPtr) return;
 
-		m_relPtr->setMergeHeuristic(m_mergeHeuristic);
+		m_relPtr->setMergeHeuristic(static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->itemData(index).toInt()));
 		m_relPtr->adjustToBB();
 
 		setCartogramFromREL();

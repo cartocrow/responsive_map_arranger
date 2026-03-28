@@ -50,7 +50,6 @@ class RectangularCartogramDemo : public QMainWindow {
     std::shared_ptr<DemersPainting> m_demersPainting;
 
     CartogramType m_cartogramType;
-    MergeHeuristic m_mergeHeuristic;
 
     bool m_bboxDragging = false;
     Point<Inexact> m_dragStartWorld;
