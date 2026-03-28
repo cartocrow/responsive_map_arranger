@@ -15,9 +15,10 @@ using json = nlohmann::json;
 using namespace std;
 
 enum MergeHeuristic {
-    LOWEST_EDGE_COUNT, // For all max-segments computes the direction when the least edges
-    HIGHEST_SEGMENT_LOWEST_DIR_COUNT, // For all max-segments takes the segment with most edges, and then the dir with least edges
-    LOWEST_WEIGHT // for all max-segments computes the direction where the sum of vertex weights is smallest
+    MIN_EDGE, // For all max-segments computes the direction when the least edges
+    //HIGHEST_SEGMENT_LOWEST_DIR_COUNT, // For all max-segments takes the segment with most edges, and then the dir with least edges
+    MIN_WEIGHT, // for all max-segments computes the direction where the sum of vertex weights is smallest
+    MIN_EDGE_MIN_WEIGHT // MIN_EDGE, but ties are resolved using MIN_WEIGHT
 };
 
 enum EdgeColor {
@@ -77,10 +78,12 @@ public:
 
     void adjustToBB();
 
+    bool lowestOfTwoIsFirst(const std::pair<double, double> &costOne, const std::pair<double, double> &costTwo) const;
     // Returns the edgeID of the lowest cost to collapse and the direction. False = from source | True = from target (e.g., false (from left), true (from right))
     std::pair<int, bool> getLowestCostMerge(std::vector<int> const &path) const;
-    double mergeEdgeCountCost(int edgeId, bool fromSource) const;
-    double mergeWeightCost(int edgeId, bool fromSource) const;
+    std::pair<double, double> mergeEdgeCountCost(int edgeId, bool fromSource) const;
+    std::pair<double, double> mergeWeightCost(int edgeId, bool fromSource) const;
+    std::pair<double, double> mergeEdgeWeightCost(int edgeId, bool fromSource) const;
 
 
     const vector<Vertex> &getVertices()  const { return m_vertices; }
@@ -88,6 +91,7 @@ public:
     void normalizeVertexWeights();
     void computePreferredSizes();
     void adjustSeaRegionSizes(bool vertically, int longestPath);
+    bool deleteSeaRegionIfPossible(const Vertex& seaVertex);
 
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
     std::pair<double, std::vector<int>> getLongestVerticalPath() const;
@@ -125,6 +129,7 @@ public:
     int getNextCyclicEdge(const int edgeId) const;
 
     int getVertexDegree(const int vertexId) const { return m_vertices[vertexId].edges.size(); }
+    int getVertexDegree(const Vertex& vertex) const {return vertex.edges.size(); }
     int getFirstOutgoingBlue(int vertexId) const;
     int getFirstIncomingBlue(int vertexId) const;
     int getFirstOutgoingRed(int vertexId) const;
@@ -157,12 +162,13 @@ private:
     bool m_adaptiveLayoutEnabled = true;
     double m_threshHoldRelaxation = 0.5;
 
-    MergeHeuristic m_mergeHeuristic = LOWEST_EDGE_COUNT;
+    MergeHeuristic m_mergeHeuristic = MIN_EDGE;
 
     static string dirKey(const std::string &a, const std::string &b);
     static string undirKey(const std::string &a, const std::string &b);
 
     int findFirstEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const;
+    int findFirstEdgeOfType(const Vertex& vertex, EdgeColor edge_color, bool outgoing) const;
     int findLastEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const;
 
     vector<cartocrow::Color> m_vertColors{ {166, 205, 226}, {255, 255 , 153}, {252, 190, 110}, {250, 153, 153}, {201, 177, 213}, {177, 222, 137}};

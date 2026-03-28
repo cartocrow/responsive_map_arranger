@@ -702,15 +702,29 @@ void RegularEdgeLabeling::adjustToBB() {
         }
     }
 
-    if (mergingVertically)
-        adjustSeaRegionSizes(true, getLongestHorizontalPath().second.size());
-    else adjustSeaRegionSizes(false, getLongestVerticalPath().second.size());
+    // if (mergingVertically)
+    //     adjustSeaRegionSizes(true, getLongestHorizontalPath().second.size());
+    // else adjustSeaRegionSizes(false, getLongestVerticalPath().second.size());
 
 }
 
+
+bool RegularEdgeLabeling::lowestOfTwoIsFirst(const std::pair<double, double> &costOne,
+                                         const std::pair<double, double> &costTwo) const {
+
+    if (costOne.first < costTwo.first) return true;
+    if (costOne.first > costTwo.first) return false;
+
+    if (costOne.second < costTwo.second) return true;
+    if (costOne.second > costTwo.second) return false;
+
+    return true;
+}
+
+
 std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> const &path) const {
     std::pair lowestCostMerge(-1, false);
-    double lowestCost = std::numeric_limits<double>::infinity();
+    std::pair<double, double> lowestCost = std::pair(numeric_limits<double>::infinity(), numeric_limits<double>::infinity());
 
     for (int i = 0; i < path.size() - 1; i++) {
         int edge = -1;
@@ -719,51 +733,51 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
             if (m_halfEdges[m_halfEdges[he].twin].vertex == path[i+1])
                 edge = he;
         }
-        double costFromSource = 0.0;
-        double costFromTarget = 0.0;
+        std::pair<double, double> costFromSource = std::pair(0.0, 0.0);
+        std::pair<double, double> costFromTarget = std::pair(0.0, 0.0);
 
         switch (m_mergeHeuristic) {
-            case LOWEST_EDGE_COUNT:
+            case MIN_EDGE:
                 costFromSource = mergeEdgeCountCost(edge, true);
                 costFromTarget = mergeEdgeCountCost(edge, false);
                 break;
-            case HIGHEST_SEGMENT_LOWEST_DIR_COUNT:
-                //TODO: implement
-                costFromSource = mergeEdgeCountCost(edge, true);
-                costFromTarget = mergeEdgeCountCost(edge, false);
-                break;
-            case LOWEST_WEIGHT:
+            case MIN_WEIGHT:
                 costFromSource = mergeWeightCost(edge, true);
                 costFromTarget = mergeWeightCost(edge, false);
+                break;
+            case MIN_EDGE_MIN_WEIGHT:
+                costFromSource = mergeEdgeWeightCost(edge, true);
+                costFromTarget = mergeEdgeWeightCost(edge, false);
                 break;
             default: // default to LOWEST_EDGE_COUNT
                 costFromSource = mergeEdgeCountCost(edge, true);
                 costFromTarget = mergeEdgeCountCost(edge, false);
         }
 
-        //costFromSource = computeLowestEdgeCountCost(edge, true);
-        //costFromTarget = computeLowestEdgeCountCost(edge, false);
-
-        bool fromSource = costFromSource <= costFromTarget;
-        double lowestCostOfTwo = min(costFromSource, costFromTarget);
-        if (lowestCostOfTwo < lowestCost) {
-            lowestCost = lowestCostOfTwo;
-            lowestCostMerge = std::pair(edge, fromSource);
+        if (lowestOfTwoIsFirst(costFromSource, costFromTarget)) {
+            if (!lowestOfTwoIsFirst(lowestCost, costFromSource)) {
+                lowestCost = costFromSource;
+                lowestCostMerge = std::pair(edge, true);
+            }
+        } else if (!lowestOfTwoIsFirst(lowestCost, costFromTarget)) {
+            lowestCost = costFromTarget;
+            lowestCostMerge = std::pair(edge, false);
         }
     }
 
     return lowestCostMerge;
 }
 
-double RegularEdgeLabeling::mergeEdgeCountCost(int edgeId, bool fromSource) const {
+
+std::pair<double, double> RegularEdgeLabeling::mergeEdgeCountCost(int edgeId, bool fromSource) const {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         cerr << "Invalid edgeId " << edgeId << endl;
-        return false;
+        return {-1, -1};
     }
     const int twinId = m_halfEdges[edgeId].twin;
     if (twinId < 0 || twinId >= m_halfEdges.size()){
         cerr << "Invalid twinEdge id " << twinId << endl;
-        return false;
+        return {-1, -1};
     }
 
     int baseEdgeId = -1;
@@ -808,10 +822,10 @@ double RegularEdgeLabeling::mergeEdgeCountCost(int edgeId, bool fromSource) cons
         } while (m_halfEdges[previousCyclicEdge].color == baseEdge.color);
     }
 
-    return edgeCount;
+    return {edgeCount, 0};
 }
 
-double RegularEdgeLabeling::mergeWeightCost(int edgeId, bool fromSource) const {
+std::pair<double, double> RegularEdgeLabeling::mergeWeightCost(int edgeId, bool fromSource) const {
     int baseEdgeId = -1;
 
     if (m_halfEdges[edgeId].outgoing)
@@ -865,7 +879,14 @@ double RegularEdgeLabeling::mergeWeightCost(int edgeId, bool fromSource) const {
         totalWeight += m_vertices[v].weight;
     }
 
-    return totalWeight;
+    return  {totalWeight, 0};
+}
+
+std::pair<double, double> RegularEdgeLabeling::mergeEdgeWeightCost(int edgeId, bool fromSource) const {
+    double edgeCost = mergeEdgeCountCost(edgeId, fromSource).first;
+    double weightCost = mergeWeightCost(edgeId, fromSource).first;
+
+    return {edgeCost, weightCost};
 }
 
 void RegularEdgeLabeling::normalizeVertexWeights() {
@@ -904,7 +925,7 @@ void RegularEdgeLabeling::adjustSeaRegionSizes(bool vertically, int longestPath)
     for (Vertex &v : m_vertices) {
         if (!v.isLandRegion) {
 
-
+            //if (deleteSeaRegionIfPossible(v)) continue;
 
             std::cout << "oldweight: " << v.weight << std::endl;
             v.weight = clamp(v.weight * (1-t), 1.0, static_cast<double>(v.weight));
@@ -914,6 +935,106 @@ void RegularEdgeLabeling::adjustSeaRegionSizes(bool vertically, int longestPath)
     }
 
     normalizeVertexWeights();
+}
+
+bool RegularEdgeLabeling::deleteSeaRegionIfPossible(const Vertex& seaVertex) {
+    if (seaVertex.isLandRegion) {
+        cout << "[WARNING] trying to delete non-sea Vertex with label" << seaVertex.label << ". Vertex not deleted." << endl;
+        return false;
+    };
+
+    if (seaVertex.edges.size() > 4) return false; //TODO: implement smarter deletion
+
+    unordered_set<int> adjacentOuterVertices;
+
+    for (auto edge : seaVertex.edges) {
+        auto vID = m_halfEdges[m_halfEdges[edge].twin].vertex;
+        if (vID < 4) {
+            adjacentOuterVertices.insert(vID);
+        }
+    }
+
+    if (adjacentOuterVertices.size() < 2) return false;
+
+    if (adjacentOuterVertices.contains(0) && adjacentOuterVertices.contains(2)) { // seaVertex is adjacent to West and East
+        int vID = -1;
+        for (int i = 4; i < m_vertices.size(); i++) {
+            if (m_vertices[i].label == seaVertex.label) {
+                vID = i;
+                break;
+            }
+        }
+
+        Vertex &westVertex = m_vertices[adjacentOuterVertices.contains(0)];
+        Vertex &eastVertex = m_vertices[adjacentOuterVertices.contains(2)];
+
+        std::erase_if(westVertex.edges, [&](int const & he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        std::erase_if(eastVertex.edges, [&](int const & he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        Vertex& topVertex = m_vertices[findFirstEdgeOfType(seaVertex, RED, true)];
+        Vertex& bottomVertex = m_vertices[findFirstEdgeOfType(seaVertex, RED, false)];
+
+        int topVertexHE = *ranges::find_if(topVertex.edges, [&](int const he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        int bottomVertexHE = *ranges::find_if(bottomVertex.edges, [&](int const he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        m_halfEdges[topVertexHE].twin = bottomVertexHE;
+        m_halfEdges[bottomVertexHE].twin = topVertexHE;
+
+        m_vertices.erase(m_vertices.begin() + vID);
+        return true;
+    }
+    if (adjacentOuterVertices.contains(1) && adjacentOuterVertices.contains(3)) {
+        int vID = -1;
+        for (int i = 4; i < m_vertices.size(); i++) {
+            if (m_vertices[i].label == seaVertex.label) {
+                vID = i;
+                break;
+            }
+        }
+
+        Vertex &northVertex = m_vertices[adjacentOuterVertices.contains(1)];
+        Vertex &southVertex = m_vertices[adjacentOuterVertices.contains(3)];
+
+        std::erase_if(northVertex.edges, [&](int const & he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        std::erase_if(southVertex.edges, [&](int const & he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        Vertex& rightVertex = m_vertices[findFirstEdgeOfType(seaVertex, BLUE, true)];
+        Vertex& leftVertex = m_vertices[findFirstEdgeOfType(seaVertex, BLUE, false)];
+
+        int rightVertexHE = *std::find_if(rightVertex.edges.begin(), rightVertex.edges.end(), [&](int const he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        int leftVertexHE = *std::find_if(leftVertex.edges.begin(), leftVertex.edges.end(), [&](int const he) {
+            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
+        });
+
+        m_halfEdges[rightVertexHE].twin = leftVertexHE;
+        m_halfEdges[leftVertexHE].twin = rightVertexHE;
+
+        for (int he : seaVertex.edges) {
+            m_halfEdges.erase(m_halfEdges.begin() + he);
+        }
+
+        m_vertices.erase(m_vertices.begin() + vID);
+        return true;
+    }
+    return false;
 }
 
 static std::pair<double, std::vector<int>> REL_longestPathPred_generic(
@@ -1883,16 +2004,33 @@ int RegularEdgeLabeling::getNextCyclicEdge(const int edgeId) const {
 }
 
 int RegularEdgeLabeling::findFirstEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const {
-    const Vertex &v = m_vertices[vertexId];
+    return findFirstEdgeOfType(m_vertices[vertexId], edge_color, outgoing);
+    // const Vertex &v = m_vertices[vertexId];
+    //
+    // int vDegree = getVertexDegree(vertexId);
+    //
+    // for (int i = 0; i < vDegree; i++) {
+    //     const HalfEdge &edge = m_halfEdges[v.edges[i]];
+    //     const HalfEdge &prevEdge = m_halfEdges[v.edges[(i + vDegree - 1) % vDegree]];
+    //
+    //     if (edge.color == edge_color && edge.outgoing == outgoing && (prevEdge.color != edge_color || prevEdge.outgoing != outgoing)) {
+    //         return v.edges[i];
+    //     }
+    // }
+    // return -1;
+}
 
-    int vDegree = getVertexDegree(vertexId);
+int RegularEdgeLabeling::findFirstEdgeOfType(const Vertex& vertex, EdgeColor edge_color, bool outgoing) const {
+    //const Vertex &v = m_vertices[vertexId];
+
+    int vDegree = getVertexDegree(vertex);
 
     for (int i = 0; i < vDegree; i++) {
-        const HalfEdge &edge = m_halfEdges[v.edges[i]];
-        const HalfEdge &prevEdge = m_halfEdges[v.edges[(i + vDegree - 1) % vDegree]];
+        const HalfEdge &edge = m_halfEdges[vertex.edges[i]];
+        const HalfEdge &prevEdge = m_halfEdges[vertex.edges[(i + vDegree - 1) % vDegree]];
 
         if (edge.color == edge_color && edge.outgoing == outgoing && (prevEdge.color != edge_color || prevEdge.outgoing != outgoing)) {
-            return v.edges[i];
+            return vertex.edges[i];
         }
     }
     return -1;
