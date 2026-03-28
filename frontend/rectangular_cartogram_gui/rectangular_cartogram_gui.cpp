@@ -114,6 +114,7 @@ void RectangularCartogramDemo::processData() {
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
 	m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
     m_relPtr->setBoundingBox(BoundingBox{0, 1980 , 0, 1020 });
+	m_relPtr->setMergeHeuristic(static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentData().toInt()));
 
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
     m_relPtr->isValidREL(true);
