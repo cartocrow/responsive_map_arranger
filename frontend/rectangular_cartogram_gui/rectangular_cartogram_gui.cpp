@@ -171,6 +171,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	m_mergeHeuristicComboBox->addItem("min-edge", MIN_EDGE);
 	m_mergeHeuristicComboBox->addItem("min-weight", MIN_WEIGHT);
 	m_mergeHeuristicComboBox->addItem("min-edge-min-weight", MIN_EDGE_MIN_WEIGHT);
+	m_mergeHeuristicComboBox->addItem("min-max-path", MIN_MAX_PATH);
 	m_mergeHeuristicComboBox->setCurrentIndex(2);
 
 	m_useAdaptiveLayout = new QCheckBox("Use Adaptive Layout", vWidget);

@@ -722,6 +722,224 @@ bool RegularEdgeLabeling::lowestOfTwoIsFirst(const std::pair<double, double> &co
 }
 
 
+static constexpr double NEG_INF = -std::numeric_limits<double>::infinity();
+static constexpr double POS_INF =  std::numeric_limits<double>::infinity();
+
+
+static double vertexPathWeight(const RegularEdgeLabeling &rel, int v, EdgeColor color) {
+    if (!rel.isInnerVertex(v)) return 0.0;
+
+    const auto &vert = rel.getVertices()[v];
+
+    if (color == BLUE) {
+        double w = vert.preferred_width;
+        if (!std::isfinite(w) || w <= 0.0) {
+            return (std::isfinite(vert.weight) ? vert.weight : 0.0);
+        }
+        return w;
+    } else { // RED
+        double h = vert.preferred_height;
+        if (!std::isfinite(h) || h <= 0.0) {
+            return (std::isfinite(vert.weight) ? vert.weight : 0.0);
+        }
+        return h;
+    }
+}
+
+static int findVertexByLabel(const RegularEdgeLabeling &rel, const std::string &label) {
+    const auto &V = rel.getVertices();
+    for (int i = 0; i < (int)V.size(); ++i) {
+        if (V[i].label == label) return i;
+    }
+    return -1;
+}
+
+static int orderIndexForInsertedEdge(const RegularEdgeLabeling &rel, int v, EdgeColor color) {
+    const auto &V = rel.getVertices();
+    const std::string &lbl = V[v].label;
+
+    if (color == BLUE) {
+        if (lbl == "West")  return std::numeric_limits<int>::min();
+        if (lbl == "East")  return std::numeric_limits<int>::max();
+        return V[v].horizontal_order_index;
+    } else {
+        if (lbl == "South") return std::numeric_limits<int>::min();
+        if (lbl == "North") return std::numeric_limits<int>::max();
+        return V[v].vertical_order_index;
+    }
+}
+
+static std::vector<std::vector<int>> buildAdjacencyFromHalfEdges(
+    const RegularEdgeLabeling &rel,
+    EdgeColor color
+) {
+    const auto &V = rel.getVertices();
+    const auto &H = rel.getHalfEdges();
+
+    std::vector<std::vector<int>> out(V.size());
+
+    for (int hi = 0; hi < (int)H.size(); ++hi) {
+        const auto &h = H[hi];
+        if (!h.outgoing) continue;
+        if (h.color != color) continue;
+        if (h.twin < 0 || h.twin >= (int)H.size()) continue;
+
+        int u = h.vertex;
+        int v = H[h.twin].vertex;
+
+        if (u < 0 || u >= (int)V.size()) continue;
+        if (v < 0 || v >= (int)V.size()) continue;
+
+        out[u].push_back(v);
+    }
+
+    return out;
+}
+
+static std::vector<int> topoSortFromAdjacency(
+    const std::vector<std::vector<int>> &out
+) {
+    const int n = (int)out.size();
+    std::vector<int> indeg(n, 0);
+
+    for (int u = 0; u < n; ++u) {
+        for (int v : out[u]) {
+            indeg[v]++;
+        }
+    }
+
+    std::queue<int> q;
+    for (int i = 0; i < n; ++i) {
+        if (indeg[i] == 0) q.push(i);
+    }
+
+    std::vector<int> topo;
+    topo.reserve(n);
+
+    while (!q.empty()) {
+        int u = q.front();
+        q.pop();
+        topo.push_back(u);
+
+        for (int v : out[u]) {
+            if (--indeg[v] == 0) q.push(v);
+        }
+    }
+
+    return topo;
+}
+
+static std::vector<double> longestPathFromSource(
+    const RegularEdgeLabeling &rel,
+    int source,
+    const std::vector<std::vector<int>> &out,
+    const std::vector<int> &topo,
+    const EdgeColor color
+) {
+    const int n = (int)rel.getVertices().size();
+    std::vector<double> dp(n, NEG_INF);
+
+    if (source < 0 || source >= n) return dp;
+
+    dp[source] = vertexPathWeight(rel, source, color);
+
+    for (int u : topo) {
+        if (dp[u] == NEG_INF) continue;
+        for (int v : out[u]) {
+            dp[v] = std::max(dp[v], dp[u] + vertexPathWeight(rel, v, color));
+        }
+    }
+
+    return dp;
+}
+
+static std::vector<double> longestPathToSink(
+    const RegularEdgeLabeling &rel,
+    int sink,
+    const std::vector<std::vector<int>> &out,
+    const std::vector<int> &topo,
+    const EdgeColor color
+) {
+    const int n = (int)rel.getVertices().size();
+    std::vector<double> dp(n, NEG_INF);
+
+    if (sink < 0 || sink >= n) return dp;
+
+    dp[sink] = vertexPathWeight(rel, sink, color);
+
+    for (int i = (int)topo.size() - 1; i >= 0; --i) {
+        int u = topo[i];
+        for (int v : out[u]) {
+            if (dp[v] == NEG_INF) continue;
+            dp[u] = std::max(dp[u], vertexPathWeight(rel, u, color) + dp[v]);
+        }
+    }
+
+    return dp;
+}
+
+static double forcedInsertedEdgePathCost(
+    const RegularEdgeLabeling &rel,
+    int a,
+    int b,
+    EdgeColor targetColor
+) {
+    const auto &V = rel.getVertices();
+    if (a < 0 || a >= (int)V.size() || b < 0 || b >= (int)V.size()) return POS_INF;
+
+    int source = -1;
+    int sink = -1;
+
+    if (targetColor == BLUE) {
+        source = findVertexByLabel(rel, "West");
+        sink   = findVertexByLabel(rel, "East");
+    } else {
+        source = findVertexByLabel(rel, "South");
+        sink   = findVertexByLabel(rel, "North");
+    }
+
+    if (source == -1 || sink == -1) return POS_INF;
+
+    // Existing graph: use actual half-edge directions.
+    auto out = buildAdjacencyFromHalfEdges(rel, targetColor);
+    auto topo = topoSortFromAdjacency(out);
+
+    if ((int)topo.size() != (int)V.size()) {
+        // color graph is not a DAG, so heuristic is not well-defined
+        return POS_INF;
+    }
+
+    auto bestFromSource = longestPathFromSource(rel, source, out, topo, targetColor);
+    auto bestToSink     = longestPathToSink(rel, sink, out, topo, targetColor);
+
+    // Inserted edge: orient only this edge by the relevant order.
+    int u = a;
+    int v = b;
+    if (orderIndexForInsertedEdge(rel, u, targetColor) >
+        orderIndexForInsertedEdge(rel, v, targetColor)) {
+        std::swap(u, v);
+    }
+
+    if (orderIndexForInsertedEdge(rel, u, targetColor) >=
+        orderIndexForInsertedEdge(rel, v, targetColor)) {
+        return POS_INF;
+    }
+
+    // Debugging help
+    // std::cout << "candidate inserted edge: "
+    //           << rel.getVertices()[u].label << " -> "
+    //           << rel.getVertices()[v].label << "\n";
+    // std::cout << "bestFromSource[u] = " << bestFromSource[u]
+    //           << ", bestToSink[v] = " << bestToSink[v] << "\n";
+
+    // source -> ... -> u -> inserted edge -> v -> ... -> sink
+    if (bestFromSource[u] == NEG_INF || bestToSink[v] == NEG_INF) {
+        return POS_INF;
+    }
+
+    return bestFromSource[u] + bestToSink[v];
+}
+
 std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> const &path) const {
     std::pair lowestCostMerge(-1, false);
     std::pair<double, double> lowestCost = std::pair(numeric_limits<double>::infinity(), numeric_limits<double>::infinity());
@@ -748,6 +966,14 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
             case MIN_EDGE_MIN_WEIGHT:
                 costFromSource = mergeEdgeWeightCost(edge, true);
                 costFromTarget = mergeEdgeWeightCost(edge, false);
+                break;
+            case MIN_MAX_PATH:
+                //std::cout << "merge path cost" << std::endl;
+                costFromSource = mergePathCost(edge, true);
+                costFromTarget = mergePathCost(edge, false);
+
+                //std::cout << costFromSource.first << " " << costFromSource.second << std::endl;
+                //std::cout << costFromTarget.first << " " << costFromTarget.second << std::endl;
                 break;
             default: // default to LOWEST_EDGE_COUNT
                 costFromSource = mergeEdgeCountCost(edge, true);
@@ -887,6 +1113,32 @@ std::pair<double, double> RegularEdgeLabeling::mergeEdgeWeightCost(int edgeId, b
     double weightCost = mergeWeightCost(edgeId, fromSource).first;
 
     return {edgeCost, weightCost};
+}
+
+std::pair<double, double> RegularEdgeLabeling::mergePathCost(int edgeId, bool fromSource) const {
+    int baseEdgeId = -1;
+
+    if (m_halfEdges[edgeId].outgoing)
+        baseEdgeId = edgeId;
+    else baseEdgeId = m_halfEdges[edgeId].twin;
+
+    const HalfEdge &baseEdge = m_halfEdges[baseEdgeId];
+    const Vertex &baseVertex = m_vertices[baseEdge.vertex];
+
+    const int a = baseEdge.vertex;
+    const int b = m_halfEdges[baseEdge.twin].vertex;
+
+    double cost = POS_INF;
+
+    if (baseEdge.color == RED) {
+        // Pretend the red edge becomes blue and measure the longest blue West->East path that uses it.
+        cost = forcedInsertedEdgePathCost(*this, a, b, BLUE);
+    } else if (baseEdge.color == BLUE) {
+        // Symmetric case: pretend the blue edge becomes red and measure the longest red South->North path that uses it.
+        cost = forcedInsertedEdgePathCost(*this, a, b, RED);
+    }
+
+    return {cost, mergeWeightCost(edgeId, fromSource).first};
 }
 
 void RegularEdgeLabeling::normalizeVertexWeights() {

@@ -18,7 +18,8 @@ enum MergeHeuristic {
     MIN_EDGE, // For all max-segments computes the direction when the least edges
     //HIGHEST_SEGMENT_LOWEST_DIR_COUNT, // For all max-segments takes the segment with most edges, and then the dir with least edges
     MIN_WEIGHT, // for all max-segments computes the direction where the sum of vertex weights is smallest
-    MIN_EDGE_MIN_WEIGHT // MIN_EDGE, but ties are resolved using MIN_WEIGHT
+    MIN_EDGE_MIN_WEIGHT, // MIN_EDGE, but ties are resolved using MIN_WEIGHT
+    MIN_MAX_PATH
 };
 
 enum EdgeColor {
@@ -87,6 +88,7 @@ public:
     std::pair<double, double> mergeEdgeCountCost(int edgeId, bool fromSource) const;
     std::pair<double, double> mergeWeightCost(int edgeId, bool fromSource) const;
     std::pair<double, double> mergeEdgeWeightCost(int edgeId, bool fromSource) const;
+    std::pair<double, double> mergePathCost(int edgeId, bool fromSource) const;
 
 
     const vector<Vertex> &getVertices()  const { return m_vertices; }
@@ -105,6 +107,9 @@ public:
     int neighborOfHalfEdge(int he) const;
     void removeIncidentEdgesToNeighbor(int vertexID, int neighborID);
     int findHalfEdgeToNeighbor(int vertexID, int neighborID) const;
+
+    bool isOuterVertexLabel(const int v) const {return v < 4; }
+    bool isInnerVertex(const int v) const { return v >= 4; }
 
 
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
