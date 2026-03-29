@@ -62,6 +62,7 @@ bool RectangularDual::hasValidSegmentCoords() const {
     //const size_t n = rects.size();
     for (size_t i = 4; i < rects.size(); ++i) {
         const auto &r = rects[i];
+        if (r.isDisabled) continue;
         if (r.bottom >= r.top -0.1 || r.left >= r.right - 0.1) {
             // std::cout << "no valid segments for: " <<  m_REL->getVertices()[i].label << std::endl;
             // std::cout << "bottom: " << rects[i].bottom << ", top: " << rects[i].top << std::endl;
@@ -81,11 +82,12 @@ double RectangularDual::computeAreaDeviation() {
     auto &vertices = m_REL->getVertices();
 
     for (size_t i = 4; i < vertices.size(); ++i) {
+        if (rects[i].isDisabled) continue;
 
         double rectDeviation = vertices[i].weight / rects[i].area() - 1;
         total += rectDeviation*rectDeviation;// (rects[i].area() - vertices[i].weight) * (rects[i].area() - vertices[i].weight); //  rectDeviation * rectDeviation; // (rectArea - (targetArea) * (rectArea - targetArea);// / (rectArea);
     }
-    return total; sqrt(total);
+    return  total;// sqrt(total);// total; sqrt(total);
 }
 
 void RectangularDual::fixRectangleAreas() {
@@ -104,7 +106,7 @@ void RectangularDual::fixRectangleAreas() {
     int totalIters = 0;
     while (deviation > 0.5){ //0.01 * frameArea){// > 0.2) {// * frameArea) {
         totalIters++;
-        if (totalIters > 100000 && hasValidSegmentCoords()) break;
+        //if (totalIters > 100000 && hasValidSegmentCoords()) break;
 
         for (Segment &segment : maximalSegments) {
             if (segment.fixedSegment) continue;
@@ -114,6 +116,7 @@ void RectangularDual::fixRectangleAreas() {
         // set gradients for maximal segments
         for (int i = 4; i < vertices.size(); ++i) {
             auto &rect = rects[i];
+            if (rect.isDisabled) continue;
             auto &v = vertices[i];
 
             double width = rect.right - rect.left;
@@ -204,7 +207,7 @@ void RectangularDual::fixRectangleAreas() {
             //     std::cout << "rightGrad: " << maximalSegments[vertices[i].right_segment].gradientValue << std::endl;
             // }
             int iters = 0;
-             while (!hasValidSegmentCoords() || (computeAreaDeviation() > deviation && iters < 5)) { // If rects not valid -> trace back sliding segment
+             while (!hasValidSegmentCoords() || (computeAreaDeviation() > deviation)){// && iters < 50)) { // If rects not valid -> trace back sliding segment
                  epsilon *= 0.5;
                  iters++;
                 //std::cout << hasValidSegmentCoords() << std::endl;
@@ -222,7 +225,8 @@ void RectangularDual::fixRectangleAreas() {
                     std::cout << "deviation: " << computeAreaDeviation() << std::endl;
                     std::cout << "frameArea: " << frameArea << std::endl;
                     std::cout << "[WARNING] epsilon is 0. Ending gradient" << endl;
-                    goto endwhile;
+                    return;
+
                     throw std::invalid_argument("epsilon cannot be zero.");
                 }
 
@@ -237,7 +241,6 @@ void RectangularDual::fixRectangleAreas() {
 
         deviation = computeAreaDeviation();
     }
-    endwhile:
 }
 
 bool RectangularDual::computeMaximalSegments() {
@@ -540,6 +543,8 @@ bool RectangularDual::computeSegmentPositions(double cell_size) {
 
     // Build edges. If left or right is -1, map to the corresponding frame node.
     for (int v = 0; v < V; ++v) {
+        //if (verts[v].isDeleted) continue;
+
         int leftSeg = verts[v].left_segment;
         int rightSeg = verts[v].right_segment;
         int bottomSeg = verts[v].bottom_segment;
@@ -742,6 +747,7 @@ bool RectangularDual::computeRectanglesFromSegments() {
 
     for (int v = 4; v < V; ++v) {
         Rect r;
+        r.isDisabled = verts[v].isDeleted;
         r.left   = maximalSegments[verts[v].left_segment].coord;
         r.right  = maximalSegments[verts[v].right_segment].coord;
         r.bottom = maximalSegments[verts[v].bottom_segment].coord;
@@ -754,6 +760,8 @@ bool RectangularDual::computeRectanglesFromSegments() {
 }
 
 double RectangularDual::aspectRatioDeviation(int rectId) const {
+    if (rects[rectId].isDisabled) return 0.0;
+
     double preveredAspectRatio = m_REL->getVertices()[rectId].preferred_aspect_ratio;
     double aspectRatio = rects[rectId].aspectRatio();
 
@@ -763,6 +771,7 @@ double RectangularDual::aspectRatioDeviation(int rectId) const {
 double RectangularDual::totalAspectRatioDeviation() const {
     double totalDeviation = 0.0;
     for (size_t i = 4; i < rects.size(); ++i) {
+        if (rects[i].isDisabled) return 0.0;
         totalDeviation += aspectRatioDeviation(i);
     }
 

@@ -42,6 +42,8 @@ public:
         double bottom;
         double top;
 
+        bool isDisabled = false;
+
         cartocrow::Color color{255, 255, 255};
 
         double area() const {

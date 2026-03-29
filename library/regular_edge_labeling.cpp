@@ -702,9 +702,9 @@ void RegularEdgeLabeling::adjustToBB() {
         }
     }
 
-    // if (mergingVertically)
-    //     adjustSeaRegionSizes(true, getLongestHorizontalPath().second.size());
-    // else adjustSeaRegionSizes(false, getLongestVerticalPath().second.size());
+    if (mergingVertically)
+        adjustSeaRegionSizes(true, getLongestHorizontalPath().second.size());
+    else adjustSeaRegionSizes(false, getLongestVerticalPath().second.size());
 
 }
 
@@ -892,6 +892,7 @@ std::pair<double, double> RegularEdgeLabeling::mergeEdgeWeightCost(int edgeId, b
 void RegularEdgeLabeling::normalizeVertexWeights() {
     int total = 0;
     for (Vertex &v : m_vertices) {
+        if (!v.isLandRegion && v.weight == 0) std::cout << "weight 0" << std::endl;
         total += v.weight;
     }
 
@@ -917,123 +918,133 @@ void RegularEdgeLabeling::computePreferredSizes() {
 void RegularEdgeLabeling::adjustSeaRegionSizes(bool vertically, int longestPath) {
     double t = 1;
     if (vertically) {
-        t = clamp(static_cast<double>(longestPath - m_initLongestHorizontalPath) / ((m_vertices.size() - 4) - m_initLongestHorizontalPath), 0.00001, 1.0);
+        t = clamp(static_cast<double>(longestPath - m_initLongestHorizontalPath) / ((m_vertices.size() - 4) - m_initLongestHorizontalPath), 0.05, 1.0);
     } else {
-        t = clamp(static_cast<double>(longestPath - m_initLongestVerticalPath) / ((m_vertices.size() - 4) - m_initLongestVerticalPath), 0.00001, 1.0);
+        t = clamp(static_cast<double>(longestPath - m_initLongestVerticalPath) / ((m_vertices.size() - 4) - m_initLongestVerticalPath), 0.05, 1.0);
     }
 
-    for (Vertex &v : m_vertices) {
+    for (int i = 0; i < m_vertices.size(); i++) {
+        Vertex &v = m_vertices[i];
         if (!v.isLandRegion) {
 
-            //if (deleteSeaRegionIfPossible(v)) continue;
+            //if (deleteSeaRegionIfPossible(i)) continue;
 
-            std::cout << "oldweight: " << v.weight << std::endl;
+            // std::cout << "oldweight: " << v.weight << std::endl;
             v.weight = clamp(v.weight * (1-t), 1.0, static_cast<double>(v.weight));
-            std::cout << "newweight: " << v.weight << std::endl;
-            std::cout << "t: " << t << std::endl;
+            // std::cout << "newweight: " << v.weight << std::endl;
+            // std::cout << "t: " << t << std::endl;
         }
     }
 
     normalizeVertexWeights();
 }
 
-bool RegularEdgeLabeling::deleteSeaRegionIfPossible(const Vertex& seaVertex) {
+bool RegularEdgeLabeling::deleteSeaRegionIfPossible(int seaVertexID) {
+    if (!isValidVertex(seaVertexID)) return false;
+
+    Vertex& seaVertex = m_vertices[seaVertexID];
+
     if (seaVertex.isLandRegion) {
-        cout << "[WARNING] trying to delete non-sea Vertex with label" << seaVertex.label << ". Vertex not deleted." << endl;
+        std::cout << "[WARNING] trying to delete non-sea vertex with label "
+                  << seaVertex.label << ". Vertex not deleted.\n";
         return false;
-    };
+    }
 
-    if (seaVertex.edges.size() > 4) return false; //TODO: implement smarter deletion
+    if (seaVertex.isDeleted) return false;
+    if (seaVertex.edges.size() > 4) return false; // keep your current restriction
 
-    unordered_set<int> adjacentOuterVertices;
+    std::unordered_set<int> adjacentOuterVertices;
 
-    for (auto edge : seaVertex.edges) {
-        auto vID = m_halfEdges[m_halfEdges[edge].twin].vertex;
-        if (vID < 4) {
-            adjacentOuterVertices.insert(vID);
+    for (int he : seaVertex.edges) {
+        if (!isValidHalfEdge(he)) continue;
+        int n = neighborOfHalfEdge(he);
+        if (0 <= n && n < 4) {
+            adjacentOuterVertices.insert(n);
         }
     }
 
     if (adjacentOuterVertices.size() < 2) return false;
 
-    if (adjacentOuterVertices.contains(0) && adjacentOuterVertices.contains(2)) { // seaVertex is adjacent to West and East
-        int vID = -1;
-        for (int i = 4; i < m_vertices.size(); i++) {
-            if (m_vertices[i].label == seaVertex.label) {
-                vID = i;
-                break;
+    // Case 1: adjacent to west and east
+    if (adjacentOuterVertices.contains(0) && adjacentOuterVertices.contains(2)) {
+        int westHE = findHalfEdgeToNeighbor(0, seaVertexID);
+        int eastHE = findHalfEdgeToNeighbor(2, seaVertexID);
+        if (westHE == -1 || eastHE == -1) return false;
+
+        // WARNING:
+        // This assumes findFirstEdgeOfType returns a half-edge index incident to seaVID.
+        int topSeaHE = findFirstEdgeOfType(seaVertex, RED, true);
+        int bottomSeaHE = findFirstEdgeOfType(seaVertex, RED, false);
+
+        if (!isValidHalfEdge(topSeaHE) || !isValidHalfEdge(bottomSeaHE)) return false;
+
+        int topNeighborHE = m_halfEdges[topSeaHE].twin;
+        int bottomNeighborHE = m_halfEdges[bottomSeaHE].twin;
+
+        if (!isValidHalfEdge(topNeighborHE) || !isValidHalfEdge(bottomNeighborHE)) return false;
+
+        // Remove sea adjacency from outer vertices
+        removeIncidentEdgesToNeighbor(0, seaVertexID);
+        removeIncidentEdgesToNeighbor(2, seaVertexID);
+
+        // Reconnect surviving half-edges
+        m_halfEdges[topNeighborHE].twin = bottomNeighborHE;
+        m_halfEdges[bottomNeighborHE].twin = topNeighborHE;
+
+        // Mark all sea incident half-edges as deleted
+        for (int he : seaVertex.edges) {
+            if (!isValidHalfEdge(he)) continue;
+            int twin = m_halfEdges[he].twin;
+            m_halfEdges[he].isDeleted = true;
+            if (0 <= twin && twin < (int)m_halfEdges.size()) {
+                m_halfEdges[twin].isDeleted = true;
             }
         }
 
-        Vertex &westVertex = m_vertices[adjacentOuterVertices.contains(0)];
-        Vertex &eastVertex = m_vertices[adjacentOuterVertices.contains(2)];
-
-        std::erase_if(westVertex.edges, [&](int const & he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
-
-        std::erase_if(eastVertex.edges, [&](int const & he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
-
-        Vertex& topVertex = m_vertices[findFirstEdgeOfType(seaVertex, RED, true)];
-        Vertex& bottomVertex = m_vertices[findFirstEdgeOfType(seaVertex, RED, false)];
-
-        int topVertexHE = *ranges::find_if(topVertex.edges, [&](int const he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
-
-        int bottomVertexHE = *ranges::find_if(bottomVertex.edges, [&](int const he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
-
-        m_halfEdges[topVertexHE].twin = bottomVertexHE;
-        m_halfEdges[bottomVertexHE].twin = topVertexHE;
-
-        m_vertices.erase(m_vertices.begin() + vID);
+        seaVertex.edges.clear();
+        seaVertex.isDeleted = true;
+        seaVertex.weight = 0;
         return true;
     }
+
+    // Case 2: adjacent to north and south
     if (adjacentOuterVertices.contains(1) && adjacentOuterVertices.contains(3)) {
-        int vID = -1;
-        for (int i = 4; i < m_vertices.size(); i++) {
-            if (m_vertices[i].label == seaVertex.label) {
-                vID = i;
-                break;
-            }
-        }
+        int northHE = findHalfEdgeToNeighbor(1, seaVertexID);
+        int southHE = findHalfEdgeToNeighbor(3, seaVertexID);
+        if (northHE == -1 || southHE == -1) return false;
 
-        Vertex &northVertex = m_vertices[adjacentOuterVertices.contains(1)];
-        Vertex &southVertex = m_vertices[adjacentOuterVertices.contains(3)];
+        // Same warning about return type of findFirstEdgeOfType.
+        int rightSeaHE = findFirstEdgeOfType(seaVertex, BLUE, true);
+        int leftSeaHE = findFirstEdgeOfType(seaVertex, BLUE, false);
 
-        std::erase_if(northVertex.edges, [&](int const & he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
+        if (!isValidHalfEdge(rightSeaHE) || !isValidHalfEdge(leftSeaHE)) return false;
 
-        std::erase_if(southVertex.edges, [&](int const & he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
+        int rightNeighborHE = m_halfEdges[rightSeaHE].twin;
+        int leftNeighborHE = m_halfEdges[leftSeaHE].twin;
 
-        Vertex& rightVertex = m_vertices[findFirstEdgeOfType(seaVertex, BLUE, true)];
-        Vertex& leftVertex = m_vertices[findFirstEdgeOfType(seaVertex, BLUE, false)];
+        if (!isValidHalfEdge(rightNeighborHE) || !isValidHalfEdge(leftNeighborHE)) return false;
 
-        int rightVertexHE = *std::find_if(rightVertex.edges.begin(), rightVertex.edges.end(), [&](int const he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
+        removeIncidentEdgesToNeighbor(1, seaVertexID);
+        removeIncidentEdgesToNeighbor(3, seaVertexID);
 
-        int leftVertexHE = *std::find_if(leftVertex.edges.begin(), leftVertex.edges.end(), [&](int const he) {
-            return m_halfEdges[m_halfEdges[he].twin].vertex == vID;
-        });
-
-        m_halfEdges[rightVertexHE].twin = leftVertexHE;
-        m_halfEdges[leftVertexHE].twin = rightVertexHE;
+        m_halfEdges[rightNeighborHE].twin = leftNeighborHE;
+        m_halfEdges[leftNeighborHE].twin = rightNeighborHE;
 
         for (int he : seaVertex.edges) {
-            m_halfEdges.erase(m_halfEdges.begin() + he);
+            if (!isValidHalfEdge(he)) continue;
+            int twin = m_halfEdges[he].twin;
+            m_halfEdges[he].isDeleted = true;
+            if (0 <= twin && twin < (int)m_halfEdges.size()) {
+                m_halfEdges[twin].isDeleted = true;
+            }
         }
 
-        m_vertices.erase(m_vertices.begin() + vID);
+        seaVertex.edges.clear();
+        seaVertex.isDeleted = true;
+        seaVertex.weight = 0;
         return true;
     }
+
     return false;
 }
 
@@ -1176,6 +1187,31 @@ static std::pair<double, std::vector<int>> REL_longestPathPred_generic(
     // source (rev[0]) remains pred -1
 
     return { best[sink][2], pred_out };
+}
+
+int RegularEdgeLabeling::neighborOfHalfEdge(const int he) const {
+    if (!isValidHalfEdge(he)) return -1;
+    int twin = m_halfEdges[he].twin;
+    if (!isValidHalfEdge(twin)) return -1;
+    return m_halfEdges[twin].vertex;
+}
+
+void RegularEdgeLabeling::removeIncidentEdgesToNeighbor(const int vertexID, const int neighborID) {
+    auto &edges = m_vertices[vertexID].edges;
+    std::erase_if(edges, [&](int he) {
+        return isValidHalfEdge(he) && neighborOfHalfEdge(he) == neighborID;
+    });
+}
+
+int RegularEdgeLabeling::findHalfEdgeToNeighbor(int vertexID, int neighborID) const {
+    if (!isValidVertex(vertexID)) return -1;
+
+    for (int he : m_vertices[vertexID].edges) {
+        if (isValidHalfEdge(he) && neighborOfHalfEdge(he) == neighborID) {
+            return he;
+        }
+    }
+    return -1;
 }
 
 // Return cost + vertex path (excluding outer vertices)

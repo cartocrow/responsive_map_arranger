@@ -35,6 +35,8 @@ struct HalfEdge {
     EdgeColor color = BLACK;
     bool outgoing;
     string id_str;
+
+    bool isDeleted = false;
 };
 
 struct Vertex {
@@ -43,6 +45,7 @@ struct Vertex {
     int weight;
 
     bool isLandRegion = true;
+    bool isDeleted = false;
     // edges of the vertex in COUNTERCLOCKWISE order (combinatorial / cyclic)
     vector<int> edges;
 
@@ -91,7 +94,18 @@ public:
     void normalizeVertexWeights();
     void computePreferredSizes();
     void adjustSeaRegionSizes(bool vertically, int longestPath);
-    bool deleteSeaRegionIfPossible(const Vertex& seaVertex);
+    bool deleteSeaRegionIfPossible(int seaVertexID);
+
+    bool isValidVertex(const int v) const {
+        return 0 <= v && v < static_cast<int>(m_vertices.size()) && !m_vertices[v].isDeleted;
+    }
+    bool isValidHalfEdge(const int he) const {
+        return 0 <= he && he < static_cast<int>(m_halfEdges.size()) && !m_halfEdges[he].isDeleted;
+    }
+    int neighborOfHalfEdge(int he) const;
+    void removeIncidentEdgesToNeighbor(int vertexID, int neighborID);
+    int findHalfEdgeToNeighbor(int vertexID, int neighborID) const;
+
 
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
     std::pair<double, std::vector<int>> getLongestVerticalPath() const;
