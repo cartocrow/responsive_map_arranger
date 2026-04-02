@@ -702,9 +702,9 @@ void RegularEdgeLabeling::adjustToBB() {
         }
     }
 
-    if (mergingVertically)
-        adjustSeaRegionSizes(true, getLongestHorizontalPath().second.size());
-    else adjustSeaRegionSizes(false, getLongestVerticalPath().second.size());
+    // if (mergingVertically)
+    //     adjustSeaRegionSizes(true, getLongestHorizontalPath().second.size());
+    // else adjustSeaRegionSizes(false, getLongestVerticalPath().second.size());
 
 }
 

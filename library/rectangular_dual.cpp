@@ -104,7 +104,7 @@ void RectangularDual::fixRectangleAreas() {
     //std::cout << "FIXING AREAS" << std::endl;
 
     int totalIters = 0;
-    while (deviation > 0.5){ //0.01 * frameArea){// > 0.2) {// * frameArea) {
+    while (deviation > 0.01){ //0.01 * frameArea){// > 0.2) {// * frameArea) {
         totalIters++;
         //if (totalIters > 100000 && hasValidSegmentCoords()) break;
 

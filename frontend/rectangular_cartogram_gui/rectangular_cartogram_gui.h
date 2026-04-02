@@ -55,11 +55,13 @@ class RectangularCartogramDemo : public QMainWindow {
     Point<Inexact> m_dragStartWorld;
     BoundingBox m_bboxBeforeDrag;
     double m_bboxHandleTolerance = 40.0; // world units tolerance to hit corner (adjust)
-    double m_bboxMinWidth  = 20.0;
-    double m_bboxMinHeight = 20.0;
+    double m_bboxMinWidth  = 5.0;
+    double m_bboxMinHeight = 5.0;
 
     QCheckBox* m_useAdaptiveLayout = nullptr;
     QDoubleSpinBox* m_threshHoldRelaxation = nullptr;
+    QDoubleSpinBox* m_frameSizeX = nullptr;
+    QDoubleSpinBox* m_frameSizeY = nullptr;
     QCheckBox* m_useSquareAspectRatios = nullptr;
     QCheckBox* m_showREL = nullptr;
     QCheckBox* m_drawLabels = nullptr;
