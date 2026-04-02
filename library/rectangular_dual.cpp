@@ -84,10 +84,11 @@ double RectangularDual::computeAreaDeviation() {
     for (size_t i = 4; i < vertices.size(); ++i) {
         if (rects[i].isDisabled) continue;
 
-        double rectDeviation = vertices[i].weight / rects[i].area() - 1;
-        total += rectDeviation*rectDeviation;// (rects[i].area() - vertices[i].weight) * (rects[i].area() - vertices[i].weight); //  rectDeviation * rectDeviation; // (rectArea - (targetArea) * (rectArea - targetArea);// / (rectArea);
+        //double rectDeviation = vertices[i].weight / rects[i].area() - 1;
+        double rectDeviation = rects[i].area() - vertices[i].weight;
+        total += rectDeviation*rectDeviation;  // (rects[i].area() - vertices[i].weight) * (rects[i].area() - vertices[i].weight); //  rectDeviation * rectDeviation; // (rectArea - (targetArea) * (rectArea - targetArea);// / (rectArea);
     }
-    return  total;// sqrt(total);// total; sqrt(total);
+    return sqrt(total);// total; sqrt(total);
 }
 
 void RectangularDual::fixRectangleAreas() {
@@ -101,12 +102,9 @@ void RectangularDual::fixRectangleAreas() {
     double epsilon = 1.0;
     double deviation = computeAreaDeviation();
 
-    //std::cout << "FIXING AREAS" << std::endl;
-
     int totalIters = 0;
-    while (deviation > 0.01){ //0.01 * frameArea){// > 0.2) {// * frameArea) {
+    while (deviation > 0.01 * frameArea){ //0.01 * frameArea){// > 0.2) {// * frameArea) {
         totalIters++;
-        //if (totalIters > 100000 && hasValidSegmentCoords()) break;
 
         for (Segment &segment : maximalSegments) {
             if (segment.fixedSegment) continue;
@@ -124,8 +122,8 @@ void RectangularDual::fixRectangleAreas() {
             double area = width * height;
             double targetArea = v.weight;
 
-            double gradientShift = targetArea * (targetArea / area - 1) / (area*area);
-            //double gradientShift = (targetArea - area); // /(area*area);
+            //double gradientShift = targetArea * (targetArea / area - 1) / (area*area);
+            double gradientShift = (targetArea - area); // /(area*area);
 
             maximalSegments[v.top_segment].gradientValue +=    gradientShift * width; // (targetArea - area) / (area*area) * width;//
             maximalSegments[v.bottom_segment].gradientValue -= gradientShift * width; // (targetArea - area) / (area*area) * width;// width;
@@ -133,51 +131,50 @@ void RectangularDual::fixRectangleAreas() {
             maximalSegments[v.left_segment].gradientValue -= gradientShift * height; //(targetArea - area) / (area*area) * height;// height;
         }
 
-        for (Segment &segment : maximalSegments){//  (Segment segment : maximalSegments) {
+        for (Segment &segment : maximalSegments){
             if (segment.fixedSegment) {
                 segment.gradientValue = 0.0;
             }
         }
 
-        // for (int i = 4; i < vertices.size(); i++) {
-        //     auto v = vertices[i];
-        //
-        //     if (rects[i].right - rects[i].left < 0.2) {
-        //         std::cout << "too thin" << std::endl;
-        //         auto &leftSegment = maximalSegments[v.left_segment];
-        //         auto &rightSegment = maximalSegments[v.right_segment];
-        //         if (leftSegment.gradientValue > rightSegment.gradientValue) {
-        //             std::cout << "prev left: " << leftSegment.gradientValue << std::endl;
-        //             std::cout << "prev right: " << rightSegment.gradientValue << std::endl;
-        //             if (abs(leftSegment.gradientValue) > abs(rightSegment.gradientValue)) {
-        //                 if (!rightSegment.fixedSegment)
-        //                     rightSegment.gradientValue = leftSegment.gradientValue;
-        //             }
-        //             else {
-        //                 if (!leftSegment.fixedSegment)
-        //                     leftSegment.gradientValue = rightSegment.gradientValue;
-        //             }
-        //
-        //             std::cout << "after left: " << leftSegment.gradientValue << std::endl;
-        //             std::cout << "after right: " << rightSegment.gradientValue << std::endl;
-        //         }
-        //     }
-        //
-        //     if (rects[i].top - rects[i].bottom < 0.2) {
-        //         std::cout << "too thin in height" << std::endl;
-        //         auto &bottomSegment = maximalSegments[v.bottom_segment];
-        //         auto &topSegment = maximalSegments[v.top_segment];
-        //         if (bottomSegment.gradientValue > topSegment.gradientValue) {
-        //             if (abs(bottomSegment.gradientValue) > abs(topSegment.gradientValue)) {
-        //                 if (!topSegment.fixedSegment)
-        //                     topSegment.gradientValue = bottomSegment.gradientValue;
-        //             } else {
-        //                 if (!bottomSegment.fixedSegment)
-        //                 bottomSegment.gradientValue = topSegment.gradientValue;
-        //             }
-        //         }
-        //     }
-        //}
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 4; i < vertices.size(); i++) {
+                auto v = vertices[i];
+
+                if (rects[i].right - rects[i].left < 0.2) {
+                    auto &leftSegment = maximalSegments[v.left_segment];
+                    auto &rightSegment = maximalSegments[v.right_segment];
+                    if (leftSegment.gradientValue > rightSegment.gradientValue) {
+                        changed = true;
+                        if (abs(leftSegment.gradientValue) < abs(rightSegment.gradientValue)) {
+                            if (!rightSegment.fixedSegment)
+                                rightSegment.gradientValue = leftSegment.gradientValue;
+                        }
+                        else {
+                            if (!leftSegment.fixedSegment)
+                                leftSegment.gradientValue = rightSegment.gradientValue;
+                        }
+                    }
+                }
+
+                if (rects[i].top - rects[i].bottom < 0.2) {
+                    auto &bottomSegment = maximalSegments[v.bottom_segment];
+                    auto &topSegment = maximalSegments[v.top_segment];
+                    if (bottomSegment.gradientValue > topSegment.gradientValue) {
+                        changed = true;
+                        if (abs(bottomSegment.gradientValue) < abs(topSegment.gradientValue)) {
+                            if (!topSegment.fixedSegment)
+                                topSegment.gradientValue = bottomSegment.gradientValue;
+                        } else {
+                            if (!bottomSegment.fixedSegment)
+                                bottomSegment.gradientValue = topSegment.gradientValue;
+                        }
+                    }
+                }
+            }
+        }
 
         for (Segment &segment : maximalSegments){//  (Segment segment : maximalSegments) {
             if (segment.fixedSegment) {
@@ -192,42 +189,14 @@ void RectangularDual::fixRectangleAreas() {
         if (hasValidSegmentCoords() && computeAreaDeviation() < deviation) {
             epsilon *= 2;
         } else {
-            // std::cout << "==================================" << std::endl;
-            // for (int i = 4; i < vertices.size(); ++i) {
-            //     auto rect = rects[i];
-            //     std::cout << vertices[i].label << std::endl;
-            //     std::cout << "width " << rect.right - rect.left << std::endl;
-            //     std::cout << "height " << rect.top - rect.bottom << std::endl;
-            //     std::cout << "area " << rect.area() << std::endl;
-            //     std::cout << "target area " << vertices[i].weight << std::endl;
-            //
-            //     std::cout << "bottomGrad: " << maximalSegments[vertices[i].bottom_segment].gradientValue << std::endl;
-            //     std::cout << "topGrad: " << maximalSegments[vertices[i].top_segment].gradientValue << std::endl;
-            //     std::cout << "leftGrad: " << maximalSegments[vertices[i].left_segment].gradientValue << std::endl;
-            //     std::cout << "rightGrad: " << maximalSegments[vertices[i].right_segment].gradientValue << std::endl;
-            // }
-            int iters = 0;
-             while (!hasValidSegmentCoords() || (computeAreaDeviation() > deviation)){// && iters < 50)) { // If rects not valid -> trace back sliding segment
+             while (!hasValidSegmentCoords() || (computeAreaDeviation() > deviation)){// If rects not valid -> trace back sliding segment
                  epsilon *= 0.5;
-                 iters++;
-                //std::cout << hasValidSegmentCoords() << std::endl;
 
-                 // if (epsilon < 0.00000001) {
-                 //     for (auto rect : rects) {
-                 //         std::cout << "width " << rect.right - rect.left << std::endl;
-                 //         std::cout << "height " << rect.top - rect.bottom << std::endl;
-                 //     }
-                 // }
-
-                //std::cout << "epsilon: " << epsilon << std::endl;
-                //std::cout << "deviation " << deviation << std::endl;
                 if (epsilon == 0) {
                     std::cout << "deviation: " << computeAreaDeviation() << std::endl;
                     std::cout << "frameArea: " << frameArea << std::endl;
                     std::cout << "[WARNING] epsilon is 0. Ending gradient" << endl;
                     return;
-
-                    throw std::invalid_argument("epsilon cannot be zero.");
                 }
 
                 for (Segment &segment : maximalSegments) {

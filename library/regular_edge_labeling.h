@@ -42,8 +42,8 @@ struct HalfEdge {
 
 struct Vertex {
     string label;
-    int oldWeight;
-    int weight;
+    double oldWeight;
+    double weight;
 
     bool isLandRegion = true;
     bool isDeleted = false;

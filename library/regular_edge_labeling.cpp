@@ -1142,16 +1142,17 @@ std::pair<double, double> RegularEdgeLabeling::mergePathCost(int edgeId, bool fr
 }
 
 void RegularEdgeLabeling::normalizeVertexWeights() {
-    int total = 0;
-    for (Vertex &v : m_vertices) {
-        if (!v.isLandRegion && v.weight == 0) std::cout << "weight 0" << std::endl;
-        total += v.weight;
+    double total = 0;
+    for (int i = 4; i < m_vertices.size(); i++) {
+        total += m_vertices[i].weight;
     }
 
     double ratio = m_boundingBox->area() / total;
-
-    for (Vertex &v : m_vertices) {
+    double totalWeight = 0;
+    for (int i = 4; i < m_vertices.size(); i++) {
+        Vertex &v = m_vertices[i];
         v.weight = v.weight * ratio;
+        totalWeight += v.weight;
     }
 }
 
