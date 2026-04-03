@@ -103,7 +103,7 @@ void RectangularDual::fixRectangleAreas() {
     double deviation = computeAreaDeviation();
 
     int totalIters = 0;
-    while (deviation > 0.01 * frameArea){ //0.01 * frameArea){// > 0.2) {// * frameArea) {
+    while (deviation > 0.005 * frameArea){ //0.01 * frameArea){// > 0.2) {// * frameArea) {
         totalIters++;
 
         for (Segment &segment : maximalSegments) {

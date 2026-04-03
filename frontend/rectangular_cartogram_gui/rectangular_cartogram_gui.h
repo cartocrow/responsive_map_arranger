@@ -69,6 +69,12 @@ class RectangularCartogramDemo : public QMainWindow {
     QComboBox* m_cartogramTypeComboBox = nullptr;
     QComboBox* m_mergeHeuristicComboBox = nullptr;
 
+    //video
+    QDoubleSpinBox* m_cycleDuration = nullptr;
+    QSpinBox* m_cycleCount = nullptr;
+    QDoubleSpinBox* m_vidMinAspectSize = nullptr;
+    QSpinBox* m_vidFPS = nullptr;
+
     PersistentSettings m_settings = PersistentSettings("settings");
 
     void loadRELData(const std::filesystem::path &dataPath);
