@@ -185,7 +185,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 	m_threshHoldRelaxation->setSingleStep(0.1);
 	auto frameSizeXLabel = new QLabel("Frame size X", vWidget);
 	m_frameSizeX = new QDoubleSpinBox(vWidget);
-	m_frameSizeX->setValue(90);
+	m_frameSizeX->setValue(100);
 	m_frameSizeX->setMinimum(5);
 	m_frameSizeX->setMaximum(5000);
 	m_frameSizeX->setSingleStep(5);

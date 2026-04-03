@@ -25,11 +25,6 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
 
     const auto &verts = m_relmap->getVertices();
 
-    // draw boundingbox
-    renderer.setStroke({ 0,0,0 }, 1);
-    renderer.setMode(Renderer::stroke);
-    renderer.draw(m_dual->getBox());
-
     // draw rectangles
     for (std::size_t id = 4; id < n; ++id) {
         if (!verts[id].isLandRegion) continue;
@@ -92,4 +87,9 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
             renderer.drawText(center, label);
         }
     }
+
+    // draw boundingbox
+    renderer.setStroke({ 102,102,102 }, 2);
+    renderer.setMode(Renderer::stroke);
+    renderer.draw(m_dual->getBox());
 }

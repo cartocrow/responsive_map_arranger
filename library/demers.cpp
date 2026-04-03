@@ -281,10 +281,6 @@ void DemersPainting::paint(Renderer& renderer) const {
 		return;
 	}
 
-	renderer.setStroke({ 0,0,0 }, 1);
-	renderer.setMode(Renderer::stroke);
-	renderer.draw(m_cartogram->box);
-
 	renderer.setMode(Renderer::fill | Renderer::stroke);
 
 	auto relVertices = m_REL->getVertices();
@@ -300,4 +296,9 @@ void DemersPainting::paint(Renderer& renderer) const {
 			renderer.drawText(dp.center, dp.label);
 		}
 	}
+
+	// draw boundingbox
+	renderer.setStroke({ 102,102,102 }, 2);
+	renderer.setMode(Renderer::stroke);
+	renderer.draw(m_cartogram->box);
 };
