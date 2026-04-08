@@ -29,8 +29,6 @@ struct Segment {
     //gradient value
 };
 
-class RELmap;
-
 class RegularEdgeLabeling;
 enum EdgeColor;
 
