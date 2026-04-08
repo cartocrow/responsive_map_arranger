@@ -1,0 +1,575 @@
+{ 
+	"horizontal_order" : [ "sea_3", "sea_1", "CA", "OR", "WA", "ID", "NV", "AZ", "NM", "UT", "CO", "WY", "MT", "ND", "SD", "NE", "KS", "OK", "TX", "sea_10", "sea_11", "LA", "AR", "MO", "IA", "MN", "WI", "IL", "IN", "sea_9", "MI", "sea_8", "OH", "KY", "TN", "MS", "AL", "FL", "GA", "SC", "NC", "VA", "WV", "PA", "MD", "DE", "NJ", "NY", "CT", "RI", "MA", "VT", "NH", "ME", "sea_7", "sea_4", "sea_6", "sea_5", "sea_2" ],
+	"vertical_order" : [ "sea_4", "sea_11", "sea_10", "sea_3", "sea_7", "sea_6",  "sea_5", "sea_2", "FL", "AZ",  "NM", "TX", "LA", "MS", "AL", "GA", "SC",  "NC", "TN", "AR", "OK", "KS", "MO", "KY", "VA", "MD", "DE", "NJ", "PA", "WV", "OH", "IN", "IL", "IA", "NE", "CO", "UT", "NV", "CA", "OR", "WA", "ID", "WY", "MT", "SD", "ND", "MN", "WI",  "MI",  "NY", "CT", "RI", "MA", "VT", "NH", "ME", "sea_9", "sea_8", "sea_1" ],
+	"regions": [ 
+    		{
+			"label": "West",
+			"weight": 0,
+			"preferred_aspect": 1.0,
+			"red_out": [ "North" ],
+			"blue_out": [ "sea_3", "CA", "OR", "WA", "sea_1" ],
+			"red_in": [ "South" ],
+			"blue_in": []
+		},
+		{
+			"label": "North",
+			"weight": 0,
+			"preferred_aspect": 1.0,
+			"red_out": [],
+			"blue_out": [],
+			"red_in": [ "West", "sea_1", "ME", "East" ],
+			"blue_in": []
+		},
+		{
+			"label": "East",
+			"weight": 0,
+			"preferred_aspect": 1.0,
+			"red_out": [ "North" ],
+			"blue_out": [],
+			"red_in": [ "South" ],
+			"blue_in": [ "ME", "sea_2" ]
+		},
+		{
+			"label": "South",
+			"weight": 0,
+			"preferred_aspect": 1.0,
+			"red_out": [ "East", "sea_2", "sea_4", "FL", "sea_11", "sea_10", "sea_3", "West" ],
+			"blue_out": [],
+			"red_in": [],
+			"blue_in": []
+		},
+		{
+			"label": "CA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "OR" ],
+			"blue_out": [ "AZ", "NV" ],
+			"red_in": [ "sea_3" ],
+			"blue_in": [ "West" ]
+		},
+		{
+			"label": "OR",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "WA" ],
+			"blue_out": [ "ID" ],
+			"red_in": [ "CA", "NV" ],
+			"blue_in": [ "West" ]
+		},
+		{
+			"label": "WA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1" ],
+			"blue_out": [ "ID" ],
+			"red_in": [ "OR" ],
+			"blue_in": [ "West" ]
+		},
+		{
+			"label": "ID",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1" ],
+			"blue_out": [ "WY", "MT" ],
+			"red_in": [ "NV", "UT" ],
+			"blue_in": [ "WA", "OR" ]
+		},
+		{
+			"label": "NV",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "ID", "OR" ],
+			"blue_out": [ "UT" ],
+			"red_in": [ "AZ" ],
+			"blue_in": [ "CA" ]
+		},
+		{
+			"label": "AZ",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "UT", "NV" ],
+			"blue_out": [ "NM" ],
+			"red_in": [ "sea_3" ],
+			"blue_in": [ "CA" ]
+		},
+		{
+			"label": "sea_3",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "NM", "AZ", "CA" ],
+			"blue_out": [ "sea_10", "TX" ],
+			"red_in": [ "South" ],
+			"blue_in": [ "West" ]
+		}
+		,
+		{
+			"label": "NM",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "CO", "UT" ],
+			"blue_out": [ "TX", "OK" ],
+			"red_in": [ "sea_3"],
+			"blue_in": [ "AZ" ]
+		},
+		{
+			"label": "UT",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "WY", "ID" ],
+			"blue_out": [ "CO"],
+			"red_in": [ "AZ", "NM" ],
+			"blue_in": [ "NV"]
+		},
+		{
+			"label": "CO",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "WY"],
+			"blue_out": [ "KS", "NE"],
+			"red_in": ["NM", "OK"],
+			"blue_in": [ "UT"]
+		},
+		{
+			"label": "WY",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "MT" ],
+			"blue_out": [ "NE", "SD"  ],
+			"red_in": [ "UT", "CO"],
+			"blue_in": ["ID"]
+		},
+		{
+			"label": "MT",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1"],
+			"blue_out": ["SD", "ND"],
+			"red_in": [ "WY"],
+			"blue_in": [ "ID"]
+		},
+		{
+			"label": "ND",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1" ],
+			"blue_out": [ "MN"],
+			"red_in": [ "SD"],
+			"blue_in": [ "MT"]
+		},
+		{
+			"label": "SD",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "ND"],
+			"blue_out": [ "IA", "MN"],
+			"red_in": ["NE"],
+			"blue_in": ["MT", "WY"]
+		},
+		{
+			"label": "NE",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "SD" ],
+			"blue_out": [ "MO", "IA"],
+			"red_in": [ "KS"],
+			"blue_in": [ "WY", "CO"]
+		},
+		{
+			"label": "KS",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "NE"],
+			"blue_out": ["MO"],
+			"red_in": ["OK"],
+			"blue_in": ["CO"]
+		},
+		{
+			"label": "OK",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "KS", "CO"],
+			"blue_out": ["AR", "MO"],
+			"red_in": [ "TX"],
+			"blue_in": [ "NM"]
+		},
+		{
+			"label": "TX",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "OK"],
+			"blue_out": [ "sea_11", "LA", "AR"],
+			"red_in": ["sea_10"],
+			"blue_in": ["NM", "sea_3"]
+		},
+		{
+			"label": "sea_10",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "TX"],
+			"blue_out": [ "sea_11"],
+			"red_in": [ "South"],
+			"blue_in": [ "sea_3" ]
+		},
+		{
+			"label": "sea_11",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": ["AL", "MS", "LA" ],
+			"blue_out": [ "FL"],
+			"red_in": [ "South"],
+			"blue_in": [ "TX", "sea_10"]
+		},
+		{
+			"label": "LA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "AR"],
+			"blue_out": [ "MS"],
+			"red_in": [ "sea_11"],
+			"blue_in": ["TX"]
+		},
+		{
+			"label": "AR",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "MO" ],
+			"blue_out": [ "MS", "TN"],
+			"red_in": [ "LA"],
+			"blue_in": [ "OK", "TX"]
+		},
+		{
+			"label": "MO",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "IA"],
+			"blue_out": ["TN", "KY", "IL"],
+			"red_in": [ "AR"],
+			"blue_in": [ "NE", "KS", "OK"]
+		},
+		{
+			"label": "IA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "MN" ],
+			"blue_out": [ "IL", "WI"],
+			"red_in": [ "MO"],
+			"blue_in": [ "SD", "NE"]
+		},
+		{
+			"label": "MN",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1"],
+			"blue_out": ["WI"],
+			"red_in": [ "IA"],
+			"blue_in": [ "ND", "SD"]
+		},
+		{
+			"label": "sea_1",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "North"],
+			"blue_out": [ "ME"],
+			"red_in": ["WA", "ID", "MT", "ND", "MN", "WI", "sea_9", "MI", "sea_8", "NY", "VT", "NH"],
+			"blue_in": [ "West"]
+		},
+		{
+			"label": "WI",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1" ],
+			"blue_out": ["sea_9"],
+			"red_in": [ "IL"],
+			"blue_in": ["MN", "IA"]
+		},
+		{
+			"label": "IL",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "WI" ],
+			"blue_out": ["IN", "sea_9"],
+			"red_in": ["KY"],
+			"blue_in": ["IA", "MO"]
+		},
+		{
+			"label": "IN",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "MI", "sea_9"],
+			"blue_out": [ "OH"],
+			"red_in": [ "KY"],
+			"blue_in": [ "IL"]
+		},
+		{
+			"label": "sea_9",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1" ],
+			"blue_out": [ "MI"],
+			"red_in": [ "IN"],
+			"blue_in": ["WI", "IL"]
+		},
+		{
+			"label": "MI",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1"],
+			"blue_out": [ "sea_8"],
+			"red_in": [ "IN", "OH"],
+			"blue_in": [ "sea_9"]
+		},
+		{
+			"label": "sea_8",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1" ],
+			"blue_out": [ "NY"],
+			"red_in": ["OH", "PA"],
+			"blue_in": [ "MI"]
+		},
+		{
+			"label": "OH",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_8", "MI"],
+			"blue_out": [ "PA"],
+			"red_in": [ "KY", "WV"],
+			"blue_in": ["IN"]
+		},
+		{
+			"label": "KY",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "OH", "IN", "IL" ],
+			"blue_out": [ "VA", "WV"],
+			"red_in": [ "TN"],
+			"blue_in": [ "MO"]
+		},
+		{
+			"label": "TN",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "VA", "KY"],
+			"blue_out": [ "NC"],
+			"red_in": [ "MS", "AL", "GA"],
+			"blue_in": ["MO", "AR"]
+		},
+		{
+			"label": "MS",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "TN" ],
+			"blue_out": ["AL"],
+			"red_in": [ "sea_11"],
+			"blue_in": [ "AR", "LA"]
+		},
+		{
+			"label": "AL",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "TN" ],
+			"blue_out": [ "GA"],
+			"red_in": [ "sea_11", "FL"],
+			"blue_in": [ "MS"]
+		},
+		{
+			"label": "FL",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "GA", "AL" ],
+			"blue_out": [ "sea_4"],
+			"red_in": [ "South"],
+			"blue_in": [ "sea_11"]
+		},
+		{
+			"label": "GA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "NC", "TN"],
+			"blue_out": [ "sea_7", "SC"],
+			"red_in": ["FL", "sea_4"],
+			"blue_in": [ "AL"]
+		},
+		{
+			"label": "sea_4",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_5", "sea_6", "sea_7", "GA"],
+			"blue_out": [ "sea_2"],
+			"red_in": [ "South"],
+			"blue_in": [ "FL"]
+		},
+		{
+			"label": "sea_7",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "SC" ],
+			"blue_out": [ "sea_6"],
+			"red_in": [ "sea_4"],
+			"blue_in": ["GA"]
+		},
+		{
+			"label": "SC",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "NC" ],
+			"blue_out": ["sea_6"],
+			"red_in": ["sea_7"],
+			"blue_in": [ "GA"]
+		},
+		{
+			"label": "NC",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "VA"],
+			"blue_out": [ "sea_6"],
+			"red_in": ["GA", "SC"],
+			"blue_in": [ "TN"]
+		},
+		{
+			"label": "VA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "MD", "WV" ],
+			"blue_out": [ "sea_6"],
+			"red_in": [ "TN", "NC"],
+			"blue_in": [ "KY"]
+		},
+		{
+			"label": "WV",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "OH" ],
+			"blue_out": [ "MD", "PA"],
+			"red_in": [ "VA"],
+			"blue_in": [ "KY"]
+		},
+		{
+			"label": "PA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "NY", "sea_8" ],
+			"blue_out": [ "DE", "NJ"],
+			"red_in": ["MD"],
+			"blue_in": [ "OH", "WV"]
+		},
+		{
+			"label": "MD",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "PA" ],
+			"blue_out": [ "sea_6", "DE"],
+			"red_in": [ "VA"],
+			"blue_in": [ "WV"]
+		},
+		{
+			"label": "sea_6",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "DE" ],
+			"blue_out": [ "sea_5"],
+			"red_in": [ "sea_4" ],
+			"blue_in": [ "MD", "VA", "NC", "SC", "sea_7"]
+		},
+		{
+			"label": "DE",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "NJ" ],
+			"blue_out": [ "sea_5"],
+			"red_in": [ "sea_6"],
+			"blue_in": ["PA", "MD"]
+		},
+		{
+			"label": "NJ",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": ["NY" ],
+			"blue_out": [ "sea_5"],
+			"red_in": [ "DE"],
+			"blue_in": [ "PA"]
+		},
+		{
+			"label": "NY",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": ["sea_1" ],
+			"blue_out": [ "sea_5", "CT", "MA", "VT"],
+			"red_in": ["PA", "NJ"],
+			"blue_in": [ "sea_8"]
+		},
+		{
+			"label": "CT",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "MA" ],
+			"blue_out": [ "RI"],
+			"red_in": ["sea_5"],
+			"blue_in": ["NY"]
+		},
+		{
+			"label": "sea_5",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "RI", "CT" ],
+			"blue_out": [ "sea_2"],
+			"red_in": [ "sea_4"],
+			"blue_in": [ "NY", "NJ", "DE", "sea_6"]
+		},
+		{
+			"label": "RI",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "MA" ],
+			"blue_out": ["sea_2"],
+			"red_in": ["sea_5"],
+			"blue_in": [ "CT"]
+		},
+		{
+			"label": "MA",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "NH", "VT" ],
+			"blue_out": [ "sea_2"],
+			"red_in": ["CT", "RI"],
+			"blue_in": [ "NY"]
+		},
+		{
+			"label": "VT",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1"],
+			"blue_out": [ "NH"],
+			"red_in": ["MA"],
+			"blue_in": ["NY"]
+		},
+		{
+			"label": "NH",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "sea_1"],
+			"blue_out": ["sea_2", "ME"],
+			"red_in": [ "MA"],
+			"blue_in": [ "VT"]
+		},
+		{
+			"label": "ME",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "North" ],
+			"blue_out": [ "East"],
+			"red_in": [ "sea_2"],
+			"blue_in": [ "sea_1", "NH"]
+		},
+		{
+			"label": "sea_2",
+			"weight": 10,
+			"preferred_aspect": 1.0,
+			"red_out": [ "ME" ],
+			"blue_out": [ "East"],
+			"red_in": [ "South"],
+			"blue_in": [ "NH", "MA", "RI", "sea_5", "sea_4"]
+		}
+
+  	]
+}
