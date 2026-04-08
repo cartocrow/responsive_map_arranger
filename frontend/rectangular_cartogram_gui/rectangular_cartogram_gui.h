@@ -74,6 +74,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QSpinBox* m_cycleCount = nullptr;
     QDoubleSpinBox* m_vidMinAspectSize = nullptr;
     QSpinBox* m_vidFPS = nullptr;
+    int m_globalFrame = 0;
 
     PersistentSettings m_settings = PersistentSettings("settings");
 

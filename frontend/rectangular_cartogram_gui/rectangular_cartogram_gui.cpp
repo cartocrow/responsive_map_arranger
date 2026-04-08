@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 #include "library/regular_edge_labeling.h"
+#include <cartocrow/renderer/svg_renderer.h>
 
 using json = nlohmann::json;
 
@@ -114,7 +115,8 @@ void RectangularCartogramDemo::processData() {
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
     m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
     m_relPtr->setMergeHeuristic(static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentIndex()));
-    m_relPtr->setBoundingBox(BoundingBox{0, m_frameSizeX->value(), 0, m_frameSizeY->value()}); //90x100 for england base
+    m_relPtr->setBoundingBox(BoundingBox{0, m_frameSizeX->value(), -m_frameSizeY->value(), 0});
+    //90x100 for england base
 
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
     m_relPtr->isValidREL(true);
@@ -182,13 +184,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     m_threshHoldRelaxation->setSingleStep(0.1);
     auto frameSizeXLabel = new QLabel("Frame size X", vWidget);
     m_frameSizeX = new QDoubleSpinBox(vWidget);
-    m_frameSizeX->setValue(100);
+    m_frameSizeX->setValue(666);
     m_frameSizeX->setMinimum(5);
     m_frameSizeX->setMaximum(5000);
     m_frameSizeX->setSingleStep(5);
     auto frameSizeYLabel = new QLabel("Frame size Y", vWidget);
     m_frameSizeY = new QDoubleSpinBox(vWidget);
-    m_frameSizeY->setValue(100);
+    m_frameSizeY->setValue(666);
     m_frameSizeY->setMinimum(5);
     m_frameSizeY->setMaximum(5000);
     m_frameSizeY->setSingleStep(5);
@@ -294,90 +296,110 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
         int fps = m_vidFPS->value();
         double cycleDuration = m_cycleDuration->value();
-
-        int frameCount = static_cast<int>(cycleDuration * fps);
-        if (fps <= 0 || frameCount < 4) return;
-
-        double frameTime = 1.0 / fps;
-        int intervalMs = static_cast<int>(frameTime * 1000.0);
-
-        double minWidth = m_vidMinAspectSize->value();
-        double minHeight = area / minWidth;
-
-        double startRatio = startWidth / startHeight;
-        double minRatio = minWidth / minHeight;
-
-        int quarterFrames = frameCount / 4;
-        if (quarterFrames <= 0) return;
-
-        auto aspectRatios = std::make_shared<std::vector<std::pair<double, double> > >();
-        aspectRatios->reserve(frameCount + 4);
-
-        // Start in the middle
-        aspectRatios->push_back({startWidth, startHeight});
-
-        // Q1: middle -> stretched horizontally
-        // fast near square, slow near stretched
-        for (int i = 1; i <= quarterFrames; ++i) {
-            double t = static_cast<double>(i) / quarterFrames;
-            //double te = 1.0 - (1.0 - t) * (1.0 - t); // ease-out
-            double te = 1.0 - std::pow(1.0 - t, 3.0);
-
-            double r = startRatio + te * (minRatio - startRatio);
-
-            double w = std::sqrt(area * r);
-            double h = std::sqrt(area / r);
-            aspectRatios->push_back({w, h});
-        }
-
-        // Q2: stretched horizontally -> middle
-        // slow near stretched, fast near square
-        for (int i = 1; i <= quarterFrames; ++i) {
-            double t = static_cast<double>(i) / quarterFrames;
-            //double te = t * t; // ease-in
-            double te = std::pow(t, 3.0);
-
-            double r = minRatio + te * (startRatio - minRatio);
-
-            double w = std::sqrt(area * r);
-            double h = std::sqrt(area / r);
-            aspectRatios->push_back({w, h});
-        }
-
-        // Q3: middle -> stretched vertically
-        // same motion, but flipped dimensions
-        for (int i = 1; i <= quarterFrames; ++i) {
-            double t = static_cast<double>(i) / quarterFrames;
-            //double te = 1.0 - (1.0 - t) * (1.0 - t); // ease-out
-            double te = 1.0 - std::pow(1.0 - t, 3.0);
-
-            double r = startRatio + te * (minRatio - startRatio);
-
-            double w = std::sqrt(area * r);
-            double h = std::sqrt(area / r);
-            aspectRatios->push_back({h, w});
-        }
-
-        // Q4: stretched vertically -> middle
-        for (int i = 1; i <= quarterFrames; ++i) {
-            double t = static_cast<double>(i) / quarterFrames;
-            //double te = t * t; // ease-in
-            double te = std::pow(t, 3.0);
-
-            double r = minRatio + te * (startRatio - minRatio);
-
-            double w = std::sqrt(area * r);
-            double h = std::sqrt(area / r);
-            aspectRatios->push_back({h, w});
-        }
-
-        auto timer = new QTimer(this);
-        auto cycle = std::make_shared<int>(0);
-        auto frame = std::make_shared<int>(0);
         int maxCycles = m_cycleCount->value();
 
+        int frameCount = static_cast<int>(cycleDuration * fps);
+        if (fps <= 0 || frameCount < 4 || maxCycles <= 0) return;
+
+        double frameTime = 1.0 / static_cast<double>(fps);
+        int intervalMs = static_cast<int>(frameTime * 1000.0);
+
+        auto aspectRatios = std::make_shared<std::vector<std::pair<double, double> > >();
+
+
+        double startW = 666;
+        double startH = 666.0;
+
+        double p1W = 666.0;
+        double p1H = 60.0;
+
+        double p2W = 200.0;
+        double p2H = 200.0;
+
+        double p3W = 60.0;
+        double p3H = 666.0;
+
+        int totalFrames = frameCount;
+        int segmentFrames = totalFrames / 4;
+        if (segmentFrames <= 0) return;
+
+        // cubic ease-in-out
+        auto easeInOutCubic = [](double t) {
+            if (t < 0.5) {
+                return 4.0 * t * t * t;
+            } else {
+                double u = -2.0 * t + 2.0;
+                return 1.0 - (u * u * u) / 2.0;
+            }
+        };
+
+        // squared ease-in-out
+        auto easeInOutQuadratic = [](double t) {
+            if (t < 0.5) {
+                return 4.0 * t * t;
+            } else {
+                double u = -2.0 * t + 2.0;
+                return 1.0 - (u * u) / 2.0;
+            }
+        };
+
+        auto addSegment = [&](double w0, double h0, double w1, double h1, int frames, bool includeStart) {
+            int startIndex = includeStart ? 0 : 1;
+            for (int i = startIndex; i <= frames; ++i) {
+                double t = static_cast<double>(i) / static_cast<double>(frames);
+                double te = t;//easeInOutQuadratic(t);
+
+                double w = w0 + te * (w1 - w0);
+                double h = h0 + te * (h1 - h0);
+
+                aspectRatios->push_back({w, h});
+            }
+        };
+
+        // 100x100 -> 30x333
+        addSegment(startW, startH, p1W, p1H, segmentFrames, true);
+
+        // 30x333 -> 333x333
+        addSegment(p1W, p1H, p2W, p2H, segmentFrames, false);
+
+        // 333x333 -> 333x30
+        addSegment(p2W, p2H, p3W, p3H, segmentFrames, false);
+
+        // 333x30 -> 100x100
+        addSegment(p3W, p3H, startW, startH, segmentFrames, false);
+
+        std::filesystem::create_directories("data/frames");
+
+        // SVG export using CartoCrow renderer
+        auto exportFrameSvg = [this](int frameNumber) {
+            std::ostringstream name;
+            name << "data/frames/frame_"
+                    << std::setw(5) << std::setfill('0')
+                    << frameNumber << ".svg";
+
+            cartocrow::renderer::SvgRenderer svg;
+
+            if (m_cartogramType == RECTANGULAR_CARTOGRAM && m_rectPainting) {
+                svg.addPainting(m_rectPainting, "cartogram");
+            } else if (m_cartogramType == DEMERS_CARTOGRAM && m_demersPainting) {
+                svg.addPainting(m_demersPainting, "cartogram");
+            }
+
+            if (m_showREL && m_showREL->isChecked() && m_relPainting) {
+                svg.addPainting(m_relPainting, "rel");
+            }
+
+            svg.save(name.str());
+        };
+
+        auto timer = new QTimer(this);
+
+        auto cycle = std::make_shared<int>(0);
+        auto frame = std::make_shared<int>(0);
+        auto globalFrame = std::make_shared<int>(0);
+
         connect(timer, &QTimer::timeout, this,
-                [this, timer, aspectRatios, cycle, frame, maxCycles]() {
+                [this, timer, aspectRatios, cycle, frame, globalFrame, maxCycles, exportFrameSvg]() {
                     if (!m_relPtr || aspectRatios->empty()) {
                         timer->stop();
                         timer->deleteLater();
@@ -391,8 +413,11 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
                     }
 
                     const auto &[w, h] = (*aspectRatios)[*frame];
-                    m_relPtr->setBoundingBox(BoundingBox{0, w, 0, h});
+                    m_relPtr->setBoundingBox(BoundingBox{0, w, -h, 0});
                     setCartogramFromREL();
+
+                    exportFrameSvg(*globalFrame);
+                    ++(*globalFrame);
 
                     ++(*frame);
                     if (*frame >= static_cast<int>(aspectRatios->size())) {
