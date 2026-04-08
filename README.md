@@ -1,5 +1,7 @@
 # Responsive Map Arranger
-This repository is an in-progress of responsive map arranger aimed to facilitate responsive thematic mapping.
+This repository is a responsive map arranger aimed at facilitating responsive thematic mapping.
+
+Note to a potential VIS reviewer: this repository is under active development. The branch IEEE-VIS-submission contains the code at the point of the Supplementary Material deadline
 
 ## Dependencies
 This module depends on the following libraries:
