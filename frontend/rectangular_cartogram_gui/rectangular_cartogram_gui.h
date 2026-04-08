@@ -15,7 +15,6 @@
 #include "library/rectangular_dual.h"
 #include "library/rectangular_cartogram_painting.h"
 #include "library/regular_edge_labeling.h"
-#include "library/rel_map.h"
 #include "library/rel_painting.h"
 #include "library/geometry_types.h"
 

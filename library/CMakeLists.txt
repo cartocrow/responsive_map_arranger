@@ -4,6 +4,8 @@ set(SOURCES
 		regular_edge_labeling.cpp
         rel_painting.cpp
         demers.cpp
+		layout_guide.cpp
+
 )
 set(HEADERS
 		geometry_types.h
@@ -12,6 +14,7 @@ set(HEADERS
 		regular_edge_labeling.h
 		rel_painting.h
         demers.h
+		layout_guide.h
 )
 
 add_library(rectangular_cartogram ${SOURCES})

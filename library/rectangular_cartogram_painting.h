@@ -10,7 +10,6 @@
 #include <cartocrow/renderer/geometry_renderer.h>
 
 #include "rectangular_dual.h" // your RectangularDual class
-#include "rel_map.h"
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 

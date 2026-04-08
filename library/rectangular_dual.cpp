@@ -4,9 +4,6 @@
 // include the new RegularEdgeLabeling header so we can build from it
 #include "regular_edge_labeling.h"
 
-// include legacy RELmap header if present (kept optional)
-#include "rel_map.h"
-
 #include <queue>
 #include <iostream>
 #include <limits>
