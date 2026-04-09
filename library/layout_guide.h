@@ -64,7 +64,7 @@ public:
 
     const vector<Vertex> &getVertices() const {return m_vertices; }
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
-    void setVertexWeight(const int vID, const double weight) { m_vertices[vID].m_relativeArea = weight; };
+    void setVertexWeight(const int vId, const double weight) { m_vertices[vId].m_relativeArea = weight; };
 
     int getCanonicalHalfEdge(int const &heId) const;
 
@@ -72,6 +72,17 @@ public:
     int getNextCyclicEdge(int const &heId) const;
     int getPreviousCyclicEdge(int const &heId) const;
     int getCyclicPositionOfHalfEdge(int const &heId) const;
+
+    int getFirstEdgeOfType(int vId, EdgeLabel edgeLabel, bool outgoing) const;
+    int getLastEdgeOfType(int vId, EdgeLabel edgeLabel, bool outgoing) const;
+    int getFirstOutgoingHorizontal(int const vId) const { return getFirstEdgeOfType(vId, HORIZONTAL, true); }
+    int getFirstIncomingHorizontal(int const vId) const { return getFirstEdgeOfType(vId, HORIZONTAL, false); }
+    int getLastOutgoingHorizontal(int const vId) const { return getLastEdgeOfType(vId, HORIZONTAL, true); }
+    int getLastIncomingHorizontal(int const vId) const { return getLastEdgeOfType(vId, HORIZONTAL, false); }
+    int getFirstOutgoingVertical(int const vId) const { return getFirstEdgeOfType(vId, VERTICAL, true); }
+    int getFirstIncomingVertical(int const vId) const { return getFirstEdgeOfType(vId, VERTICAL, false); }
+    int getLastOutgoingVertical(int const vId) const { return getLastEdgeOfType(vId, VERTICAL, true); }
+    int getLastIncomingVertical(int const vId) const { return getLastEdgeOfType(vId, VERTICAL, false); }
 
     bool flipEdgeColor(int const &heID);
     bool flipEdgeDiagonally(int const &heId, bool clockwise);

@@ -59,6 +59,40 @@ int LayoutGuide::getCyclicPositionOfHalfEdge(int const &heId) const {
     return -1;
 }
 
+int LayoutGuide::getFirstEdgeOfType(const int vId, const EdgeLabel edgeLabel, const bool outgoing) const {
+    const Vertex &v = m_vertices[vId];
+
+    for (int i = 0; i < v.degree(); i++) {
+        const int edgeId = v.m_edges[i];
+        const int prevEdgeId = getPreviousCyclicEdge(edgeId);
+
+        const HalfEdge &edge = m_halfEdges[edgeId];
+        const HalfEdge &prevEdge = m_halfEdges[prevEdgeId];
+
+        if (edge.m_edgeLabel == edgeLabel && edge.m_outgoing == outgoing && (prevEdge.m_edgeLabel != edgeLabel || prevEdge.m_outgoing != outgoing)) {
+            return v.m_edges[i];
+        }
+    }
+    return -1;
+}
+
+int LayoutGuide::getLastEdgeOfType(const int vId, const EdgeLabel edgeLabel, const bool outgoing) const {
+    const Vertex &v = m_vertices[vId];
+
+    for (int i = 0; i < v.degree(); i++) {
+        const int edgeId = v.m_edges[i];
+        const int nextEdgeId = getNextCyclicEdge(edgeId);
+
+        const HalfEdge &edge = m_halfEdges[edgeId];
+        const HalfEdge &nextEdge = m_halfEdges[nextEdgeId];
+
+        if (edge.m_edgeLabel == edgeLabel && edge.m_outgoing == outgoing && (nextEdge.m_edgeLabel != edgeLabel || nextEdge.m_outgoing != outgoing)) {
+            return v.m_edges[i];
+        }
+    }
+    return -1;
+}
+
 bool LayoutGuide::flipEdgeColor(int const &heID) {
     if (!isValidHalfEdge(heID)) return false;
     HalfEdge &he = m_halfEdges[heID];
