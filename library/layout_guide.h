@@ -1,3 +1,20 @@
+/*
+Copyright (C) 2026  TU Eindhoven
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 #pragma once
 
 #include <cartocrow/core/core.h>
@@ -11,7 +28,7 @@ enum EdgeLabel {
     BLACK = 2
 };
 
-struct LayoutElement {
+struct Vertex {
     string m_label;
     double m_relativeArea;
     double m_aspectRatio;
@@ -27,6 +44,8 @@ struct LayoutElement {
 
     // half edges of the vertex in COUNTERCLOCKWISE cyclic order
     vector<int> m_edges;
+
+    int degree() const { return m_edges.size(); }
 };
 
 struct HalfEdge {
@@ -35,25 +54,41 @@ struct HalfEdge {
 
     int m_outgoing;
     EdgeLabel m_edgeLabel;
+
 };
 
 
 class LayoutGuide {
 public:
-    LayoutGuide(vector<LayoutElement> layoutElements, vector<HalfEdge> halfEdges);
+    LayoutGuide(vector<Vertex> vertices, vector<HalfEdge> halfEdges);
+
+    const vector<Vertex> &getVertices() const {return m_vertices; }
+    const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
+    void setVertexWeight(const int vID, const double weight) { m_vertices[vID].m_relativeArea = weight; };
+
+    int getCanonicalHalfEdge(int const &heId) const;
+
+
+    int getNextCyclicEdge(int const &heId) const;
+    int getPreviousCyclicEdge(int const &heId) const;
+    int getCyclicPositionOfHalfEdge(int const &heId) const;
+
+    bool flipEdgeColor(int const &heID);
+    bool flipEdgeDiagonally(int const &heId, bool clockwise);
+    bool redirectEdge(int const &heID);
+
 
 private:
-    // contains the map elements. First four vertices represent the outer Vertices West, North, East and South
-    vector<LayoutElement> m_elements;
+    // contains the vertices. First four vertices represent the outer vertices West, North, East and South
+    vector<Vertex> m_vertices;
     // contains all half edges incident to layout elements of m_elements
     vector<HalfEdge> m_halfEdges;
 
-    bool isValidLayoutElement(int const &v) const {
-        return 0 <= v && v < static_cast<int>(m_elements.size());
+    bool isValidVertex(int const &v) const {
+        return 0 <= v && v < static_cast<int>(m_vertices.size());
     }
     bool isValidHalfEdge(int const &he) const {
         return 0 <= he && he < static_cast<int>(m_halfEdges.size());
     }
-    int getCanonicalHalfEdge(int const &he) const;
 };
 } // namespace cartocrow::layout_guide

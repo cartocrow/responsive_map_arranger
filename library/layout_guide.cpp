@@ -1,33 +1,154 @@
-//
-// Created by arjen on 4/8/26.
-//
+/*
+Copyright (C) 2026  TU Eindhoven
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 #include "layout_guide.h"
 
 namespace cartocrow::layout_guide {
-LayoutGuide::LayoutGuide(vector<LayoutElement> layoutElements,
+LayoutGuide::LayoutGuide(vector<Vertex> vertices,
                          vector<HalfEdge> halfEdges)
-                        : m_elements(layoutElements), m_halfEdges(halfEdges) {
+                        : m_vertices(vertices), m_halfEdges(halfEdges) {
 }
 
 // returns heID if heID is outgoing and returns its twin if heID is not outgoing
-int LayoutGuide::getCanonicalHalfEdge(int const &heID) const {
-    if (!isValidHalfEdge(heID)) return -1;
+int LayoutGuide::getCanonicalHalfEdge(int const &heId) const {
+    if (!isValidHalfEdge(heId)) return -1;
 
-    const HalfEdge &he = m_halfEdges[heID];
-    if (he.m_outgoing) return heID;
+    const HalfEdge &he = m_halfEdges[heId];
+    if (he.m_outgoing) return heId;
     const int twinID = he.m_twin;
     if (!isValidHalfEdge(twinID)) return -1;
     return twinID;
 
 }
 
-// int RegularEdgeLabeling::canonicalHalfEdge(int he) const {
-//     if (he < 0 || he >= (int)m_halfEdges.size()) return -1;
-//     const HalfEdge &h = m_halfEdges[he];
-//     if (h.outgoing) return he;
-//     int t = h.twin;
-//     if (t >= 0 && t < (int)m_halfEdges.size() && m_halfEdges[t].outgoing) return t;
-//     return he;
-// }
+int LayoutGuide::getNextCyclicEdge(int const &heId) const {
+    const int pos = getCanonicalHalfEdge(heId);
+    const Vertex v = m_vertices[m_halfEdges[heId].m_vertex];
+
+    return v.m_edges[(pos + v.degree() - 1) % v.degree()];
+}
+
+int LayoutGuide::getPreviousCyclicEdge(int const &heId) const {
+    const int pos = getCanonicalHalfEdge(heId);
+    const Vertex v = m_vertices[m_halfEdges[heId].m_vertex];
+
+    return v.m_edges[(pos+1) % v.degree()];
+}
+
+int LayoutGuide::getCyclicPositionOfHalfEdge(int const &heId) const {
+    if (!isValidHalfEdge(heId)) return -1;
+
+    const Vertex v = m_vertices[m_halfEdges[heId].m_vertex];
+    for (int i = 0; i < v.degree(); ++i)
+        if (v.m_edges[i] == heId) return i;
+
+    return -1;
+}
+
+bool LayoutGuide::flipEdgeColor(int const &heID) {
+    if (!isValidHalfEdge(heID)) return false;
+    HalfEdge &he = m_halfEdges[heID];
+    if (!isValidHalfEdge(he.m_twin)) return false;
+    HalfEdge &twin = m_halfEdges[he.m_twin];
+
+    if (he.m_edgeLabel == HORIZONTAL) {
+        he.m_edgeLabel = VERTICAL;
+        twin.m_edgeLabel = HORIZONTAL;
+        return true;
+    }
+    if (he.m_edgeLabel == VERTICAL) {
+        he.m_edgeLabel = HORIZONTAL;
+        twin.m_edgeLabel = VERTICAL;
+        return true;
+    }
+    return false;
+}
+
+bool LayoutGuide::flipEdgeDiagonally(int const &heId, bool clockwise) {
+    const int baseHeId = getCanonicalHalfEdge(heId);
+    if (!isValidHalfEdge(baseHeId))
+        throw runtime_error("flipEdgeDiagonally: Invalid edgeID: " + to_string(heId));
+
+    HalfEdge &baseHe = m_halfEdges[baseHeId];
+    int endHeId = baseHe.m_twin;
+
+    if (!isValidHalfEdge(endHeId))
+        throw runtime_error("flipEdgeDiagonally: Invalid edgeID: " + to_string(heId));
+
+    HalfEdge &endHe = m_halfEdges[endHeId];
+
+    const int baseVertexId = baseHe.m_vertex;
+    const int endVertexId = endHe.m_vertex;
+    Vertex& baseVertex = m_vertices[baseVertexId];
+    Vertex& endVertex = m_vertices[endVertexId];
+
+    if (!isValidVertex(baseVertexId) || !isValidVertex(endVertexId)) return false;
+
+    const int basePos = getCyclicPositionOfHalfEdge(baseHeId);
+    const int endPos = getCyclicPositionOfHalfEdge(endVertexId);
+
+    // Get new base and en
+    int targetBaseHe = -1;
+    int targetEndHe = -1;
+    if (clockwise) {
+        targetBaseHe = getNextCyclicEdge(baseHeId);
+        targetEndHe = getPreviousCyclicEdge(baseHeId);
+
+    } else {
+        targetBaseHe = getPreviousCyclicEdge(baseHeId);
+        targetEndHe = getNextCyclicEdge(baseHeId);
+    }
+
+    int targetBaseVertexId = m_halfEdges[m_halfEdges[targetBaseHe].m_twin].m_vertex;
+    int targetEndVertexId = m_halfEdges[m_halfEdges[targetEndHe].m_twin].m_vertex;
+    Vertex& targetBaseVertex = m_vertices[targetBaseVertexId];
+    Vertex& targetEndVertex = m_vertices[targetEndVertexId];
+
+    // erase edges from original vertices edge list
+    baseVertex.m_edges.erase(baseVertex.m_edges.begin() + basePos);
+    endVertex.m_edges.erase(endVertex.m_edges.begin() + endPos);
+
+    // insert he into target base/end vertices
+    int baseInsertPos = getCyclicPositionOfHalfEdge(targetBaseHe);
+    if (clockwise) baseInsertPos++;
+    baseInsertPos = clamp(baseInsertPos, 0, targetBaseVertex.degree()); // -1 means we insert at the beginning
+    targetBaseVertex.m_edges.insert(targetBaseVertex.m_edges.begin() + baseInsertPos, endHeId);
+
+    int endInsertPos = getCyclicPositionOfHalfEdge(targetEndHe);
+    if (!clockwise) endInsertPos++;
+    endInsertPos = clamp(endInsertPos, 0, targetEndVertex.degree()); // -1 means we insert at the beginning
+    targetEndVertex.m_edges.insert(targetEndVertex.m_edges.begin() + endInsertPos, endHeId);
+
+    // update half edge vertex references
+    m_halfEdges[baseHeId].m_vertex = targetBaseVertexId;
+    m_halfEdges[endHeId].m_vertex = targetEndVertexId;
+
+    return true;
+}
+
+bool LayoutGuide::redirectEdge(int const &heID) {
+    if (!isValidHalfEdge(heID)) return false;
+
+    HalfEdge &he = m_halfEdges[heID];
+    he.m_outgoing = !he.m_outgoing;
+
+    HalfEdge &twin = m_halfEdges[he.m_twin];
+    twin.m_outgoing = !twin.m_outgoing;
+
+    return true;
+}
 } // namespace cartocrow::layout_guide
