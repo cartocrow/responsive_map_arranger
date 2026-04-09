@@ -19,6 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cartocrow/core/core.h>
 
+#include "regular_edge_labeling.h"
+
 using namespace std;
 
 namespace cartocrow::layout_guide {
@@ -26,6 +28,14 @@ enum EdgeLabel {
     VERTICAL = 0,
     HORIZONTAL = 1,
     BLACK = 2
+};
+
+enum EdgeType {
+    OUTGOING_VERTICAL = 0,
+    OUTGOING_HORIZONTAL = 1,
+    INCOMING_VERTICAL = 2,
+    INCOMING_HORIZONTAL = 3,
+    NONE = 4
 };
 
 struct Vertex {
@@ -52,9 +62,16 @@ struct HalfEdge {
     int m_vertex = -1; // incident vertex
     int m_twin = -1; // twin half edge
 
-    int m_outgoing;
+    bool m_outgoing;
     EdgeLabel m_edgeLabel;
 
+    EdgeType edgeType() const {
+        if (m_edgeLabel == VERTICAL && m_outgoing) return OUTGOING_VERTICAL;
+        if (m_edgeLabel == VERTICAL && !m_outgoing) return INCOMING_VERTICAL;
+        if (m_edgeLabel == HORIZONTAL && m_outgoing) return OUTGOING_HORIZONTAL;
+        if (m_edgeLabel == HORIZONTAL && !m_outgoing) return INCOMING_HORIZONTAL;
+        return NONE;
+    }
 };
 
 
@@ -62,13 +79,13 @@ class LayoutGuide {
 public:
     LayoutGuide(vector<Vertex> vertices, vector<HalfEdge> halfEdges);
 
+    //bool isValidREL(bool debugging = false) const;
+
     const vector<Vertex> &getVertices() const {return m_vertices; }
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
     void setVertexWeight(const int vId, const double weight) { m_vertices[vId].m_relativeArea = weight; };
 
     int getCanonicalHalfEdge(int const &heId) const;
-
-
     int getNextCyclicEdge(int const &heId) const;
     int getPreviousCyclicEdge(int const &heId) const;
     int getCyclicPositionOfHalfEdge(int const &heId) const;
@@ -88,7 +105,6 @@ public:
     bool flipEdgeDiagonally(int const &heId, bool clockwise);
     bool redirectEdge(int const &heID);
 
-
 private:
     // contains the vertices. First four vertices represent the outer vertices West, North, East and South
     vector<Vertex> m_vertices;
@@ -101,5 +117,9 @@ private:
     bool isValidHalfEdge(int const &he) const {
         return 0 <= he && he < static_cast<int>(m_halfEdges.size());
     }
+
+    bool checkRelHalfEdgesConsistency() const;
+    bool checkCyclicEdgeTypeOrder() const;
+
 };
 } // namespace cartocrow::layout_guide

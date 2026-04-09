@@ -185,4 +185,105 @@ bool LayoutGuide::redirectEdge(int const &heID) {
 
     return true;
 }
+
+bool LayoutGuide::checkRelHalfEdgesConsistency() const {
+    for (HalfEdge he : m_halfEdges) {
+        const Vertex baseVertex = m_vertices[he.m_vertex];
+        if (!isValidHalfEdge(he.m_twin)) {
+            std::cerr << "Invalid REL: twin edge " << he.m_twin
+            << " is an invalid twin-he id of the he incident to vertex " << baseVertex.m_label << std::endl;
+            return false;
+        }
+
+        const HalfEdge twin = m_halfEdges[he.m_twin];
+        const Vertex endVertex = m_vertices[twin.m_vertex];
+
+        if (he.m_edgeLabel != twin.m_edgeLabel) {
+            std::cerr << "Invalid REL: inconsistent edge labels for half edges between "
+            << baseVertex.m_label << " and " << endVertex.m_label << endl;
+            return false;
+        }
+
+        if (he.m_outgoing == twin.m_outgoing) {
+            std::cerr << "Invalid REL: inconsistent edge direction for half edges between "
+            << baseVertex.m_label << " and " << endVertex.m_label << endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool LayoutGuide::checkCyclicEdgeTypeOrder() const {
+    for (Vertex v : m_vertices) {
+        if (v.m_edges.empty()) {
+            std::cout << "[Warning] vertex " << v.m_label << " has degree 0." << std::endl;
+            continue;
+        }
+
+        vector<EdgeType> blocks;
+        blocks.reserve(v.m_edges.size());
+
+        for (const int heId : v.m_edges) {
+            const HalfEdge edge = m_halfEdges[heId];
+            const EdgeType type = edge.edgeType();
+            if (type == NONE) {
+                std::cerr << "Invalid REL: vertex " << v.m_label << " has an incident edge of EdgeType NONE" << std::endl;
+                return false;
+            }
+
+            // add type to block if the last block type is different
+            if (blocks.empty() || blocks.back() != type)
+                blocks.push_back(type);
+
+        }
+
+        // remove last block if first and last block are the same
+        if (blocks.size() > 1 && blocks.front() == blocks.back())
+            blocks.pop_back();
+
+        if (blocks.size() != 4) {
+            std::cerr << "Invalid REL: cyclic EdgeType order of " << v.m_label << " is not correct: ";
+            for (const auto b : blocks)
+                std::cerr << b << " ";
+            std::cerr << std::endl;
+            return false;
+        }
+
+        constexpr std::array<EdgeType, 4> expected = {
+            OUTGOING_VERTICAL,
+            OUTGOING_HORIZONTAL,
+            INCOMING_VERTICAL,
+            INCOMING_HORIZONTAL
+        };
+
+        bool matches = false;
+
+        // check whether blocks match expected order up to cyclic rotation
+        for (int shift = 0; shift < 4; ++shift) {
+            matches = true;
+            for (int i = 0; i < 4; ++i) {
+                if (blocks[i] != expected[(i + shift) % 4]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                break;
+            }
+        }
+
+        if (!matches) {
+            std::cerr << "Invalid REL: cyclic EdgeType order of " << v.m_label << " is not correct: ";
+            for (const auto b : blocks)
+                std::cerr << b << " ";
+            std::cerr << std::endl;
+
+            return false;
+        }
+    }
+
+    return true;
+
+}
 } // namespace cartocrow::layout_guide
