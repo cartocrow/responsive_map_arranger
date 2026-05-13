@@ -21,11 +21,13 @@
 #include "library/demers.h"
 
 #include "persistent_settings.h"
+#include "library/layout_guide.h"
 
 using json = nlohmann::json;
 
 using namespace cartocrow;
 using namespace cartocrow::renderer;
+using namespace layout_guide;
 
 enum CartogramType {
     RECTANGULAR_CARTOGRAM,
@@ -40,6 +42,7 @@ class RectangularCartogramDemo : public QMainWindow {
     RegionMap m_regionMap;
     RegularEdgeLabeling m_rel;
     std::shared_ptr<RegularEdgeLabeling> m_relPtr;
+    std::shared_ptr<LayoutGuide> m_layoutGuide;
     std::shared_ptr<RectangularDual> m_rectangularDual;
     std::shared_ptr<DemersCartogram> m_demers;
 

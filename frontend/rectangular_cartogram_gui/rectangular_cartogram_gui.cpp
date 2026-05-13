@@ -108,6 +108,9 @@ void RectangularCartogramDemo::processData() {
 
     try {
         m_rel.buildFromJson(m_RELData, m_useSquareAspectRatios->checkState()); // will validate & throw if errors found
+
+        m_layoutGuide = std::make_shared<LayoutGuide>(m_RELData);
+
     } catch (const std::exception &e) {
         std::cerr << "Failed to load REL: " << e.what() << std::endl;
     }
@@ -116,6 +119,7 @@ void RectangularCartogramDemo::processData() {
     m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
     m_relPtr->setMergeHeuristic(static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentIndex()));
     m_relPtr->setBoundingBox(BoundingBox{0, m_frameSizeX->value(), -m_frameSizeY->value(), 0});
+
     //90x100 for england base
 
     std::cout << "====== REL VALIDITY CHECK ======" << std::endl;
@@ -124,6 +128,7 @@ void RectangularCartogramDemo::processData() {
 
     if (!m_weightData.is_null()) {
         m_relPtr->setDataValuesFromJson(m_weightData);
+
     }
 }
 

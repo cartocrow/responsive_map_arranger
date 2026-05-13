@@ -78,6 +78,8 @@ struct HalfEdge {
 class LayoutGuide {
 public:
     LayoutGuide(vector<Vertex> vertices, vector<HalfEdge> halfEdges);
+    LayoutGuide(const json &j);
+
 
     //bool isValidREL(bool debugging = false) const;
 
@@ -110,6 +112,9 @@ private:
     vector<Vertex> m_vertices;
     // contains all half edges incident to layout elements of m_elements
     vector<HalfEdge> m_halfEdges;
+    // maps element labels to vertex indices
+    unordered_map<string, int> m_labelToIndex;
+
 
     bool isValidVertex(int const &v) const {
         return 0 <= v && v < static_cast<int>(m_vertices.size());

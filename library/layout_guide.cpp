@@ -16,11 +16,384 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #include "layout_guide.h"
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 namespace cartocrow::layout_guide {
+
+// ---------------- static helpers ----------------
+static string dirKey(const string &a, const string &b) {
+    return a + "->" + b;
+}
+static string undirKey(const string &a, const string &b) {
+    return (a < b) ? (a + "|" + b) : (b + "|" + a);
+}
+
 LayoutGuide::LayoutGuide(vector<Vertex> vertices,
                          vector<HalfEdge> halfEdges)
                         : m_vertices(vertices), m_halfEdges(halfEdges) {
+}
+
+LayoutGuide::LayoutGuide(const json &j) {
+    // clear existing
+    m_vertices.clear();
+    m_halfEdges.clear();
+    m_labelToIndex.clear();
+
+    if (!j.contains("regions") || !j["regions"].is_array()) {
+        throw runtime_error("JSON must contain 'regions' array");
+    }
+    if (!j.contains("horizontal_order") || !j["horizontal_order"].is_array()) {
+        throw runtime_error("JSON must contain 'horizontal_order' array");
+    }
+    if (!j.contains("vertical_order") || !j["vertical_order"].is_array()) {
+        throw runtime_error("JSON must contain 'vertical_order' array");
+    }
+
+
+    int i = 0;
+    // 1) create vertices for all provided region labels
+    for (const auto &r : j["regions"]) {
+        if (!r.contains("label")) throw runtime_error("Each region must have a 'label'");
+        if (!r.contains("weight")) throw runtime_error("Each region must have a 'weight'");
+        if (!r.contains("preferred_aspect")) throw runtime_error("Each region must have a 'preferred_aspect'");
+        string lbl = r["label"].get<string>();
+        if (!m_labelToIndex.contains(lbl)) { // skip over duplicate label entries
+            int idx = (int)m_vertices.size();
+            Vertex v;
+            v.m_label = lbl;
+            v.m_area = r["weight"].get<int>();
+
+            if (lbl.starts_with("sea_")) {
+                //v.m_color = cartocrow::Color{230, 230, 230};
+                v.m_seaRegion = true;
+            } else {
+                //v.color = m_vertColors[i % m_vertColors.size()];
+                v.m_seaRegion = false;
+            }
+            i++;
+
+            v.m_aspectRatio = r["preferred_aspect"].get<double>();
+            m_vertices.push_back(std::move(v));
+            m_labelToIndex[lbl] = idx;
+        }
+        else std::cout << "[WARNING] Duplicate label: " << lbl << std::endl;
+    }
+
+    // set horizontal and vertical order placement of vertices
+    {
+        int idx = 0;
+        for (const auto &entry : j["horizontal_order"]) {
+            if (!entry.is_string()) { throw runtime_error("JSON must contain 'horizontal_order' string"); }
+            std::string lbl = entry.get<std::string>();
+            auto it = m_labelToIndex.find(lbl);
+            if (it != m_labelToIndex.end()) {
+                int vid = it->second;
+                m_vertices[vid].m_horizontal_order_index = idx;
+            } else {
+                std::cerr << "[WARNING] horizontal_order contains unknown label '" << lbl << "'\n";
+            }
+            ++idx;
+        }
+        idx = 0;
+        for (const auto &entry : j["vertical_order"]) {
+            if (!entry.is_string()) { throw runtime_error("JSON must contain 'vertical_order' string"); }
+            std::string lbl = entry.get<std::string>();
+            auto it = m_labelToIndex.find(lbl);
+            if (it != m_labelToIndex.end()) {
+                int vid = it->second;
+                m_vertices[vid].m_vertical_order_index = idx;
+            } else {
+                std::cerr << "[WARNING] vertical_order contains unknown label '" << lbl << "'\n";
+            }
+            ++idx;
+        }
+    }
+
+
+    // 2) create explicit half-edges for outgoing lists, preserving per-vertex input order
+    unordered_map<int, vector<int>> explicitOutPerVertex; // vertexIdx -> list of explicit halfedge indices (order)
+    unordered_map<string,int> directedMap; // "A->B" -> halfedge index
+
+    auto addOut = [&](const json &region, const string &field, EdgeLabel label) {
+        if (!region.contains(field)) return;
+        if (!region[field].is_array()) return;
+        string fromLabel = region["label"].get<string>();
+        int fromIdx = m_labelToIndex.at(fromLabel);
+        for (const auto &t : region[field]) {
+            string toLabel = t.get<string>();
+            // ensure target vertex exists in map (it might not be declared as a region label)
+            if (m_labelToIndex.find(toLabel) == m_labelToIndex.end()) {
+                int newIdx = (int)m_vertices.size();
+                Vertex v;
+                v.m_label = toLabel;
+                m_vertices.push_back(std::move(v));
+                m_labelToIndex[toLabel] = newIdx;
+            }
+            int toIdx = m_labelToIndex.at(toLabel);
+
+            HalfEdge he;
+            he.m_vertex = fromIdx;
+            he.m_twin = -1; // link later
+            he.m_edgeLabel = label;
+            he.m_outgoing = true;
+            //he.id_str = fromLabel + "->" + toLabel;
+
+            int heIdx = (int)m_halfEdges.size();
+            m_halfEdges.push_back(he);
+            directedMap[ dirKey(fromLabel, toLabel) ] = heIdx;
+            explicitOutPerVertex[fromIdx].push_back(heIdx);
+        }
+    };
+
+    for (const auto &r : j["regions"]) {
+        addOut(r, "red_out", VERTICAL);
+        addOut(r, "blue_out", HORIZONTAL);
+    }
+
+    // 3) build undirected map and link/create twins (same as before)
+    unordered_map<string, pair<int,int>> undirMap; // undirKey -> (leftSlot,rightSlot) where left corresponds to smaller label
+    for (const auto &kv : directedMap) {
+        string key = kv.first; // "A->B"
+        size_t p = key.find("->");
+        string a = key.substr(0,p);
+        string b = key.substr(p+2);
+        string ukey = undirKey(a,b);
+        if (!undirMap.contains(ukey)) undirMap[ukey] = {-1,-1};
+        if (a <= b) undirMap[ukey].first = kv.second;
+        else undirMap[ukey].second = kv.second;
+    }
+
+    // create implicit twin if missing or link explicit twins
+    for (auto &kv : undirMap) {
+        string ukey = kv.first;
+        int left = kv.second.first;
+        int right = kv.second.second;
+
+        size_t bar = ukey.find('|');
+        string a = ukey.substr(0, bar);
+        string b = ukey.substr(bar+1);
+
+        if (left != -1 && right != -1) {
+            // both explicit: link twins
+            m_halfEdges[left].m_twin = right;
+            m_halfEdges[right].m_twin = left;
+        } else if (left != -1 && right == -1) {
+            // create implicit twin attached to b
+            HalfEdge twin;
+            twin.m_vertex = m_labelToIndex.at(b);
+            twin.m_twin = left;
+            twin.m_edgeLabel = m_halfEdges[left].m_edgeLabel;
+            twin.m_outgoing = false;
+            //twin.id_str = b + "<-" + a;
+            int twinIdx = (int)m_halfEdges.size();
+            m_halfEdges.push_back(twin);
+            m_halfEdges[left].m_twin = twinIdx;
+        } else if (left == -1 && right != -1) {
+            // create implicit twin attached to a
+            HalfEdge twin;
+            twin.m_vertex = m_labelToIndex.at(a);
+            twin.m_twin = right;
+            twin.m_edgeLabel = m_halfEdges[right].m_edgeLabel;
+            twin.m_outgoing = false;
+            //twin.id_str = a + "<-" + b;
+            int twinIdx = (int)m_halfEdges.size();
+            m_halfEdges.push_back(twin);
+            m_halfEdges[right].m_twin = twinIdx;
+        }
+    }
+
+    // 4) build incomingMap: for vertex v, incomingMap[v][uLabel] = halfedge idx at v representing u->v
+    vector<unordered_map<string,int>> incomingMap(m_vertices.size());
+    for (int hi = 0; hi < (int)m_halfEdges.size(); ++hi) {
+        const HalfEdge &he = m_halfEdges[hi];
+        if (!he.m_outgoing) {
+            // h is an incoming-styled halfedge attached at h.vertex, coming from twin
+            if (he.m_twin != -1) {
+                int otherV = m_halfEdges[he.m_twin].m_vertex;
+                incomingMap[he.m_vertex][ m_vertices[otherV].m_label ] = hi;
+            }
+        } else {
+            // outgoing: h.twin corresponds to incoming at other vertex
+            if (he.m_twin != -1) {
+                int otherV = m_halfEdges[he.m_twin].m_vertex;
+                incomingMap[ otherV ][ m_vertices[he.m_vertex].m_label ] = he.m_twin;
+            }
+        }
+    }
+
+    // Helper: ensure (and create if needed) an incoming half-edge at dest from src of given color.
+    // Returns the index of the incoming half-edge at dest (attached to dest) representing src->dest.
+    auto ensureIncomingHalfEdgeAt = [&](int srcIdx, int destIdx, EdgeLabel edgeLabel) -> int {
+        const string &srcLabel = m_vertices[srcIdx].m_label;
+        // if incoming already exists, return it
+        auto it = incomingMap[destIdx].find(srcLabel);
+        if (it != incomingMap[destIdx].end()) return it->second;
+
+        // attempt to link to an explicit outgoing if present
+        string dir = dirKey(m_vertices[srcIdx].m_label, m_vertices[destIdx].m_label);
+        auto dit = directedMap.find(dir);
+        if (dit != directedMap.end()) {
+            int outHe = dit->second;
+            // if outHe exists but hasn't a twin (should have from undir step), create twin to attach here
+            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].m_twin != -1) {
+                int twinIdx = m_halfEdges[outHe].m_twin;
+                incomingMap[destIdx][srcLabel] = twinIdx;
+                return twinIdx;
+            }
+            // else if outHe exists but no twin, create one now and link
+            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].m_twin == -1) {
+                HalfEdge twin;
+                twin.m_vertex = destIdx;
+                twin.m_twin = outHe;
+                twin.m_edgeLabel = edgeLabel;
+                twin.m_outgoing = false;
+                //twin.id_str = m_vertices[destIdx].label + "<-" + srcLabel;
+                int twinIdx = (int)m_halfEdges.size();
+                m_halfEdges.push_back(twin);
+                m_halfEdges[outHe].m_twin = twinIdx;
+                incomingMap[destIdx][srcLabel] = twinIdx;
+                return twinIdx;
+            }
+        }
+
+        // last resort: create an incoming half-edge at dest (no explicit outgoing exists)
+        HalfEdge twin;
+        twin.m_vertex = destIdx;
+        twin.m_twin = -1;
+        twin.m_edgeLabel = edgeLabel;
+        twin.m_outgoing = false;
+        //twin.id_str = m_vertices[destIdx].label + "<-" + srcLabel;
+        int twinIdx = (int)m_halfEdges.size();
+        m_halfEdges.push_back(twin);
+        incomingMap[destIdx][srcLabel] = twinIdx;
+        return twinIdx;
+    };
+
+    // // 5) build outNeighbors list per vertex preserving input order
+    // vector<vector<string>> outNeighbors(m_vertices.size());
+    // for (const auto &kv : explicitOutPerVertex) {
+    //     int vIdx = kv.first;
+    //     for (int heIdx : kv.second) {
+    //         //const string &id = m_halfEdges[heIdx].id_str; // "A->B"
+    //         size_t p = id.find("->");
+    //         string toLabel = id.substr(p+2);
+    //         outNeighbors[vIdx].push_back(toLabel);
+    //     }
+    // }
+
+    // 5b) parse optional prescribed incoming orders blue_in / red_in from JSON
+    // store them as label sequences per vertex (may be empty)
+    vector<vector<string>> prescribedBlueIn(m_vertices.size()), prescribedRedIn(m_vertices.size());
+    for (const auto &r : j["regions"]) {
+        string lbl = r["label"].get<string>();
+        int vid = m_labelToIndex.at(lbl);
+
+        if (r.contains("blue_in") && r["blue_in"].is_array()) {
+            for (const auto &entry : r["blue_in"]) {
+                if (!entry.is_string()) continue;
+                string src = entry.get<string>();
+                if (m_labelToIndex.find(src) == m_labelToIndex.end()) {
+                    std::cerr << "buildFromJson: blue_in contains unknown label '" << src << "'\n";
+                    continue;
+                }
+                int srcIdx = m_labelToIndex.at(src);
+                // ensure incoming half-edge exists (create if needed)
+                ensureIncomingHalfEdgeAt(srcIdx, vid, HORIZONTAL);
+                prescribedBlueIn[vid].push_back(src);
+            }
+        }
+
+        if (r.contains("red_in") && r["red_in"].is_array()) {
+            for (const auto &entry : r["red_in"]) {
+                if (!entry.is_string()) continue;
+                string src = entry.get<string>();
+                if (!m_labelToIndex.contains(src)) {
+                    std::cerr << "buildFromJson: red_in contains unknown label '" << src << "'\n";
+                    continue;
+                }
+                int srcIdx = m_labelToIndex.at(src);
+                ensureIncomingHalfEdgeAt(srcIdx, vid, VERTICAL);
+                prescribedRedIn[vid].push_back(src);
+            }
+        }
+    }
+
+    // 6) assemble final incident list per vertex into 4 REL blocks (prescribed order preferred)
+    // Desired CCW order (user request): [ incoming blue ] [ incoming red ] [ outgoing blue ] [ outgoing red ]
+    for (int vIdx = 0; vIdx < (int)m_vertices.size(); ++vIdx) {
+        vector<int> incomingHorizontal;
+        vector<int> incomingVertical;
+        vector<int> outgoingHorizontal;
+        vector<int> outgoingVertical;
+
+        // 6a) incoming blue: prefer prescribed order if present, otherwise derive deterministically
+        if (!prescribedBlueIn[vIdx].empty()) {
+            for (const string &src : prescribedBlueIn[vIdx]) {
+                auto it = incomingMap[vIdx].find(src);
+                if (it != incomingMap[vIdx].end()) {
+                    int inHe = it->second;
+                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].m_edgeLabel == HORIZONTAL)
+                        incomingHorizontal.push_back(inHe);
+                }
+            }
+        } else {
+            // fallback: collect incoming blue edges deterministically by source vertex index order
+            for (const auto &kv : incomingMap[vIdx]) {
+                int he = kv.second;
+                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].m_edgeLabel == HORIZONTAL) incomingHorizontal.push_back(he);
+            }
+            sort(incomingHorizontal.begin(), incomingHorizontal.end(), [&](int a, int b) {
+                int sa = (m_halfEdges[a].m_twin >= 0) ? m_halfEdges[m_halfEdges[a].m_twin].m_vertex : -1;
+                int sb = (m_halfEdges[b].m_twin >= 0) ? m_halfEdges[m_halfEdges[b].m_twin].m_vertex : -1;
+                return sa < sb;
+            });
+        }
+
+        // 6b) incoming red
+        if (!prescribedRedIn[vIdx].empty()) {
+            for (const string &src : prescribedRedIn[vIdx]) {
+                auto it = incomingMap[vIdx].find(src);
+                if (it != incomingMap[vIdx].end()) {
+                    int inHe = it->second;
+                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].m_edgeLabel == VERTICAL)
+                        incomingVertical.push_back(inHe);
+                }
+            }
+        } else {
+            for (const auto &kv : incomingMap[vIdx]) {
+                int he = kv.second;
+                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].m_edgeLabel == VERTICAL) incomingVertical.push_back(he);
+            }
+            sort(incomingVertical.begin(), incomingVertical.end(), [&](int a, int b) {
+                int sa = (m_halfEdges[a].m_twin >= 0) ? m_halfEdges[m_halfEdges[a].m_twin].m_vertex : -1;
+                int sb = (m_halfEdges[b].m_twin >= 0) ? m_halfEdges[m_halfEdges[b].m_twin].m_vertex : -1;
+                return sa < sb;
+            });
+        }
+
+        // 6c) outgoing lists: preserve earlier explicit order you built (explicitOutPerVertex)
+        auto itExp = explicitOutPerVertex.find(vIdx);
+        if (itExp != explicitOutPerVertex.end()) {
+            for (int heIdx : itExp->second) {
+                if (heIdx < 0 || heIdx >= (int)m_halfEdges.size()) continue;
+                const HalfEdge &hOut = m_halfEdges[heIdx];
+                if (hOut.m_edgeLabel == HORIZONTAL) outgoingHorizontal.push_back(heIdx);
+                else if (hOut.m_edgeLabel == VERTICAL) outgoingVertical.push_back(heIdx);
+            }
+        }
+
+        // final concatenation in requested order: IB | IR | OB | OR
+        vector<int> incident;
+        incident.reserve(incomingHorizontal.size() + incomingVertical.size() + outgoingHorizontal.size() + outgoingVertical.size());
+        incident.insert(incident.end(), incomingHorizontal.begin(), incomingHorizontal.end());
+        incident.insert(incident.end(), incomingVertical.begin(), incomingVertical.end());
+        incident.insert(incident.end(), outgoingHorizontal.begin(), outgoingHorizontal.end());
+        incident.insert(incident.end(), outgoingVertical.begin(), outgoingVertical.end());
+
+        m_vertices[vIdx].m_edges.swap(incident);
+    }
 }
 
 // returns heID if heID is outgoing and returns its twin if heID is not outgoing
