@@ -62,23 +62,27 @@ LayoutGuide::LayoutGuide(const json &j) {
         if (!m_labelToIndex.contains(lbl)) { // skip over duplicate label entries
             int idx = (int)m_vertices.size();
             Vertex v;
-            v.m_label = lbl;
-            v.m_area = r["weight"].get<int>();
+            v.label = lbl;
+            v.area = r["weight"].get<int>();
 
             if (lbl.starts_with("sea_")) {
                 //v.m_color = cartocrow::Color{230, 230, 230};
-                v.m_seaRegion = true;
+                v.seaRegion = true;
             } else {
                 //v.color = m_vertColors[i % m_vertColors.size()];
-                v.m_seaRegion = false;
+                v.seaRegion = false;
             }
             i++;
 
-            v.m_aspectRatio = r["preferred_aspect"].get<double>();
+            v.aspectRatio = r["preferred_aspect"].get<double>();
             m_vertices.push_back(std::move(v));
             m_labelToIndex[lbl] = idx;
         }
         else std::cout << "[WARNING] Duplicate label: " << lbl << std::endl;
+    }
+
+    if (m_vertices[0].label != "West" || m_vertices[1].label != "North" || m_vertices[2].label != "East" || m_vertices[3].label != "South") {
+        std::cerr << "[ERROR] first four regions must be the outer vertices in order of West, North, East and South" << std::endl;
     }
 
     // set horizontal and vertical order placement of vertices
@@ -90,7 +94,7 @@ LayoutGuide::LayoutGuide(const json &j) {
             auto it = m_labelToIndex.find(lbl);
             if (it != m_labelToIndex.end()) {
                 int vid = it->second;
-                m_vertices[vid].m_horizontal_order_index = idx;
+                m_vertices[vid].horizontal_order_index = idx;
             } else {
                 std::cerr << "[WARNING] horizontal_order contains unknown label '" << lbl << "'\n";
             }
@@ -103,7 +107,7 @@ LayoutGuide::LayoutGuide(const json &j) {
             auto it = m_labelToIndex.find(lbl);
             if (it != m_labelToIndex.end()) {
                 int vid = it->second;
-                m_vertices[vid].m_vertical_order_index = idx;
+                m_vertices[vid].vertical_order_index = idx;
             } else {
                 std::cerr << "[WARNING] vertical_order contains unknown label '" << lbl << "'\n";
             }
@@ -127,17 +131,17 @@ LayoutGuide::LayoutGuide(const json &j) {
             if (m_labelToIndex.find(toLabel) == m_labelToIndex.end()) {
                 int newIdx = (int)m_vertices.size();
                 Vertex v;
-                v.m_label = toLabel;
+                v.label = toLabel;
                 m_vertices.push_back(std::move(v));
                 m_labelToIndex[toLabel] = newIdx;
             }
             int toIdx = m_labelToIndex.at(toLabel);
 
             HalfEdge he;
-            he.m_vertex = fromIdx;
-            he.m_twin = -1; // link later
-            he.m_edgeLabel = label;
-            he.m_outgoing = true;
+            he.vertex = fromIdx;
+            he.twin = -1; // link later
+            he.edgeLabel = label;
+            he.outgoing = true;
             //he.id_str = fromLabel + "->" + toLabel;
 
             int heIdx = (int)m_halfEdges.size();
@@ -177,30 +181,30 @@ LayoutGuide::LayoutGuide(const json &j) {
 
         if (left != -1 && right != -1) {
             // both explicit: link twins
-            m_halfEdges[left].m_twin = right;
-            m_halfEdges[right].m_twin = left;
+            m_halfEdges[left].twin = right;
+            m_halfEdges[right].twin = left;
         } else if (left != -1 && right == -1) {
             // create implicit twin attached to b
             HalfEdge twin;
-            twin.m_vertex = m_labelToIndex.at(b);
-            twin.m_twin = left;
-            twin.m_edgeLabel = m_halfEdges[left].m_edgeLabel;
-            twin.m_outgoing = false;
+            twin.vertex = m_labelToIndex.at(b);
+            twin.twin = left;
+            twin.edgeLabel = m_halfEdges[left].edgeLabel;
+            twin.outgoing = false;
             //twin.id_str = b + "<-" + a;
             int twinIdx = (int)m_halfEdges.size();
             m_halfEdges.push_back(twin);
-            m_halfEdges[left].m_twin = twinIdx;
+            m_halfEdges[left].twin = twinIdx;
         } else if (left == -1 && right != -1) {
             // create implicit twin attached to a
             HalfEdge twin;
-            twin.m_vertex = m_labelToIndex.at(a);
-            twin.m_twin = right;
-            twin.m_edgeLabel = m_halfEdges[right].m_edgeLabel;
-            twin.m_outgoing = false;
+            twin.vertex = m_labelToIndex.at(a);
+            twin.twin = right;
+            twin.edgeLabel = m_halfEdges[right].edgeLabel;
+            twin.outgoing = false;
             //twin.id_str = a + "<-" + b;
             int twinIdx = (int)m_halfEdges.size();
             m_halfEdges.push_back(twin);
-            m_halfEdges[right].m_twin = twinIdx;
+            m_halfEdges[right].twin = twinIdx;
         }
     }
 
@@ -208,17 +212,17 @@ LayoutGuide::LayoutGuide(const json &j) {
     vector<unordered_map<string,int>> incomingMap(m_vertices.size());
     for (int hi = 0; hi < (int)m_halfEdges.size(); ++hi) {
         const HalfEdge &he = m_halfEdges[hi];
-        if (!he.m_outgoing) {
+        if (!he.outgoing) {
             // h is an incoming-styled halfedge attached at h.vertex, coming from twin
-            if (he.m_twin != -1) {
-                int otherV = m_halfEdges[he.m_twin].m_vertex;
-                incomingMap[he.m_vertex][ m_vertices[otherV].m_label ] = hi;
+            if (he.twin != -1) {
+                int otherV = m_halfEdges[he.twin].vertex;
+                incomingMap[he.vertex][ m_vertices[otherV].label ] = hi;
             }
         } else {
             // outgoing: h.twin corresponds to incoming at other vertex
-            if (he.m_twin != -1) {
-                int otherV = m_halfEdges[he.m_twin].m_vertex;
-                incomingMap[ otherV ][ m_vertices[he.m_vertex].m_label ] = he.m_twin;
+            if (he.twin != -1) {
+                int otherV = m_halfEdges[he.twin].vertex;
+                incomingMap[ otherV ][ m_vertices[he.vertex].label ] = he.twin;
             }
         }
     }
@@ -226,33 +230,33 @@ LayoutGuide::LayoutGuide(const json &j) {
     // Helper: ensure (and create if needed) an incoming half-edge at dest from src of given color.
     // Returns the index of the incoming half-edge at dest (attached to dest) representing src->dest.
     auto ensureIncomingHalfEdgeAt = [&](int srcIdx, int destIdx, EdgeLabel edgeLabel) -> int {
-        const string &srcLabel = m_vertices[srcIdx].m_label;
+        const string &srcLabel = m_vertices[srcIdx].label;
         // if incoming already exists, return it
         auto it = incomingMap[destIdx].find(srcLabel);
         if (it != incomingMap[destIdx].end()) return it->second;
 
         // attempt to link to an explicit outgoing if present
-        string dir = dirKey(m_vertices[srcIdx].m_label, m_vertices[destIdx].m_label);
+        string dir = dirKey(m_vertices[srcIdx].label, m_vertices[destIdx].label);
         auto dit = directedMap.find(dir);
         if (dit != directedMap.end()) {
             int outHe = dit->second;
             // if outHe exists but hasn't a twin (should have from undir step), create twin to attach here
-            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].m_twin != -1) {
-                int twinIdx = m_halfEdges[outHe].m_twin;
+            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].twin != -1) {
+                int twinIdx = m_halfEdges[outHe].twin;
                 incomingMap[destIdx][srcLabel] = twinIdx;
                 return twinIdx;
             }
             // else if outHe exists but no twin, create one now and link
-            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].m_twin == -1) {
+            if (outHe >= 0 && outHe < (int)m_halfEdges.size() && m_halfEdges[outHe].twin == -1) {
                 HalfEdge twin;
-                twin.m_vertex = destIdx;
-                twin.m_twin = outHe;
-                twin.m_edgeLabel = edgeLabel;
-                twin.m_outgoing = false;
+                twin.vertex = destIdx;
+                twin.twin = outHe;
+                twin.edgeLabel = edgeLabel;
+                twin.outgoing = false;
                 //twin.id_str = m_vertices[destIdx].label + "<-" + srcLabel;
                 int twinIdx = (int)m_halfEdges.size();
                 m_halfEdges.push_back(twin);
-                m_halfEdges[outHe].m_twin = twinIdx;
+                m_halfEdges[outHe].twin = twinIdx;
                 incomingMap[destIdx][srcLabel] = twinIdx;
                 return twinIdx;
             }
@@ -260,10 +264,10 @@ LayoutGuide::LayoutGuide(const json &j) {
 
         // last resort: create an incoming half-edge at dest (no explicit outgoing exists)
         HalfEdge twin;
-        twin.m_vertex = destIdx;
-        twin.m_twin = -1;
-        twin.m_edgeLabel = edgeLabel;
-        twin.m_outgoing = false;
+        twin.vertex = destIdx;
+        twin.twin = -1;
+        twin.edgeLabel = edgeLabel;
+        twin.outgoing = false;
         //twin.id_str = m_vertices[destIdx].label + "<-" + srcLabel;
         int twinIdx = (int)m_halfEdges.size();
         m_halfEdges.push_back(twin);
@@ -334,7 +338,7 @@ LayoutGuide::LayoutGuide(const json &j) {
                 auto it = incomingMap[vIdx].find(src);
                 if (it != incomingMap[vIdx].end()) {
                     int inHe = it->second;
-                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].m_edgeLabel == HORIZONTAL)
+                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].edgeLabel == HORIZONTAL)
                         incomingHorizontal.push_back(inHe);
                 }
             }
@@ -342,11 +346,11 @@ LayoutGuide::LayoutGuide(const json &j) {
             // fallback: collect incoming blue edges deterministically by source vertex index order
             for (const auto &kv : incomingMap[vIdx]) {
                 int he = kv.second;
-                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].m_edgeLabel == HORIZONTAL) incomingHorizontal.push_back(he);
+                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].edgeLabel == HORIZONTAL) incomingHorizontal.push_back(he);
             }
             sort(incomingHorizontal.begin(), incomingHorizontal.end(), [&](int a, int b) {
-                int sa = (m_halfEdges[a].m_twin >= 0) ? m_halfEdges[m_halfEdges[a].m_twin].m_vertex : -1;
-                int sb = (m_halfEdges[b].m_twin >= 0) ? m_halfEdges[m_halfEdges[b].m_twin].m_vertex : -1;
+                int sa = (m_halfEdges[a].twin >= 0) ? m_halfEdges[m_halfEdges[a].twin].vertex : -1;
+                int sb = (m_halfEdges[b].twin >= 0) ? m_halfEdges[m_halfEdges[b].twin].vertex : -1;
                 return sa < sb;
             });
         }
@@ -357,18 +361,18 @@ LayoutGuide::LayoutGuide(const json &j) {
                 auto it = incomingMap[vIdx].find(src);
                 if (it != incomingMap[vIdx].end()) {
                     int inHe = it->second;
-                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].m_edgeLabel == VERTICAL)
+                    if (inHe >= 0 && inHe < (int)m_halfEdges.size() && m_halfEdges[inHe].edgeLabel == VERTICAL)
                         incomingVertical.push_back(inHe);
                 }
             }
         } else {
             for (const auto &kv : incomingMap[vIdx]) {
                 int he = kv.second;
-                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].m_edgeLabel == VERTICAL) incomingVertical.push_back(he);
+                if (he >= 0 && he < (int)m_halfEdges.size() && m_halfEdges[he].edgeLabel == VERTICAL) incomingVertical.push_back(he);
             }
             sort(incomingVertical.begin(), incomingVertical.end(), [&](int a, int b) {
-                int sa = (m_halfEdges[a].m_twin >= 0) ? m_halfEdges[m_halfEdges[a].m_twin].m_vertex : -1;
-                int sb = (m_halfEdges[b].m_twin >= 0) ? m_halfEdges[m_halfEdges[b].m_twin].m_vertex : -1;
+                int sa = (m_halfEdges[a].twin >= 0) ? m_halfEdges[m_halfEdges[a].twin].vertex : -1;
+                int sb = (m_halfEdges[b].twin >= 0) ? m_halfEdges[m_halfEdges[b].twin].vertex : -1;
                 return sa < sb;
             });
         }
@@ -379,8 +383,8 @@ LayoutGuide::LayoutGuide(const json &j) {
             for (int heIdx : itExp->second) {
                 if (heIdx < 0 || heIdx >= (int)m_halfEdges.size()) continue;
                 const HalfEdge &hOut = m_halfEdges[heIdx];
-                if (hOut.m_edgeLabel == HORIZONTAL) outgoingHorizontal.push_back(heIdx);
-                else if (hOut.m_edgeLabel == VERTICAL) outgoingVertical.push_back(heIdx);
+                if (hOut.edgeLabel == HORIZONTAL) outgoingHorizontal.push_back(heIdx);
+                else if (hOut.edgeLabel == VERTICAL) outgoingVertical.push_back(heIdx);
             }
         }
 
@@ -392,7 +396,7 @@ LayoutGuide::LayoutGuide(const json &j) {
         incident.insert(incident.end(), outgoingHorizontal.begin(), outgoingHorizontal.end());
         incident.insert(incident.end(), outgoingVertical.begin(), outgoingVertical.end());
 
-        m_vertices[vIdx].m_edges.swap(incident);
+        m_vertices[vIdx].edges.swap(incident);
     }
 }
 
@@ -421,13 +425,90 @@ bool LayoutGuide::isValidREL(const bool debugging) const {
     return true;
 }
 
+std::pair<double, std::vector<int>> LayoutGuide::getLongestPath(EdgeLabel edgeLabel, int source, int sink,
+    const function<double(int)> &vertexCost, int minNodes) const {
+
+    const auto adj = buildAdjacencyMatrix(edgeLabel);
+    const auto topoOpt = getTopologicalOrder(edgeLabel, adj);
+    if (!topoOpt) {
+        throw runtime_error("Cannot compute longest path: " + to_string(edgeLabel) + " graph contains a cycle");
+    }
+
+    const auto& topo = *topoOpt;
+
+    const int n = static_cast<int>(m_vertices.size());
+    constexpr double NEG_INF = -std::numeric_limits<double>::infinity();
+    minNodes = max(1, minNodes);
+
+    vector dp(n, vector(minNodes +1, NEG_INF));
+
+    vector parentVertex(n, vector(minNodes +1, -1));
+    std::vector parentCount(n, std::vector(minNodes + 1, -1) );
+
+    dp[source][1] = vertexCost(source);
+
+    for (int u : topo) {
+        for (int k = 1; k <= minNodes; ++k) {
+            if (dp[u][k] == NEG_INF) continue;
+
+            for (int v : adj[u]) {
+                int nk = min(minNodes, k + 1);
+                double candidate = dp[u][k] + vertexCost(v);
+
+                if (candidate > dp[v][nk]) {
+                    dp[v][nk] = candidate;
+                    parentVertex[v][nk] = u;
+                    parentCount[v][nk] = k;
+                }
+            }
+        }
+    }
+
+    if (dp[sink][minNodes] == NEG_INF) {
+        return {-1, {}};
+    }
+
+    vector<int> path;
+
+    int v = sink;
+    int k = minNodes;
+
+    while (v != -1) {
+        path.push_back(v);
+
+        v = parentVertex[v][k];
+        k = parentCount[v][k];
+    }
+
+    ranges::reverse(path);
+    return {dp[sink][minNodes], path};
+}
+
+pair<double, std::vector<int>> LayoutGuide::getLongestHorizontalPath() const {
+    return getLongestPath(
+        HORIZONTAL,
+        WEST,
+        EAST,
+        [&](const int id)->double { return m_vertices[id].width; },
+        4);
+}
+
+pair<double, std::vector<int>> LayoutGuide::getLongestVerticalPath() const {
+    return getLongestPath(
+        VERTICAL,
+        SOUTH,
+        NORTH,
+        [&](const int id)->double { return m_vertices[id].height; },
+        4);
+}
+
 // returns heID if heID is outgoing and returns its twin if heID is not outgoing
 int LayoutGuide::getCanonicalHalfEdge(int const &heId) const {
     if (!isValidHalfEdge(heId)) return -1;
 
     const HalfEdge &he = m_halfEdges[heId];
-    if (he.m_outgoing) return heId;
-    const int twinID = he.m_twin;
+    if (he.outgoing) return heId;
+    const int twinID = he.twin;
     if (!isValidHalfEdge(twinID)) return -1;
     return twinID;
 
@@ -435,24 +516,24 @@ int LayoutGuide::getCanonicalHalfEdge(int const &heId) const {
 
 int LayoutGuide::getNextCyclicEdge(int const &heId) const {
     const int pos = getCanonicalHalfEdge(heId);
-    const Vertex v = m_vertices[m_halfEdges[heId].m_vertex];
+    const Vertex v = m_vertices[m_halfEdges[heId].vertex];
 
-    return v.m_edges[(pos + v.degree() - 1) % v.degree()];
+    return v.edges[(pos + v.degree() - 1) % v.degree()];
 }
 
 int LayoutGuide::getPreviousCyclicEdge(int const &heId) const {
     const int pos = getCanonicalHalfEdge(heId);
-    const Vertex v = m_vertices[m_halfEdges[heId].m_vertex];
+    const Vertex v = m_vertices[m_halfEdges[heId].vertex];
 
-    return v.m_edges[(pos+1) % v.degree()];
+    return v.edges[(pos+1) % v.degree()];
 }
 
 int LayoutGuide::getCyclicPositionOfHalfEdge(int const &heId) const {
     if (!isValidHalfEdge(heId)) return -1;
 
-    const Vertex v = m_vertices[m_halfEdges[heId].m_vertex];
+    const Vertex v = m_vertices[m_halfEdges[heId].vertex];
     for (int i = 0; i < v.degree(); ++i)
-        if (v.m_edges[i] == heId) return i;
+        if (v.edges[i] == heId) return i;
 
     return -1;
 }
@@ -461,14 +542,14 @@ int LayoutGuide::getFirstEdgeOfType(const int vId, const EdgeLabel edgeLabel, co
     const Vertex &v = m_vertices[vId];
 
     for (int i = 0; i < v.degree(); i++) {
-        const int edgeId = v.m_edges[i];
+        const int edgeId = v.edges[i];
         const int prevEdgeId = getPreviousCyclicEdge(edgeId);
 
         const HalfEdge &edge = m_halfEdges[edgeId];
         const HalfEdge &prevEdge = m_halfEdges[prevEdgeId];
 
-        if (edge.m_edgeLabel == edgeLabel && edge.m_outgoing == outgoing && (prevEdge.m_edgeLabel != edgeLabel || prevEdge.m_outgoing != outgoing)) {
-            return v.m_edges[i];
+        if (edge.edgeLabel == edgeLabel && edge.outgoing == outgoing && (prevEdge.edgeLabel != edgeLabel || prevEdge.outgoing != outgoing)) {
+            return v.edges[i];
         }
     }
     return -1;
@@ -478,14 +559,14 @@ int LayoutGuide::getLastEdgeOfType(const int vId, const EdgeLabel edgeLabel, con
     const Vertex &v = m_vertices[vId];
 
     for (int i = 0; i < v.degree(); i++) {
-        const int edgeId = v.m_edges[i];
+        const int edgeId = v.edges[i];
         const int nextEdgeId = getNextCyclicEdge(edgeId);
 
         const HalfEdge &edge = m_halfEdges[edgeId];
         const HalfEdge &nextEdge = m_halfEdges[nextEdgeId];
 
-        if (edge.m_edgeLabel == edgeLabel && edge.m_outgoing == outgoing && (nextEdge.m_edgeLabel != edgeLabel || nextEdge.m_outgoing != outgoing)) {
-            return v.m_edges[i];
+        if (edge.edgeLabel == edgeLabel && edge.outgoing == outgoing && (nextEdge.edgeLabel != edgeLabel || nextEdge.outgoing != outgoing)) {
+            return v.edges[i];
         }
     }
     return -1;
@@ -494,17 +575,17 @@ int LayoutGuide::getLastEdgeOfType(const int vId, const EdgeLabel edgeLabel, con
 bool LayoutGuide::flipEdgeColor(int const &heID) {
     if (!isValidHalfEdge(heID)) return false;
     HalfEdge &he = m_halfEdges[heID];
-    if (!isValidHalfEdge(he.m_twin)) return false;
-    HalfEdge &twin = m_halfEdges[he.m_twin];
+    if (!isValidHalfEdge(he.twin)) return false;
+    HalfEdge &twin = m_halfEdges[he.twin];
 
-    if (he.m_edgeLabel == HORIZONTAL) {
-        he.m_edgeLabel = VERTICAL;
-        twin.m_edgeLabel = HORIZONTAL;
+    if (he.edgeLabel == HORIZONTAL) {
+        he.edgeLabel = VERTICAL;
+        twin.edgeLabel = HORIZONTAL;
         return true;
     }
-    if (he.m_edgeLabel == VERTICAL) {
-        he.m_edgeLabel = HORIZONTAL;
-        twin.m_edgeLabel = VERTICAL;
+    if (he.edgeLabel == VERTICAL) {
+        he.edgeLabel = HORIZONTAL;
+        twin.edgeLabel = VERTICAL;
         return true;
     }
     return false;
@@ -516,15 +597,15 @@ bool LayoutGuide::flipEdgeDiagonally(int const &heId, bool clockwise) {
         throw runtime_error("flipEdgeDiagonally: Invalid edgeID: " + to_string(heId));
 
     HalfEdge &baseHe = m_halfEdges[baseHeId];
-    int endHeId = baseHe.m_twin;
+    int endHeId = baseHe.twin;
 
     if (!isValidHalfEdge(endHeId))
         throw runtime_error("flipEdgeDiagonally: Invalid edgeID: " + to_string(heId));
 
     HalfEdge &endHe = m_halfEdges[endHeId];
 
-    const int baseVertexId = baseHe.m_vertex;
-    const int endVertexId = endHe.m_vertex;
+    const int baseVertexId = baseHe.vertex;
+    const int endVertexId = endHe.vertex;
     Vertex& baseVertex = m_vertices[baseVertexId];
     Vertex& endVertex = m_vertices[endVertexId];
 
@@ -545,29 +626,29 @@ bool LayoutGuide::flipEdgeDiagonally(int const &heId, bool clockwise) {
         targetEndHe = getNextCyclicEdge(baseHeId);
     }
 
-    int targetBaseVertexId = m_halfEdges[m_halfEdges[targetBaseHe].m_twin].m_vertex;
-    int targetEndVertexId = m_halfEdges[m_halfEdges[targetEndHe].m_twin].m_vertex;
+    int targetBaseVertexId = m_halfEdges[m_halfEdges[targetBaseHe].twin].vertex;
+    int targetEndVertexId = m_halfEdges[m_halfEdges[targetEndHe].twin].vertex;
     Vertex& targetBaseVertex = m_vertices[targetBaseVertexId];
     Vertex& targetEndVertex = m_vertices[targetEndVertexId];
 
     // erase edges from original vertices edge list
-    baseVertex.m_edges.erase(baseVertex.m_edges.begin() + basePos);
-    endVertex.m_edges.erase(endVertex.m_edges.begin() + endPos);
+    baseVertex.edges.erase(baseVertex.edges.begin() + basePos);
+    endVertex.edges.erase(endVertex.edges.begin() + endPos);
 
     // insert he into target base/end vertices
     int baseInsertPos = getCyclicPositionOfHalfEdge(targetBaseHe);
     if (clockwise) baseInsertPos++;
     baseInsertPos = clamp(baseInsertPos, 0, targetBaseVertex.degree()); // -1 means we insert at the beginning
-    targetBaseVertex.m_edges.insert(targetBaseVertex.m_edges.begin() + baseInsertPos, endHeId);
+    targetBaseVertex.edges.insert(targetBaseVertex.edges.begin() + baseInsertPos, endHeId);
 
     int endInsertPos = getCyclicPositionOfHalfEdge(targetEndHe);
     if (!clockwise) endInsertPos++;
     endInsertPos = clamp(endInsertPos, 0, targetEndVertex.degree()); // -1 means we insert at the beginning
-    targetEndVertex.m_edges.insert(targetEndVertex.m_edges.begin() + endInsertPos, endHeId);
+    targetEndVertex.edges.insert(targetEndVertex.edges.begin() + endInsertPos, endHeId);
 
     // update half edge vertex references
-    m_halfEdges[baseHeId].m_vertex = targetBaseVertexId;
-    m_halfEdges[endHeId].m_vertex = targetEndVertexId;
+    m_halfEdges[baseHeId].vertex = targetBaseVertexId;
+    m_halfEdges[endHeId].vertex = targetEndVertexId;
 
     return true;
 }
@@ -576,35 +657,88 @@ bool LayoutGuide::redirectEdge(int const &heID) {
     if (!isValidHalfEdge(heID)) return false;
 
     HalfEdge &he = m_halfEdges[heID];
-    he.m_outgoing = !he.m_outgoing;
+    he.outgoing = !he.outgoing;
 
-    HalfEdge &twin = m_halfEdges[he.m_twin];
-    twin.m_outgoing = !twin.m_outgoing;
+    HalfEdge &twin = m_halfEdges[he.twin];
+    twin.outgoing = !twin.outgoing;
 
     return true;
 }
 
+vector<vector<int>> LayoutGuide::buildAdjacencyMatrix(EdgeLabel edgeLabel) const {
+    std::vector<vector<int>> adj(m_vertices.size());
+
+    for (const auto& he : m_halfEdges) {
+        if (!he.outgoing || he.edgeLabel != edgeLabel) continue;
+
+        int u = he.vertex;
+        int v = m_halfEdges[he.twin].vertex;
+
+        adj[u].push_back(v);
+    }
+
+    return adj;
+}
+
+optional<vector<int>> LayoutGuide::getTopologicalOrder(EdgeLabel edgeLabel) const {
+    const auto adj = buildAdjacencyMatrix(edgeLabel);
+    return getTopologicalOrder(edgeLabel, adj);
+}
+
+optional<vector<int>> LayoutGuide::getTopologicalOrder(EdgeLabel edgeLabel, const vector<vector<int>> &adj) const {
+    vector<int> inDeg(adj.size());
+
+    for (int i = 0; i < adj.size(); i++) {
+        for (int v : adj[i]) {
+            inDeg[v]++;
+        }
+    }
+
+    queue<int> q;
+    for (int v = 0; v < adj.size(); v++) {
+        if (inDeg[v] == 0) q.push(v);
+    }
+
+    vector<int> topo(adj.size());
+    while (!q.empty()) {
+        int u = q.front();
+        q.pop();
+
+        topo.push_back(u);
+
+        for (int v : adj[u]) {
+            if (--inDeg[v] == 0) q.push(v);
+        }
+    }
+
+    if (topo.size() != adj.size()) {
+        return std::nullopt;
+    }
+
+    return topo;
+}
+
 bool LayoutGuide::checkRelHalfEdgesConsistency() const {
     for (HalfEdge he : m_halfEdges) {
-        const Vertex baseVertex = m_vertices[he.m_vertex];
-        if (!isValidHalfEdge(he.m_twin)) {
-            std::cerr << "Invalid REL: twin edge " << he.m_twin
-            << " is an invalid twin-he id of the he incident to vertex " << baseVertex.m_label << std::endl;
+        const Vertex baseVertex = m_vertices[he.vertex];
+        if (!isValidHalfEdge(he.twin)) {
+            std::cerr << "Invalid REL: twin edge " << he.twin
+            << " is an invalid twin-he id of the he incident to vertex " << baseVertex.label << std::endl;
             return false;
         }
 
-        const HalfEdge twin = m_halfEdges[he.m_twin];
-        const Vertex endVertex = m_vertices[twin.m_vertex];
+        const HalfEdge twin = m_halfEdges[he.twin];
+        const Vertex endVertex = m_vertices[twin.vertex];
 
-        if (he.m_edgeLabel != twin.m_edgeLabel) {
+        if (he.edgeLabel != twin.edgeLabel) {
             std::cerr << "Invalid REL: inconsistent edge labels for half edges between "
-            << baseVertex.m_label << " and " << endVertex.m_label << endl;
+            << baseVertex.label << " and " << endVertex.label << endl;
             return false;
         }
 
-        if (he.m_outgoing == twin.m_outgoing) {
+        if (he.outgoing == twin.outgoing) {
             std::cerr << "Invalid REL: inconsistent edge direction for half edges between "
-            << baseVertex.m_label << " and " << endVertex.m_label << endl;
+            << baseVertex.label << " and " << endVertex.label << endl;
             return false;
         }
     }
@@ -614,19 +748,19 @@ bool LayoutGuide::checkRelHalfEdgesConsistency() const {
 
 bool LayoutGuide::checkCyclicEdgeTypeOrder() const {
     for (Vertex v : m_vertices) {
-        if (v.m_edges.empty()) {
-            std::cout << "[Warning] vertex " << v.m_label << " has degree 0." << std::endl;
+        if (v.edges.empty()) {
+            std::cout << "[Warning] vertex " << v.label << " has degree 0." << std::endl;
             continue;
         }
 
         vector<EdgeType> blocks;
-        blocks.reserve(v.m_edges.size());
+        blocks.reserve(v.edges.size());
 
-        for (const int heId : v.m_edges) {
+        for (const int heId : v.edges) {
             const HalfEdge edge = m_halfEdges[heId];
             const EdgeType type = edge.edgeType();
             if (type == NONE) {
-                std::cerr << "Invalid REL: vertex " << v.m_label << " has an incident edge of EdgeType NONE" << std::endl;
+                std::cerr << "Invalid REL: vertex " << v.label << " has an incident edge of EdgeType NONE" << std::endl;
                 return false;
             }
 
@@ -641,7 +775,7 @@ bool LayoutGuide::checkCyclicEdgeTypeOrder() const {
             blocks.pop_back();
 
         if (blocks.size() != 4) {
-            std::cerr << "Invalid REL: cyclic EdgeType order of " << v.m_label << " is not correct: ";
+            std::cerr << "Invalid REL: cyclic EdgeType order of " << v.label << " is not correct: ";
             for (const auto b : blocks)
                 std::cerr << b << " ";
             std::cerr << std::endl;
@@ -672,7 +806,7 @@ bool LayoutGuide::checkCyclicEdgeTypeOrder() const {
         }
 
         if (!matches) {
-            std::cerr << "Invalid REL: cyclic EdgeType order of " << v.m_label << " is not correct: ";
+            std::cerr << "Invalid REL: cyclic EdgeType order of " << v.label << " is not correct: ";
             for (const auto b : blocks)
                 std::cerr << b << " ";
             std::cerr << std::endl;
@@ -686,35 +820,6 @@ bool LayoutGuide::checkCyclicEdgeTypeOrder() const {
 }
 
 bool LayoutGuide::isEdgeTypeAcyclic(EdgeLabel edgeLabel) const {
-    vector inDeg(m_vertices.size(), 0);
-    vector<vector<int>> adj(m_vertices.size());
-
-    for (int i = 0; i < m_halfEdges.size(); ++i) {
-        const auto& he = m_halfEdges[i];
-        if (!he.m_outgoing || he.m_edgeLabel != edgeLabel) continue;
-
-        int u = he.m_vertex;
-        int v = m_halfEdges[he.m_twin].m_vertex;
-
-        adj[u].push_back(v);
-        inDeg[v]++;
-    }
-
-    queue<int> q;
-    for (int i = 0; i < m_vertices.size(); ++i) {
-        if (inDeg[i] == 0) q.push(i);
-    }
-
-    int visited = 0;
-    while (!q.empty()) {
-        int u = q.front();
-        q.pop();
-        visited++;
-        for (int v: adj[u]) {
-            if (--inDeg[v] == 0) q.push(v);
-        }
-    }
-
-    return visited == m_vertices.size();
+    return getTopologicalOrder(edgeLabel).has_value();
 }
 } // namespace cartocrow::layout_guide

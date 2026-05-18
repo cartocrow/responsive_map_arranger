@@ -24,6 +24,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using namespace std;
 
 namespace cartocrow::layout_guide {
+enum OuterVertices {
+    WEST = 0,
+    NORTH = 1,
+    EAST = 2,
+    SOUTH = 3,
+};
+
 enum EdgeLabel {
     VERTICAL = 0,
     HORIZONTAL = 1,
@@ -39,37 +46,37 @@ enum EdgeType {
 };
 
 struct Vertex {
-    string m_label;
-    double m_relativeArea;
-    double m_aspectRatio;
-    double m_area;
-    double m_width;
-    double m_height;
+    string label;
+    double relativeArea;
+    double aspectRatio;
+    double area;
+    double width;
+    double height;
 
-    bool m_outerVertex = false;
-    bool m_seaRegion = false;
+    bool outerVertex = false;
+    bool seaRegion = false;
 
-    int m_horizontal_order_index = -1;
-    int m_vertical_order_index = -1;
+    int horizontal_order_index = -1;
+    int vertical_order_index = -1;
 
     // half edges of the vertex in COUNTERCLOCKWISE cyclic order
-    vector<int> m_edges;
+    vector<int> edges;
 
-    int degree() const { return m_edges.size(); }
+    int degree() const { return edges.size(); }
 };
 
 struct HalfEdge {
-    int m_vertex = -1; // incident vertex
-    int m_twin = -1; // twin half edge
+    int vertex = -1; // incident vertex
+    int twin = -1; // twin half edge
 
-    bool m_outgoing;
-    EdgeLabel m_edgeLabel;
+    bool outgoing;
+    EdgeLabel edgeLabel;
 
     EdgeType edgeType() const {
-        if (m_edgeLabel == VERTICAL && m_outgoing) return OUTGOING_VERTICAL;
-        if (m_edgeLabel == VERTICAL && !m_outgoing) return INCOMING_VERTICAL;
-        if (m_edgeLabel == HORIZONTAL && m_outgoing) return OUTGOING_HORIZONTAL;
-        if (m_edgeLabel == HORIZONTAL && !m_outgoing) return INCOMING_HORIZONTAL;
+        if (edgeLabel == VERTICAL && outgoing) return OUTGOING_VERTICAL;
+        if (edgeLabel == VERTICAL && !outgoing) return INCOMING_VERTICAL;
+        if (edgeLabel == HORIZONTAL && outgoing) return OUTGOING_HORIZONTAL;
+        if (edgeLabel == HORIZONTAL && !outgoing) return INCOMING_HORIZONTAL;
         return NONE;
     }
 };
@@ -80,12 +87,15 @@ public:
     LayoutGuide(vector<Vertex> vertices, vector<HalfEdge> halfEdges);
     LayoutGuide(const json &j);
 
-
     bool isValidREL(bool debugging = false) const;
 
     const vector<Vertex> &getVertices() const {return m_vertices; }
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
-    void setVertexWeight(const int vId, const double weight) { m_vertices[vId].m_relativeArea = weight; };
+    void setVertexWeight(const int vId, const double weight) { m_vertices[vId].relativeArea = weight; };
+
+    std::pair<double, std::vector<int>> getLongestPath(EdgeLabel edgeLabel, int source, int sink, const function<double(int)> &vertexCost, int minNodes = 1) const;
+    pair<double, std::vector<int>> getLongestHorizontalPath() const;
+    pair<double, std::vector<int>> getLongestVerticalPath() const;
 
     int getCanonicalHalfEdge(int const &heId) const;
     int getNextCyclicEdge(int const &heId) const;
@@ -122,6 +132,10 @@ private:
     bool isValidHalfEdge(int const &he) const {
         return 0 <= he && he < static_cast<int>(m_halfEdges.size());
     }
+
+    vector<vector<int>> buildAdjacencyMatrix(EdgeLabel edgeLabel) const;
+    optional<vector<int>> getTopologicalOrder(EdgeLabel edgeLabel) const;
+    optional<vector<int>> getTopologicalOrder(EdgeLabel edgeLabel, const vector<vector<int>> &adj) const;
 
     bool checkRelHalfEdgesConsistency() const;
     bool checkCyclicEdgeTypeOrder() const;
