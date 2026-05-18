@@ -81,7 +81,7 @@ public:
     LayoutGuide(const json &j);
 
 
-    //bool isValidREL(bool debugging = false) const;
+    bool isValidREL(bool debugging = false) const;
 
     const vector<Vertex> &getVertices() const {return m_vertices; }
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
@@ -125,6 +125,7 @@ private:
 
     bool checkRelHalfEdgesConsistency() const;
     bool checkCyclicEdgeTypeOrder() const;
+    bool isEdgeTypeAcyclic(EdgeLabel edgeLabel) const;
 
 };
 } // namespace cartocrow::layout_guide

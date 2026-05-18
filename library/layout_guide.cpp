@@ -396,6 +396,31 @@ LayoutGuide::LayoutGuide(const json &j) {
     }
 }
 
+bool LayoutGuide::isValidREL(const bool debugging) const {
+    if (!checkRelHalfEdgesConsistency()) {
+        if (debugging) std::cout<<"REL invalid: half edge mismatch" << endl;;
+        return false;
+    }
+
+    if (!checkCyclicEdgeTypeOrder()) {
+        if (debugging) std::cout<<"REL invalid: cyclic edge type order not valid" << endl;;
+        return false;
+    }
+
+    if (!isEdgeTypeAcyclic(HORIZONTAL)) {
+        if (debugging) std::cout<<"REL invalid: cycle found in the HORIZONTAL edges" << endl;
+        return false;
+    }
+    if (!isEdgeTypeAcyclic(VERTICAL)) {
+        if (debugging) std::cout<<"REL invalid: cycle found in the VERTICAL edges" << endl;
+        return false;
+    }
+
+    if (debugging) cout << "REL valid" << endl;
+
+    return true;
+}
+
 // returns heID if heID is outgoing and returns its twin if heID is not outgoing
 int LayoutGuide::getCanonicalHalfEdge(int const &heId) const {
     if (!isValidHalfEdge(heId)) return -1;
@@ -658,5 +683,38 @@ bool LayoutGuide::checkCyclicEdgeTypeOrder() const {
 
     return true;
 
+}
+
+bool LayoutGuide::isEdgeTypeAcyclic(EdgeLabel edgeLabel) const {
+    vector inDeg(m_vertices.size(), 0);
+    vector<vector<int>> adj(m_vertices.size());
+
+    for (int i = 0; i < m_halfEdges.size(); ++i) {
+        const auto& he = m_halfEdges[i];
+        if (!he.m_outgoing || he.m_edgeLabel != edgeLabel) continue;
+
+        int u = he.m_vertex;
+        int v = m_halfEdges[he.m_twin].m_vertex;
+
+        adj[u].push_back(v);
+        inDeg[v]++;
+    }
+
+    queue<int> q;
+    for (int i = 0; i < m_vertices.size(); ++i) {
+        if (inDeg[i] == 0) q.push(i);
+    }
+
+    int visited = 0;
+    while (!q.empty()) {
+        int u = q.front();
+        q.pop();
+        visited++;
+        for (int v: adj[u]) {
+            if (--inDeg[v] == 0) q.push(v);
+        }
+    }
+
+    return visited == m_vertices.size();
 }
 } // namespace cartocrow::layout_guide
