@@ -17,10 +17,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include <cartocrow/core/core.h>
+#include <nlohmann/json_fwd.hpp>
 
-#include "regular_edge_labeling.h"
-
+using json = nlohmann::json;
 using namespace std;
 
 namespace cartocrow::layout_guide {
@@ -91,11 +95,9 @@ public:
 
     const vector<Vertex> &getVertices() const {return m_vertices; }
     const vector<HalfEdge> &getHalfEdges() const { return m_halfEdges; }
-    void setVertexWeight(const int vId, const double weight) { m_vertices[vId].relativeArea = weight; };
+    void scaleRelativeVertexSizes(const int vId, const double weight) const;
 
     std::pair<double, std::vector<int>> getLongestPath(EdgeLabel edgeLabel, int source, int sink, const function<double(int)> &vertexCost, int minNodes = 1) const;
-    pair<double, std::vector<int>> getLongestHorizontalPath() const;
-    pair<double, std::vector<int>> getLongestVerticalPath() const;
 
     int getCanonicalHalfEdge(int const &heId) const;
     int getNextCyclicEdge(int const &heId) const;
@@ -136,6 +138,8 @@ private:
     vector<vector<int>> buildAdjacencyMatrix(EdgeLabel edgeLabel) const;
     optional<vector<int>> getTopologicalOrder(EdgeLabel edgeLabel) const;
     optional<vector<int>> getTopologicalOrder(EdgeLabel edgeLabel, const vector<vector<int>> &adj) const;
+
+    void computeRelativeVertexWeights();
 
     bool checkRelHalfEdgesConsistency() const;
     bool checkCyclicEdgeTypeOrder() const;

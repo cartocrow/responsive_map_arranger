@@ -425,8 +425,15 @@ bool LayoutGuide::isValidREL(const bool debugging) const {
     return true;
 }
 
+void LayoutGuide::scaleRelativeVertexSizes(const int vId, const double scalar) const {
+    auto v = m_vertices[vId];
+    v.relativeArea = v.area * scalar;
+    v.width = sqrt(v.relativeArea * v.aspectRatio);
+    v.height = v.relativeArea / v.width;
+}
+
 std::pair<double, std::vector<int>> LayoutGuide::getLongestPath(EdgeLabel edgeLabel, int source, int sink,
-    const function<double(int)> &vertexCost, int minNodes) const {
+                                                                const function<double(int)> &vertexCost, int minNodes) const {
 
     const auto adj = buildAdjacencyMatrix(edgeLabel);
     const auto topoOpt = getTopologicalOrder(edgeLabel, adj);
@@ -482,24 +489,6 @@ std::pair<double, std::vector<int>> LayoutGuide::getLongestPath(EdgeLabel edgeLa
 
     ranges::reverse(path);
     return {dp[sink][minNodes], path};
-}
-
-pair<double, std::vector<int>> LayoutGuide::getLongestHorizontalPath() const {
-    return getLongestPath(
-        HORIZONTAL,
-        WEST,
-        EAST,
-        [&](const int id)->double { return m_vertices[id].width; },
-        4);
-}
-
-pair<double, std::vector<int>> LayoutGuide::getLongestVerticalPath() const {
-    return getLongestPath(
-        VERTICAL,
-        SOUTH,
-        NORTH,
-        [&](const int id)->double { return m_vertices[id].height; },
-        4);
 }
 
 // returns heID if heID is outgoing and returns its twin if heID is not outgoing
@@ -716,6 +705,17 @@ optional<vector<int>> LayoutGuide::getTopologicalOrder(EdgeLabel edgeLabel, cons
     }
 
     return topo;
+}
+
+void LayoutGuide::computeRelativeVertexWeights() {
+    int total = 0;
+    for (int i = 4; i < m_vertices.size(); i++) {
+        total += m_vertices[i].area;
+    }
+
+    for (int i = 4; i < m_vertices.size(); i++) {
+        m_vertices[i].relativeArea = m_vertices[i].area / total;
+    }
 }
 
 bool LayoutGuide::checkRelHalfEdgesConsistency() const {

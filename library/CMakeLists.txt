@@ -5,7 +5,7 @@ set(SOURCES
         rel_painting.cpp
         demers.cpp
 		layout_guide.cpp
-
+		layout_arranger.cpp
 )
 set(HEADERS
 		geometry_types.h
@@ -15,6 +15,7 @@ set(HEADERS
 		rel_painting.h
         demers.h
 		layout_guide.h
+		layout_arranger.h
 )
 
 add_library(rectangular_cartogram ${SOURCES})
