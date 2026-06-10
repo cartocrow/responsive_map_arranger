@@ -1,7 +1,7 @@
 # Responsive Map Arranger
 This repository is a responsive map arranger aimed at facilitating responsive thematic mapping.
 
-This repository is under active development. The branch ArXiv-code contains the code used to generate results for the ArXiv preprint.
+This repository is under active development. The branch ArXiv contains the code used to generate results for the ArXiv preprint.
 
 ## Dependencies
 This module depends on the following libraries:
