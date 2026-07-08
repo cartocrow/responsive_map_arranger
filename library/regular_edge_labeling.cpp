@@ -2573,6 +2573,19 @@ void RegularEdgeLabeling::revertEdgeDirection(int edgeId) {
     m_halfEdges[edge.twin].outgoing = !m_halfEdges[edge.twin].outgoing;
 }
 
+void RegularEdgeLabeling::fixEdgeDirection(int edgeId) {
+    int baseEdgeId = getCanonicalHalfEdge(edgeId);
+    HalfEdge &edge = m_halfEdges[baseEdgeId];
+
+    HalfEdge &nextEdge = m_halfEdges[getNextCyclicEdge(baseEdgeId)];
+    bool sameDir = edge.outgoing == nextEdge.outgoing;
+    bool sameColor = edge.color == nextEdge.color;
+
+    if ((sameDir && sameColor) || (!sameDir && !sameColor)) return;
+
+    revertEdgeDirection(edgeId);
+}
+
 void RegularEdgeLabeling::debugCheckAfterFlip(int edgeId) const {
     if (edgeId < 0 || edgeId >= (int)m_halfEdges.size()) return;
     int twin = m_halfEdges[edgeId].twin;
@@ -2599,6 +2612,11 @@ int RegularEdgeLabeling::getCanonicalHalfEdge(const int heId) const {
 
 bool RegularEdgeLabeling::hasValidEdgeColorFlip(const int edgeId) const {
     HalfEdge he = m_halfEdges[edgeId];
+
+    int u = he.vertex;
+    int v = m_halfEdges[he.twin].vertex;
+
+    if (isOuterVertexLabel(v) || isOuterVertexLabel(u)) return false;
 
     EdgeColor heLeftColor = m_halfEdges[getNextCyclicEdge(edgeId)].color;
     EdgeColor heRightColor = m_halfEdges[getPreviousCyclicEdge(edgeId)].color;

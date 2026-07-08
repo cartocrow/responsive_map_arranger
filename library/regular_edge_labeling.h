@@ -167,6 +167,7 @@ public:
     bool flipEdgeColor(int edgeId);
     bool flipEdgeDiagonally(int edgeId, bool clockwise);
     void revertEdgeDirection(int edgeId);
+    void fixEdgeDirection(int edgeId);
     void debugCheckAfterFlip(int edgeId) const;
 
     int getCanonicalHalfEdge(int heId) const;

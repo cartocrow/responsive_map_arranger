@@ -595,6 +595,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         if (sels.empty()) return;
         for (int he: sels) {
             bool ok = m_relPtr->flipEdgeColor(he);
+            m_relPtr->fixEdgeDirection(he);
             if (!ok) std::cerr << "flipEdgeColor failed for halfedge " << he << "\n";
         }
         // after mutating REL, rebuild dual & segment geometry:
