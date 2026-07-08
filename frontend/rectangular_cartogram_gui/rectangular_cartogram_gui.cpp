@@ -725,8 +725,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         float wy = static_cast<float>(pt.y());
         int he = m_relPainting->pickAndToggleHalfEdgeNear(wx, wy, 8.0 /*tolerance*/);
         if (he >= 0) {
+            he = m_rel.getCanonicalHalfEdge(he);
             // optional: print / debug
             std::cout << "Toggled selection halfedge " << he << "\n";
+            //int leftQuad = m_rel.getEdgeInLeftQuad(he);
+            //int rightQuad = m_rel.getEdgeInRightQuad(he);
+            //std::cout << "leftquad he: " << leftQuad << " " << m_rel.getHalfEdges()[leftQuad].twin << std::endl;
+            //std::cout << "rightquad he: " << rightQuad << " " << m_rel.getHalfEdges()[rightQuad].twin << std::endl;
             m_renderer->update();
         }
     });

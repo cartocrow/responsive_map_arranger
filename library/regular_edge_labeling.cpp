@@ -1595,6 +1595,8 @@ std::pair<double, std::vector<int>> RegularEdgeLabeling::getLongestVerticalPath(
     return { filteredCost, path };
 }
 
+
+
 bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromLeft(int edgeId) {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
         throw runtime_error("mergeMaxHorizontalSegment: Invalid edgeId: " + std::to_string(edgeId));
@@ -2290,6 +2292,48 @@ int RegularEdgeLabeling::getNextCyclicEdge(const int edgeId) const {
     const int i = find_position_in_vertex_incident(m_vertices, vertexID, edgeId);
 
     return v.edges[(i+1) % vDegree];
+}
+
+int RegularEdgeLabeling::findEdgeBetween(int a, int b) const {
+    int he = findHalfEdgeToNeighbor(a, b);
+    if (he != -1) return he;
+
+    he = findHalfEdgeToNeighbor(b, a);
+    if (he != -1) return m_halfEdges[he].twin;
+
+    return -1;
+}
+
+int RegularEdgeLabeling::getEdgeInLeftQuad(int he) const {
+    int u = m_halfEdges[he].vertex;
+    int v = neighborOfHalfEdge(he);
+
+    int leftAtBase = getNextCyclicEdge(he);
+    int leftAtEnd  = getPreviousCyclicEdge(m_halfEdges[he].twin);
+
+    int t = neighborOfHalfEdge(leftAtBase);
+    int s = neighborOfHalfEdge(leftAtEnd);
+
+    int edge = findEdgeBetween(u, t);
+    if (edge != -1) return edge;
+
+    return findEdgeBetween(s, v);
+}
+
+int RegularEdgeLabeling::getEdgeInRightQuad(int he) const {
+    int u = m_halfEdges[he].vertex;
+    int v = neighborOfHalfEdge(he);
+
+    int rightAtBase = getPreviousCyclicEdge(he);
+    int rightAtEnd  = getNextCyclicEdge(m_halfEdges[he].twin);
+
+    int t = neighborOfHalfEdge(rightAtBase);
+    int s = neighborOfHalfEdge(rightAtEnd);
+
+    int edge = findEdgeBetween(u, t);
+    if (edge != -1) return edge;
+
+    return findEdgeBetween(s, v);
 }
 
 int RegularEdgeLabeling::findFirstEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const {

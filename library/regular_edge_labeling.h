@@ -147,6 +147,10 @@ public:
     int getPreviousCyclicEdge(const int edgeId) const;
     int getNextCyclicEdge(const int edgeId) const;
 
+    int findEdgeBetween(int a, int b) const;
+    int getEdgeInLeftQuad(int he) const;
+    int getEdgeInRightQuad(int he) const;
+
     int getVertexDegree(const int vertexId) const { return m_vertices[vertexId].edges.size(); }
     int getVertexDegree(const Vertex& vertex) const {return vertex.edges.size(); }
     int getFirstOutgoingBlue(int vertexId) const;
