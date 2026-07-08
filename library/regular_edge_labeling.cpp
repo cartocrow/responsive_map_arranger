@@ -1627,11 +1627,27 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromLeft(int edgeId) {
     int leftMostRedEdge = getLastOutgoingRed(baseEdge.vertex); // the edge that we will collapse
     int nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(leftMostRedEdge)].twin);
 
-    // get initial leftmost red segment of the face
-    while (m_halfEdges[nextEdgeId].color == RED) {
-        leftMostRedEdge = getLastOutgoingRed(m_halfEdges[nextEdgeId].vertex);
-        nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(leftMostRedEdge)].twin);
-    }
+    bool openingBlueFace = true;
+
+    do {
+        // get initial leftmost red segment of the face
+        while (m_halfEdges[nextEdgeId].color == RED) {
+            leftMostRedEdge = getLastOutgoingRed(m_halfEdges[nextEdgeId].vertex);
+            nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(leftMostRedEdge)].twin);
+            //std::cout << "nextEdgeId: " << nextEdgeId << std::endl;
+        }
+
+        int leftQuadEdge = getEdgeInLeftQuad(leftMostRedEdge);
+        //std::cout << leftQuadEdge << std::endl;
+        if (hasValidEdgeColorFlip(leftQuadEdge)) {
+            flipEdgeColor(leftQuadEdge);
+            fixEdgeDirection(leftQuadEdge);
+            leftMostRedEdge = getLastOutgoingRed(m_halfEdges[leftMostRedEdge].vertex);
+            nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(leftMostRedEdge)].twin);
+        } else {
+            openingBlueFace = false;
+        }
+    } while (openingBlueFace);
 
     // merge red edges from left to right
     int previousEdgeId = -1;
@@ -1683,11 +1699,25 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromRight(int edgeId) {
     int rightMostRedEdge = getFirstOutgoingRed(baseEdge.vertex); // the edge that we will collapse
     int previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
 
-    // get initial rightmost red segment of the face
-    while (m_halfEdges[previousEdgeId].color == RED) {
-        rightMostRedEdge = getFirstOutgoingRed(m_halfEdges[previousEdgeId].vertex);
-        previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
-    }
+    bool openingBlueFace = true;
+    do {
+        // get initial rightmost red segment of the face
+        while (m_halfEdges[previousEdgeId].color == RED) {
+            rightMostRedEdge = getFirstOutgoingRed(m_halfEdges[previousEdgeId].vertex);
+            previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
+        }
+
+        int rightQuadEdge = getEdgeInRightQuad(rightMostRedEdge);
+        if (hasValidEdgeColorFlip(rightQuadEdge)) {
+            flipEdgeColor(rightQuadEdge);
+            fixEdgeDirection(rightQuadEdge);
+
+            rightMostRedEdge = getFirstOutgoingRed(m_halfEdges[rightMostRedEdge].vertex);
+            previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
+        } else {
+            openingBlueFace = false;
+        }
+    } while (openingBlueFace);
 
     // merge red edges from right to left
     int nextEdgeId = -1;
