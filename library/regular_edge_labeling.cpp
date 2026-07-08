@@ -1871,18 +1871,29 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
     // If the bottom vertex needs to go to the left
     if (baseVertex.horizontal_order_index < endVertex.horizontal_order_index) {
         // If bottom vertex is last in the subsequence then we first want to flip all blue outgoing edge of the base node (highest to lowest order)
+        // or we open up the blue face if that is needed
         {
             int lastBlueOutId = getLastOutgoingBlue(baseEdge.vertex);
             if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastBlueOutId].twin)].color == BLUE) {
+                //TODO: open up blue face on the right side
 
-                while (getFirstOutgoingBlue(baseEdge.vertex) != lastBlueOutId) {
-
-                    flipEdgeDiagonally(lastBlueOutId, true);
-                    lastBlueOutId = getLastOutgoingBlue(baseEdge.vertex);
+                int rightQuadEdge = getEdgeInRightQuad(baseEdgeId);
+                int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
+                if (rightQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
+                    // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    flipEdgeColor(rightQuadEdge);
+                    fixEdgeDirection(rightQuadEdge);
                 }
-                // Last flipped edge recolor and flip in the other direction
-                flipEdgeDiagonally(lastBlueOutId, false);
-                flipEdgeColor(lastBlueOutId);
+                else {
+                    while (getFirstOutgoingBlue(baseEdge.vertex) != lastBlueOutId) {
+
+                        flipEdgeDiagonally(lastBlueOutId, true);
+                        lastBlueOutId = getLastOutgoingBlue(baseEdge.vertex);
+                    }
+                    // Last flipped edge recolor and flip in the other direction
+                    flipEdgeDiagonally(lastBlueOutId, false);
+                    flipEdgeColor(lastBlueOutId);
+                }
             }
         }
 
@@ -1913,16 +1924,28 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
     } // if the bottom vertex needs to go to the right
     else if (baseVertex.horizontal_order_index > endVertex.horizontal_order_index) {
         // If top vertex is last in the subsequence then we first want to flip all outgoing blue edge of the end node (lowest to highest order)
+        // or we open up the blue face if that is needed
         {
             int firstBLueOutId = getFirstOutgoingBlue(endEdge.vertex);
             if (m_halfEdges[getNextCyclicEdge(m_halfEdges[firstBLueOutId].twin)].color == BLUE) {
-                while (getLastOutgoingBlue(endEdge.vertex) != firstBLueOutId) {
-                    flipEdgeDiagonally(firstBLueOutId, false);
-                    firstBLueOutId = getFirstOutgoingBlue(endEdge.vertex);
+
+                //TODO: open up blue face on the right side
+                int rightQuadEdge = getEdgeInRightQuad(baseEdgeId);
+                int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
+                if (rightQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
+                    // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    flipEdgeColor(rightQuadEdge);
+                    fixEdgeDirection(rightQuadEdge);
                 }
-                // Last flipped edge recolor and flip in the other direction
-                flipEdgeDiagonally(firstBLueOutId, false);
-                flipEdgeColor(firstBLueOutId);
+                else {
+                    while (getLastOutgoingBlue(endEdge.vertex) != firstBLueOutId) {
+                        flipEdgeDiagonally(firstBLueOutId, false);
+                        firstBLueOutId = getFirstOutgoingBlue(endEdge.vertex);
+                    }
+                    // Last flipped edge recolor and flip in the other direction
+                    flipEdgeDiagonally(firstBLueOutId, false);
+                    flipEdgeColor(firstBLueOutId);
+                }
             }
         }
 
@@ -1990,14 +2013,24 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
         {
             int firstBlueInId = getFirstIncomingBlue(baseEdge.vertex);
             if (m_halfEdges[getNextCyclicEdge(m_halfEdges[firstBlueInId].twin)].color == BLUE) {
-                while (getLastIncomingBlue(baseEdge.vertex) != firstBlueInId) {
 
-                    flipEdgeDiagonally(firstBlueInId, false);
-                    firstBlueInId = getFirstIncomingBlue(baseEdge.vertex);
+                int leftQuadEdge = getEdgeInLeftQuad(baseEdgeId);
+                int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
+                if (leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
+                    // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    flipEdgeColor(leftQuadEdge);
+                    fixEdgeDirection(leftQuadEdge);
                 }
-                // Last flipped edge recolor and flip in the other direction
-                flipEdgeDiagonally(firstBlueInId, false);
-                flipEdgeColor(firstBlueInId);
+                else {
+                    while (getLastIncomingBlue(baseEdge.vertex) != firstBlueInId) {
+
+                        flipEdgeDiagonally(firstBlueInId, false);
+                        firstBlueInId = getFirstIncomingBlue(baseEdge.vertex);
+                    }
+                    // Last flipped edge recolor and flip in the other direction
+                    flipEdgeDiagonally(firstBlueInId, false);
+                    flipEdgeColor(firstBlueInId);
+                }
             }
         }
 
@@ -2030,13 +2063,23 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
         {
             int lastBlueIn = getLastIncomingBlue(endEdge.vertex);
             if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastBlueIn].twin)].color == BLUE) {
-                while (getFirstIncomingBlue(endEdge.vertex) != lastBlueIn) {
-                    flipEdgeDiagonally(lastBlueIn, true);
-                    lastBlueIn = getLastIncomingBlue(endEdge.vertex);
+
+                int leftQuadEdge = getEdgeInLeftQuad(baseEdgeId);
+                int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
+                if (leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
+                    // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    flipEdgeColor(leftQuadEdge);
+                    fixEdgeDirection(leftQuadEdge);
                 }
-                // Last flipped edge recolor and flip in the other direction
-                flipEdgeDiagonally(lastBlueIn, false);
-                flipEdgeColor(lastBlueIn);
+                else {
+                    while (getFirstIncomingBlue(endEdge.vertex) != lastBlueIn) {
+                        flipEdgeDiagonally(lastBlueIn, true);
+                        lastBlueIn = getLastIncomingBlue(endEdge.vertex);
+                    }
+                    // Last flipped edge recolor and flip in the other direction
+                    flipEdgeDiagonally(lastBlueIn, false);
+                    flipEdgeColor(lastBlueIn);
+                }
             }
         }
 
