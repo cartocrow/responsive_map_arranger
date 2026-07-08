@@ -2543,6 +2543,30 @@ void RegularEdgeLabeling::debugCheckAfterFlip(int edgeId) const {
     std::cout << "\n";
 }
 
+int RegularEdgeLabeling::getCanonicalHalfEdge(const int heId) const {
+    if (!isValidHalfEdge(heId)) return -1;
+
+    const HalfEdge &he = m_halfEdges[heId];
+    if (he.outgoing) return heId;
+    const int twinID = he.twin;
+    if (!isValidHalfEdge(twinID)) return -1;
+    return twinID;
+}
+
+bool RegularEdgeLabeling::hasValidEdgeColorFlip(const int edgeId) const {
+    HalfEdge he = m_halfEdges[edgeId];
+
+    EdgeColor heLeftColor = m_halfEdges[getNextCyclicEdge(edgeId)].color;
+    EdgeColor heRightColor = m_halfEdges[getPreviousCyclicEdge(edgeId)].color;
+    EdgeColor twinLeftColor = m_halfEdges[getPreviousCyclicEdge(he.twin)].color;
+    EdgeColor twinRightColor = m_halfEdges[getNextCyclicEdge(he.twin)].color;
+
+    if (heLeftColor == twinRightColor && heRightColor == twinLeftColor && heLeftColor != heRightColor) {
+        return true;
+    }
+    return false;
+}
+
 // ---------------- printSummary ----------------
 void RegularEdgeLabeling::printSummary() const {
     cout << "Vertices: " << m_vertices.size() << ", HalfEdges: " << m_halfEdges.size() << "\n";

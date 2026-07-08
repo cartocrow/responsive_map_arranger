@@ -165,6 +165,9 @@ public:
     void revertEdgeDirection(int edgeId);
     void debugCheckAfterFlip(int edgeId) const;
 
+    int getCanonicalHalfEdge(int heId) const;
+    bool hasValidEdgeColorFlip(int edgeId) const;
+
 private:
     vector<Vertex> m_vertices;
     unordered_map<string, int> m_labelToIndex;

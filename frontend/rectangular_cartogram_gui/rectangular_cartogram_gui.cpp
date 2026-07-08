@@ -279,8 +279,10 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     auto *btnMergeSegmentFromLeft = new QPushButton("Merge Segment (from left)");
     auto *btnMergeSegmentFromRight = new QPushButton("Merge Segment (from right)");
     auto *btnClearSelection = new QPushButton("Clear Selection");
+    auto *btnValidateFlipColor = new QPushButton("Validate Flip Color");
 
     vLayout->addWidget(selectionLabel);
+    vLayout->addWidget(btnValidateFlipColor);
     vLayout->addWidget(btnFlipColor);
     vLayout->addWidget(btnFlipDiagCW);
     vLayout->addWidget(btnFlipDiagCCW);
@@ -289,6 +291,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     vLayout->addWidget(btnMergeSegmentFromLeft);
     vLayout->addWidget(btnMergeSegmentFromRight);
     vLayout->addWidget(btnClearSelection);
+
 
     connect(btnStartVid, &QPushButton::clicked, this, [this]() {
         std::cout << "vid button clicked :)" << std::endl;
@@ -596,6 +599,17 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         }
         // after mutating REL, rebuild dual & segment geometry:
         setCartogramFromREL();
+    });
+
+    connect(btnValidateFlipColor, &QPushButton::clicked, [this]() {
+       if (!m_relPtr || !m_relPainting) return;
+        const auto sels = m_relPainting->getSelectedHalfEdges();
+        if (sels.empty()) return;
+        for (int he: sels) {
+            bool ok = m_relPtr->hasValidEdgeColorFlip(he);
+            if (ok) std::cout << "Half edge " << he << " can be flipped." << std::endl;
+            else std::cout << "Half edge " << he << " cannot be flipped." << std::endl;
+        }
     });
 
     connect(btnFlipDiagCW, &QPushButton::clicked, [this]() {
