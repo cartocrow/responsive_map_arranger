@@ -192,13 +192,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     m_frameSizeX->setValue(666);
     m_frameSizeX->setMinimum(5);
     m_frameSizeX->setMaximum(5000);
-    m_frameSizeX->setSingleStep(5);
+    m_frameSizeX->setSingleStep(0.5);
     auto frameSizeYLabel = new QLabel("Frame size Y", vWidget);
     m_frameSizeY = new QDoubleSpinBox(vWidget);
     m_frameSizeY->setValue(666);
     m_frameSizeY->setMinimum(5);
     m_frameSizeY->setMaximum(5000);
-    m_frameSizeY->setSingleStep(5);
+    m_frameSizeY->setSingleStep(0.5);
 
     m_useSquareAspectRatios = new QCheckBox("Use Square Aspect Ratios", vWidget);
     m_useSquareAspectRatios->setChecked(true);
@@ -728,7 +728,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         if (he >= 0) {
             he = m_rel.getCanonicalHalfEdge(he);
             // optional: print / debug
-            std::cout << "Toggled selection halfedge " << he << "\n";
+            std::cout << "Toggled selection halfedge " << he << " " << m_rel.getHalfEdges()[he].twin << "\n";
             //int leftQuad = m_rel.getEdgeInLeftQuad(he);
             //int rightQuad = m_rel.getEdgeInRightQuad(he);
             //std::cout << "leftquad he: " << leftQuad << " " << m_rel.getHalfEdges()[leftQuad].twin << std::endl;
