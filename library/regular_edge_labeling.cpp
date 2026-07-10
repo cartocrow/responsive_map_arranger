@@ -2670,7 +2670,10 @@ void RegularEdgeLabeling::fixEdgeDirection(int edgeId) {
     bool sameDir = edge.outgoing == nextEdge.outgoing;
     bool sameColor = edge.color == nextEdge.color;
 
-    if ((sameDir && sameColor) || (!sameDir && !sameColor)) return;
+    if (edge.color == RED)
+        if ((sameDir && sameColor) || (!sameDir && !sameColor)) return;
+    if (edge.color == BLUE)
+        if ((sameDir && sameColor) || (sameDir && !sameColor)) return;
 
     revertEdgeDirection(edgeId);
 }
