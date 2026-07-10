@@ -120,6 +120,11 @@ public:
     bool mergeMaxVerticalSegmentFromBottom(int edgeId);
     bool mergeMaxVerticalSegmentFromTop(int edgeId);
 
+    int getLeftmostRedWhileOpeningFace(int edgeId);
+    int getRightmostRedWhileOpeningFace(int edgeId);
+    int getLowestBlueWhileOpeningFace(int edgeId);
+    int getHighestBlueWhileOpeningFace(int edgeId);
+
     bool mergeLeftMostRedEdge(int edgeId);
     bool mergeRightMostRedEdge(int edgeId);
     bool mergeLowestBlueEdge(int edgeId);
