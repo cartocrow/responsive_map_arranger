@@ -1715,12 +1715,12 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromRight(int edgeId) {
             previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
         }
 
-        int leftBaseVertex = m_halfEdges[rightMostRedEdge].vertex;
+        int rightBaseVertex = m_halfEdges[rightMostRedEdge].vertex;
         int rightEndVertex = m_halfEdges[m_halfEdges[rightMostRedEdge].twin].vertex;
 
-        bool baseFirst = m_vertices[leftBaseVertex].horizontal_order_index < m_vertices[rightEndVertex].horizontal_order_index;
+        bool baseFirst = m_vertices[rightBaseVertex].horizontal_order_index < m_vertices[rightEndVertex].horizontal_order_index;
         int rightQuadEdge = getFlippableEdgeInRightQuad(rightMostRedEdge);
-        bool nonComparableVertices = (baseFirst && leftBaseVertex != m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && leftBaseVertex == m_halfEdges[rightQuadEdge].vertex);
+        bool nonComparableVertices = (baseFirst && rightBaseVertex == m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && rightBaseVertex != m_halfEdges[rightQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(rightQuadEdge)) {
 
