@@ -148,8 +148,8 @@ public:
     int getNextCyclicEdge(const int edgeId) const;
 
     int findEdgeBetween(int a, int b) const;
-    int getEdgeInLeftQuad(int he) const;
-    int getEdgeInRightQuad(int he) const;
+    int getFlippableEdgeInLeftQuad(int he) const;
+    int getFlippableEdgeInRightQuad(int he) const;
 
     int getVertexDegree(const int vertexId) const { return m_vertices[vertexId].edges.size(); }
     int getVertexDegree(const Vertex& vertex) const {return vertex.edges.size(); }
@@ -163,6 +163,7 @@ public:
     int getLastIncomingRed(int vertexId) const;
 
     int canonicalHalfEdge(int he) const;
+    bool sameUndirectedEdge(int a, int b) const;
 
     bool flipEdgeColor(int edgeId);
     bool flipEdgeDiagonally(int edgeId, bool clockwise);

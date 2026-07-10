@@ -1634,12 +1634,18 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromLeft(int edgeId) {
         while (m_halfEdges[nextEdgeId].color == RED) {
             leftMostRedEdge = getLastOutgoingRed(m_halfEdges[nextEdgeId].vertex);
             nextEdgeId = getNextCyclicEdge(m_halfEdges[getNextCyclicEdge(leftMostRedEdge)].twin);
-            //std::cout << "nextEdgeId: " << nextEdgeId << std::endl;
         }
 
-        int leftQuadEdge = getEdgeInLeftQuad(getCanonicalHalfEdge(leftMostRedEdge));
-        //std::cout << leftQuadEdge << std::endl;
-        if (hasValidEdgeColorFlip(leftQuadEdge)) {
+        int leftBaseVertex = m_halfEdges[leftMostRedEdge].vertex;
+        int leftEndVertex = m_halfEdges[m_halfEdges[leftMostRedEdge].twin].vertex;
+
+        bool baseFirst = m_vertices[leftBaseVertex].horizontal_order_index < m_vertices[leftEndVertex].horizontal_order_index;
+
+        int leftQuadEdge = getFlippableEdgeInLeftQuad(getCanonicalHalfEdge(leftMostRedEdge));
+
+        bool nonComparableVertices = (baseFirst && leftBaseVertex != m_halfEdges[leftQuadEdge].vertex) || (!baseFirst && leftBaseVertex == m_halfEdges[leftQuadEdge].vertex);
+
+        if (nonComparableVertices && hasValidEdgeColorFlip(leftQuadEdge)) {
             //std::cout << "relabeling leftQuadEdge" << std::endl;
             flipEdgeColor(leftQuadEdge);
             fixEdgeDirection(leftQuadEdge);
@@ -1707,21 +1713,17 @@ bool RegularEdgeLabeling::mergeMaxHorizontalSegmentFromRight(int edgeId) {
         while (m_halfEdges[previousEdgeId].color == RED) {
             rightMostRedEdge = getFirstOutgoingRed(m_halfEdges[previousEdgeId].vertex);
             previousEdgeId = getPreviousCyclicEdge(m_halfEdges[getPreviousCyclicEdge(rightMostRedEdge)].twin);
-            // std::cout << "newRightMostRedEdge " << rightMostRedEdge << std::endl;
-            // std::cout << "vertices: " << m_vertices[m_halfEdges[rightMostRedEdge].vertex].label << " " << m_vertices[m_halfEdges[m_halfEdges[rightMostRedEdge].twin].vertex].label << std::endl;
-            // std::cout << "prev edgeID: " << previousEdgeId << std::endl;
-            // std::cout << "pevEdge verts: "  << m_vertices[m_halfEdges[previousEdgeId].vertex].label << " " << m_vertices[m_halfEdges[m_halfEdges[previousEdgeId].twin].vertex].label << std::endl;
-            // if (previousEdgeId == 3) {
-            //     for (auto edge : m_vertices[m_halfEdges[previousEdgeId].vertex].edges) {
-            //         std::cout << m_vertices[m_halfEdges[m_halfEdges[edge].twin].vertex].label << " ";
-            //     }
-            //     std::cout << std::endl;
-            // }
         }
 
-        int rightQuadEdge = getEdgeInRightQuad(rightMostRedEdge);
-        if (hasValidEdgeColorFlip(rightQuadEdge)) {
-            //std::cout << "relabeling rightQuadEdge: " << rightQuadEdge << std::endl;
+        int leftBaseVertex = m_halfEdges[rightMostRedEdge].vertex;
+        int rightEndVertex = m_halfEdges[m_halfEdges[rightMostRedEdge].twin].vertex;
+
+        bool baseFirst = m_vertices[leftBaseVertex].horizontal_order_index < m_vertices[rightEndVertex].horizontal_order_index;
+        int rightQuadEdge = getFlippableEdgeInRightQuad(rightMostRedEdge);
+        bool nonComparableVertices = (baseFirst && leftBaseVertex != m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && leftBaseVertex == m_halfEdges[rightQuadEdge].vertex);
+
+        if (nonComparableVertices && hasValidEdgeColorFlip(rightQuadEdge)) {
+
             flipEdgeColor(rightQuadEdge);
             fixEdgeDirection(rightQuadEdge);
 
@@ -1893,7 +1895,7 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
                 //TODO: open up blue face on the right side
 
                 int lastRedInFace = getCanonicalHalfEdge(getFirstOutgoingRed(baseEdge.vertex));
-                int rightQuadEdge = getEdgeInRightQuad(lastRedInFace);
+                int rightQuadEdge = getFlippableEdgeInRightQuad(lastRedInFace);
                 //int rightQuadEdge = getEdgeInRightQuad(baseEdgeId);
                 int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
                 if (rightQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
@@ -1948,9 +1950,9 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
 
                 //TODO: open up blue face on the right side
                 int lastRedInFace = getCanonicalHalfEdge(getLastIncomingRed(endEdge.vertex));
-                int rightQuadEdge = getEdgeInRightQuad(lastRedInFace); //TODO we should check something else. Cus this red edge does not have to be the last red edge as the bottom path may have more vertices
+                int rightQuadEdge = getFlippableEdgeInRightQuad(lastRedInFace); //TODO we should check something else. Cus this red edge does not have to be the last red edge as the bottom path may have more vertices
                 int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
-                if (hasValidEdgeColorFlip(rightQuadEdge)){// rightQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
+                if (rightQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
                     flipEdgeColor(rightQuadEdge);
                     fixEdgeDirection(rightQuadEdge);
@@ -2034,7 +2036,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
 
                 //int leftQuadEdge = getEdgeInLeftQuad(baseEdgeId);
                 int firstRedInFace = getCanonicalHalfEdge(getLastOutgoingRed(baseEdge.vertex));
-                int leftQuadEdge = getEdgeInLeftQuad(firstRedInFace);
+                int leftQuadEdge = getFlippableEdgeInLeftQuad(firstRedInFace);
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
                 if (hasValidEdgeColorFlip(leftQuadEdge)){// leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
@@ -2085,7 +2087,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
             if (m_halfEdges[getPreviousCyclicEdge(m_halfEdges[lastBlueIn].twin)].color == BLUE) {
 
                 int firstRedInFace = getCanonicalHalfEdge(getFirstIncomingRed(endEdge.vertex));
-                int leftQuadEdge = getEdgeInLeftQuad(firstRedInFace);
+                int leftQuadEdge = getFlippableEdgeInLeftQuad(firstRedInFace);
                 //int leftQuadEdge = getEdgeInLeftQuad(baseEdgeId);
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
                 if (hasValidEdgeColorFlip(leftQuadBaseVertex)){// leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
@@ -2399,30 +2401,28 @@ int RegularEdgeLabeling::findEdgeBetween(int a, int b) const {
     return -1;
 }
 
-int RegularEdgeLabeling::getEdgeInLeftQuad(int he) const {
-    int u = m_halfEdges[he].vertex;
-    int v = neighborOfHalfEdge(he);
-
-    int leftAtBase = getNextCyclicEdge(he);
-    int s = neighborOfHalfEdge(leftAtBase);
-
-    int vs = findEdgeBetween(v, s);
-
-    if (vs != -1) return vs;
-    return findEdgeBetween(u, s);
+bool RegularEdgeLabeling::sameUndirectedEdge(int a, int b) const {
+    return a == b || m_halfEdges[a].twin == b;
 }
 
-int RegularEdgeLabeling::getEdgeInRightQuad(int he) const {
-    int u = m_halfEdges[he].vertex;
-    int v = neighborOfHalfEdge(he);
+int RegularEdgeLabeling::getFlippableEdgeInLeftQuad(int he) const {
+    int baseLeft = getNextCyclicEdge(he);
+    int endLeft = getPreviousCyclicEdge(m_halfEdges[he].twin);
 
-    int rightAtBase = getPreviousCyclicEdge(he);
-    int s = neighborOfHalfEdge(rightAtBase);
+    if (hasValidEdgeColorFlip(baseLeft)) return baseLeft;
+    if (hasValidEdgeColorFlip(endLeft)) return endLeft;
 
-    int vs = findEdgeBetween(v, s);
+    return -1;
+}
 
-    if (vs!= -1) return vs;
-    return  findEdgeBetween(u, s);
+int RegularEdgeLabeling::getFlippableEdgeInRightQuad(int he) const {
+    int baseRight = getPreviousCyclicEdge(he);
+    int endRight = getNextCyclicEdge(m_halfEdges[he].twin);
+
+    if (hasValidEdgeColorFlip(baseRight)) return baseRight;
+    if (hasValidEdgeColorFlip(endRight)) return endRight;
+
+    return -1;
 }
 
 int RegularEdgeLabeling::findFirstEdgeOfType(int vertexId, EdgeColor edge_color, bool outgoing) const {
