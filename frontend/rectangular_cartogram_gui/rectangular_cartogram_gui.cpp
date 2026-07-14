@@ -13,6 +13,7 @@
 
 #include "library/regular_edge_labeling.h"
 #include <cartocrow/renderer/svg_renderer.h>
+#include <cartocrow/reader/region_map_reader.h>
 
 using json = nlohmann::json;
 

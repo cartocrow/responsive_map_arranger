@@ -14,10 +14,10 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-
+#include <type_traits>
 
 #include "choropleth_map.h"
-
+#include "cartocrow/core/transform_helpers.h"
 
 void ChoroplethMap::setFromRel() {
     assert(rel.hasBoundingBox());
@@ -92,7 +92,34 @@ void ChoroplethMap::setInitialPositions() {
     auto& rects = rectangularDual.rectangles();
 
     for (size_t i = 0; i < mapElements.size(); ++i) {
-        mapElements[i].position = rects[i].center();
+        auto& element = mapElements[i];
+
+        if (!element.region || !element.bb) {
+            continue;
+        }
+
+        element.position = rects[i].center();
+
+        using K = cartocrow::Exact;
+
+        const auto target = rects[i].center();
+        const auto& regionBB = *element.bb;
+
+        const double sourceX = (regionBB.xmin() + regionBB.xmax()) * 0.5;
+        const double sourceY = (regionBB.ymin() + regionBB.ymax()) * 0.5;
+
+        const cartocrow::Vector<K> offset{
+            K::FT(target.x() - sourceX),
+            K::FT(target.y() - sourceY)
+        };
+
+        const CGAL::Aff_transformation_2<K> translation{
+            CGAL::TRANSLATION,
+            offset
+        };
+
+
+        element.region->shape = cartocrow::transform(translation, element.region->shape);
     }
 }
 
