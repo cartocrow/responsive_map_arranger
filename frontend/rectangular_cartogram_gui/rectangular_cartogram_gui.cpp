@@ -190,15 +190,15 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     auto frameSizeXLabel = new QLabel("Frame size X", vWidget);
     m_frameSizeX = new QDoubleSpinBox(vWidget);
     m_frameSizeX->setValue(666);
-    m_frameSizeX->setMinimum(5);
+    m_frameSizeX->setMinimum(1);
     m_frameSizeX->setMaximum(5000);
-    m_frameSizeX->setSingleStep(5);
+    m_frameSizeX->setSingleStep(0.5);
     auto frameSizeYLabel = new QLabel("Frame size Y", vWidget);
     m_frameSizeY = new QDoubleSpinBox(vWidget);
     m_frameSizeY->setValue(666);
-    m_frameSizeY->setMinimum(5);
+    m_frameSizeY->setMinimum(1);
     m_frameSizeY->setMaximum(5000);
-    m_frameSizeY->setSingleStep(5);
+    m_frameSizeY->setSingleStep(0.5);
 
     m_useSquareAspectRatios = new QCheckBox("Use Square Aspect Ratios", vWidget);
     m_useSquareAspectRatios->setChecked(true);
@@ -279,8 +279,10 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     auto *btnMergeSegmentFromLeft = new QPushButton("Merge Segment (from left)");
     auto *btnMergeSegmentFromRight = new QPushButton("Merge Segment (from right)");
     auto *btnClearSelection = new QPushButton("Clear Selection");
+    auto *btnValidateFlipColor = new QPushButton("Validate Flip Color");
 
     vLayout->addWidget(selectionLabel);
+    vLayout->addWidget(btnValidateFlipColor);
     vLayout->addWidget(btnFlipColor);
     vLayout->addWidget(btnFlipDiagCW);
     vLayout->addWidget(btnFlipDiagCCW);
@@ -289,6 +291,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     vLayout->addWidget(btnMergeSegmentFromLeft);
     vLayout->addWidget(btnMergeSegmentFromRight);
     vLayout->addWidget(btnClearSelection);
+
 
     connect(btnStartVid, &QPushButton::clicked, this, [this]() {
         std::cout << "vid button clicked :)" << std::endl;
@@ -592,10 +595,22 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         if (sels.empty()) return;
         for (int he: sels) {
             bool ok = m_relPtr->flipEdgeColor(he);
+            m_relPtr->fixEdgeDirection(he);
             if (!ok) std::cerr << "flipEdgeColor failed for halfedge " << he << "\n";
         }
         // after mutating REL, rebuild dual & segment geometry:
         setCartogramFromREL();
+    });
+
+    connect(btnValidateFlipColor, &QPushButton::clicked, [this]() {
+       if (!m_relPtr || !m_relPainting) return;
+        const auto sels = m_relPainting->getSelectedHalfEdges();
+        if (sels.empty()) return;
+        for (int he: sels) {
+            bool ok = m_relPtr->hasValidEdgeColorFlip(he);
+            if (ok) std::cout << "Half edge " << he << " can be flipped." << std::endl;
+            else std::cout << "Half edge " << he << " cannot be flipped." << std::endl;
+        }
     });
 
     connect(btnFlipDiagCW, &QPushButton::clicked, [this]() {
@@ -711,8 +726,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         float wy = static_cast<float>(pt.y());
         int he = m_relPainting->pickAndToggleHalfEdgeNear(wx, wy, 8.0 /*tolerance*/);
         if (he >= 0) {
+            he = m_rel.getCanonicalHalfEdge(he);
             // optional: print / debug
-            std::cout << "Toggled selection halfedge " << he << "\n";
+            std::cout << "Toggled selection halfedge " << he << " " << m_rel.getHalfEdges()[he].twin << "\n";
+            int leftQuad = m_rel.getFlippableEdgeInLeftQuad(he);
+            int rightQuad = m_rel.getFlippableEdgeInRightQuad(he);
+            std::cout << "leftquad he: " << leftQuad << " " << m_rel.getHalfEdges()[leftQuad].twin << std::endl;
+            std::cout << "rightquad he: " << rightQuad << " " << m_rel.getHalfEdges()[rightQuad].twin << std::endl;
             m_renderer->update();
         }
     });

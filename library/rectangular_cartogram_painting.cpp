@@ -27,7 +27,7 @@ void RectangularCartogramPainting::paint(Renderer &renderer) const {
 
     // draw rectangles
     for (std::size_t id = 4; id < n; ++id) {
-        if (!verts[id].isLandRegion) continue;
+        //if (!verts[id].isLandRegion) continue;
 
         const auto &r = m_dual->getRect(static_cast<unsigned int>(id));
         // create polygon in CCW order: (left,bottom) -> (right,bottom) -> (right,top) -> (left,top)

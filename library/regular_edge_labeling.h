@@ -120,6 +120,11 @@ public:
     bool mergeMaxVerticalSegmentFromBottom(int edgeId);
     bool mergeMaxVerticalSegmentFromTop(int edgeId);
 
+    int getLeftmostRedWhileOpeningFace(int edgeId);
+    int getRightmostRedWhileOpeningFace(int edgeId);
+    int getLowestBlueWhileOpeningFace(int edgeId);
+    int getHighestBlueWhileOpeningFace(int edgeId);
+
     bool mergeLeftMostRedEdge(int edgeId);
     bool mergeRightMostRedEdge(int edgeId);
     bool mergeLowestBlueEdge(int edgeId);
@@ -147,6 +152,10 @@ public:
     int getPreviousCyclicEdge(const int edgeId) const;
     int getNextCyclicEdge(const int edgeId) const;
 
+    int findEdgeBetween(int a, int b) const;
+    int getFlippableEdgeInLeftQuad(int he) const;
+    int getFlippableEdgeInRightQuad(int he) const;
+
     int getVertexDegree(const int vertexId) const { return m_vertices[vertexId].edges.size(); }
     int getVertexDegree(const Vertex& vertex) const {return vertex.edges.size(); }
     int getFirstOutgoingBlue(int vertexId) const;
@@ -159,11 +168,16 @@ public:
     int getLastIncomingRed(int vertexId) const;
 
     int canonicalHalfEdge(int he) const;
+    bool sameUndirectedEdge(int a, int b) const;
 
     bool flipEdgeColor(int edgeId);
     bool flipEdgeDiagonally(int edgeId, bool clockwise);
     void revertEdgeDirection(int edgeId);
+    void fixEdgeDirection(int edgeId);
     void debugCheckAfterFlip(int edgeId) const;
+
+    int getCanonicalHalfEdge(int heId) const;
+    bool hasValidEdgeColorFlip(int edgeId) const;
 
 private:
     vector<Vertex> m_vertices;
