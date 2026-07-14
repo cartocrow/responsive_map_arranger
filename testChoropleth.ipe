@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!DOCTYPE ipe SYSTEM "ipe.dtd">
+<ipe version="70218">
+<ipestyle name="latex-preamble">
+</ipestyle>
+<ipestyle name="alpha-values">
+<opacity name="255" value="1"/>
+</ipestyle>
+<ipestyle name="paper-size">
+<layout paper="1000 1000" origin="0 0" frame="1000 1000"/>
+</ipestyle>
+<ipestyle name="marks">
+<symbol name="mark/disk(sx)" transformations="translations">
+<path fill="sym-stroke">
+0.6 0 0 0.6 0 0 e
+</path>
+</symbol>
+</ipestyle>
+<page>
+<layer name="REL"/>
+</page>
+</ipe>

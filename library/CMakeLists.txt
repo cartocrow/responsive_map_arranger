@@ -6,6 +6,7 @@ set(SOURCES
         demers.cpp
 		layout_guide.cpp
 		layout_arranger.cpp
+		choropleth_map.cpp
 )
 set(HEADERS
 		geometry_types.h
@@ -16,6 +17,7 @@ set(HEADERS
         demers.h
 		layout_guide.h
 		layout_arranger.h
+		choropleth_map.h
 )
 
 add_library(rectangular_cartogram ${SOURCES})

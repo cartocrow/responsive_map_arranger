@@ -53,6 +53,13 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
 
         m_rectangularDual = nullptr;
+    } else if (m_cartogramType == CHOROPLETH_MAP) {
+        m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
+        m_choroplethMap->setFromRel();
+
+        m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
+        m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
+
     }
 
     // REL RENDERING
@@ -139,6 +146,7 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
         m_rectangularDual->setFromREL();
     } else if (m_demers) {
         m_demers->setFromREL(*m_relPtr);
+    } else if (m_choroplethMap && !m_regionMap.empty()) {
     }
 
     m_renderer->update();
@@ -171,6 +179,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     m_cartogramTypeComboBox = new QComboBox(vWidget);
     m_cartogramTypeComboBox->addItem("RectangularCartogram", CartogramType::RECTANGULAR_CARTOGRAM);
     m_cartogramTypeComboBox->addItem("DemersCartogram", CartogramType::DEMERS_CARTOGRAM);
+    m_cartogramTypeComboBox->addItem("ChoroplethMap", CartogramType::CHOROPLETH_MAP);
     m_cartogramTypeComboBox->setCurrentIndex(0);
     m_mergeHeuristicComboBox = new QComboBox(vWidget);
     m_mergeHeuristicComboBox->addItem("min-edge", MIN_EDGE);
@@ -528,8 +537,10 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         m_renderer->clear();
         m_rectPainting.reset();
         m_demersPainting.reset();
+        m_choroplethPainting.reset();
         m_rectangularDual.reset();
         m_demers.reset();
+        m_choroplethMap.reset();
 
         if (m_cartogramType == RECTANGULAR_CARTOGRAM) {
             m_rectangularDual = std::make_shared<RectangularDual>(m_relPtr);
@@ -548,6 +559,12 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
             m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
             m_demersPainting->drawLabels(m_drawLabels->isChecked());
             m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
+        } else if (m_cartogramType == CHOROPLETH_MAP) {
+            m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
+            m_choroplethMap->setFromRel();
+
+            m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
+            m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
         }
 
         m_relPainting.reset();

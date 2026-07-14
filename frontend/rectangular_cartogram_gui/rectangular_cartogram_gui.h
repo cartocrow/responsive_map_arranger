@@ -19,6 +19,8 @@
 #include "library/geometry_types.h"
 
 #include "library/demers.h"
+#include "library/choropleth_map.h"
+
 
 #include "persistent_settings.h"
 #include "library/layout_guide.h"
@@ -31,7 +33,8 @@ using namespace layout_guide;
 
 enum CartogramType {
     RECTANGULAR_CARTOGRAM,
-    DEMERS_CARTOGRAM
+    DEMERS_CARTOGRAM,
+    CHOROPLETH_MAP
 };
 
 class RectangularCartogramDemo : public QMainWindow {
@@ -45,11 +48,13 @@ class RectangularCartogramDemo : public QMainWindow {
     std::shared_ptr<LayoutGuide> m_layoutGuide;
     std::shared_ptr<RectangularDual> m_rectangularDual;
     std::shared_ptr<DemersCartogram> m_demers;
+    std::shared_ptr<ChoroplethMap> m_choroplethMap;
 
     GeometryWidget* m_renderer;
     std::shared_ptr<RELPainting> m_relPainting;
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
     std::shared_ptr<DemersPainting> m_demersPainting;
+    std::shared_ptr<ChoroplethPainting> m_choroplethPainting;
 
     CartogramType m_cartogramType;
 

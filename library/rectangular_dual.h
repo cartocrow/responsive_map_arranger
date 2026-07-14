@@ -51,6 +51,13 @@ public:
         double aspectRatio() const {
             return (right - left) / (top - bottom);
         }
+
+        cartocrow::Point<cartocrow::Inexact> center() const {
+            return {
+                (right+left) * 0.5,
+                (top+bottom) * 0.5
+            };
+        }
     };
 
     RectangularDual(const shared_ptr<RegularEdgeLabeling> &rel) : m_REL(rel) {};
