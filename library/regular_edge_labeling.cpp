@@ -1709,7 +1709,7 @@ bool RegularEdgeLabeling::mergeMaxVerticalSegmentFromTop(int edgeId) {
 
     HalfEdge baseEdge = m_halfEdges[baseEdgeId];
     HalfEdge endEdge = m_halfEdges[m_halfEdges[baseEdgeId].twin];
-    
+
     int previousEdgeId = -1;
     while (m_halfEdges[baseEdgeId].color != RED && endEdge.vertex == m_halfEdges[baseEdge.twin].vertex) {
 
@@ -2056,7 +2056,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
                 int firstRedInFace = getCanonicalHalfEdge(getLastOutgoingRed(baseEdge.vertex));
                 int leftQuadEdge = getFlippableEdgeInLeftQuad(firstRedInFace);
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
-                if (hasValidEdgeColorFlip(leftQuadEdge)){// leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
+                if (leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)){// leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
@@ -2108,7 +2108,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
                 int leftQuadEdge = getFlippableEdgeInLeftQuad(firstRedInFace);
                 //int leftQuadEdge = getEdgeInLeftQuad(baseEdgeId);
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
-                if (hasValidEdgeColorFlip(leftQuadEdge)){// leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
+                if (leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)){// leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
@@ -2191,8 +2191,9 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
 
                 int lastBlueInFace = getCanonicalHalfEdge(getLastOutgoingBlue(baseEdge.vertex));
                 int leftQuadEdge = getFlippableEdgeInLeftQuad(lastBlueInFace);
+                int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
 
-                if (hasValidEdgeColorFlip(leftQuadEdge)) {
+                if (leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
                 } else {
@@ -2238,8 +2239,9 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
 
                 int lastBlueInFace = getCanonicalHalfEdge(getLastIncomingBlue(endEdge.vertex));
                 int leftQuadEdge = getFlippableEdgeInLeftQuad(lastBlueInFace);
+                int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
 
-                if (hasValidEdgeColorFlip(leftQuadEdge)) {
+                if (leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
                 } else {
@@ -2325,8 +2327,9 @@ bool RegularEdgeLabeling::mergeHighestBlueEdge(int edgeId) {
 
                 int firstBlueInFace = getCanonicalHalfEdge(getFirstOutgoingBlue(baseEdge.vertex));
                 int rightQuadEdge = getFlippableEdgeInRightQuad(firstBlueInFace);
+                int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
 
-                if (hasValidEdgeColorFlip(rightQuadEdge)) {
+                if (rightQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
                     flipEdgeColor(rightQuadEdge);
                     fixEdgeDirection(rightQuadEdge);
                 } else {
@@ -2371,8 +2374,9 @@ bool RegularEdgeLabeling::mergeHighestBlueEdge(int edgeId) {
 
                 int lastBlueInFace = getCanonicalHalfEdge(getLastIncomingBlue(endEdge.vertex));
                 int rightQuadEdge = getFlippableEdgeInRightQuad(lastBlueInFace);
+                int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
 
-                if (hasValidEdgeColorFlip(rightQuadEdge)) {
+                if (rightQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
                     flipEdgeColor(rightQuadEdge);
                     fixEdgeDirection(rightQuadEdge);
                 } else {

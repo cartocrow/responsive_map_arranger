@@ -190,13 +190,13 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     auto frameSizeXLabel = new QLabel("Frame size X", vWidget);
     m_frameSizeX = new QDoubleSpinBox(vWidget);
     m_frameSizeX->setValue(666);
-    m_frameSizeX->setMinimum(5);
+    m_frameSizeX->setMinimum(1);
     m_frameSizeX->setMaximum(5000);
     m_frameSizeX->setSingleStep(0.5);
     auto frameSizeYLabel = new QLabel("Frame size Y", vWidget);
     m_frameSizeY = new QDoubleSpinBox(vWidget);
     m_frameSizeY->setValue(666);
-    m_frameSizeY->setMinimum(5);
+    m_frameSizeY->setMinimum(1);
     m_frameSizeY->setMaximum(5000);
     m_frameSizeY->setSingleStep(0.5);
 
