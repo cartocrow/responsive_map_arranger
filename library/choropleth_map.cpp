@@ -242,15 +242,16 @@ void ChoroplethMap::computeRELForces() {
     for (size_t edgeId = 0; edgeId < halfEdges.size(); ++edgeId) {
          const auto& edge = halfEdges[edgeId];
          if (edge.isDeleted || edge.color == BLACK || !edge.outgoing) continue;
-    //
+
+        //std::cout << "doing something "<< std::endl;
          const int source = edge.vertex;
          const int target = m_REL->neighborOfHalfEdge(static_cast<int>(edgeId));
          const Vertex sourceVertex = vertices[source];
          const Vertex targetVertex = vertices[target];
-    //
+
          if (source < 4 || target < 4 ) continue; // skip outer vertices
          if (!sourceVertex.isLandRegion || targetVertex.isLandRegion) continue;
-    //
+
          const auto sourceIndex = static_cast<size_t>(source);
          const auto targetIndex = static_cast<size_t>(target);
 
@@ -275,9 +276,9 @@ void ChoroplethMap::computeOverlapForces() {
             const double overlapX = min(a.bb->xmax(), b.bb->xmax()) - max(a.bb->xmin(), b.bb->xmin());
             const double overlapY = min(a.bb->ymax(), b.bb->ymax()) - max(a.bb->ymin(), b.bb->ymin());
 
-            if (overlapX <= 0 && overlapY <= 0) continue;
+            if (overlapX <= 0 || overlapY <= 0) continue;
 
-            if (overlapX < overlapY) {
+            if (overlapX < overlapY && overlapX > 0) {
                 const double dir = a.position.x() < b.position.x() ? -1 : 1;
                 const double magnitude = overlapForce * overlapX;
 
@@ -324,19 +325,16 @@ void ChoroplethMap::computeBoundaryForces() {
 }
 
 void ChoroplethMap::applyForces() {
-    constexpr double step = 0.15;
-    constexpr double maxMovement = 2.0;
-
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
 
-        double dx = step * element.force.x();
-        double dy = step * element.force.y();
+        double dx = forceStepSize * element.force.x();
+        double dy = forceStepSize * element.force.y();
 
         const double length = sqrt(dx * dx + dy * dy);
 
-        if (length > maxMovement) {
-            const double factor = maxMovement / length;
+        if (length > forceMaxMovement) {
+            const double factor = forceMaxMovement / length;
             dx *= factor;
             dy *= factor;
         }
