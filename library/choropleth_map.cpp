@@ -50,7 +50,7 @@ void ChoroplethMap::setFromRel() {
     setInitialPositions();
 
 
-    runLayout(10);
+    runLayout(forceIterationCount);
 }
 
 void ChoroplethMap::runLayout(const size_t iterations) {
@@ -204,8 +204,6 @@ void ChoroplethMap::clearForces() {
 }
 
 void ChoroplethMap::computeOriginalPositionForces() {
-    constexpr double strength = 0.01;
-
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) {
             continue;
@@ -215,15 +213,13 @@ void ChoroplethMap::computeOriginalPositionForces() {
             element.originalPosition - element.position;
 
         element.force = element.force + Vec{
-            strength * displacement.x(),
-            strength * displacement.y()
+            originalPosForce * displacement.x(),
+            originalPosForce * displacement.y()
         };
     }
 }
 
 void ChoroplethMap::computeCartogramPositionForces() {
-    constexpr double strength = 0.04;
-
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) {
             continue;
@@ -233,8 +229,8 @@ void ChoroplethMap::computeCartogramPositionForces() {
             element.cartogramPosition - element.position;
 
         element.force = element.force + Vec{
-            strength * displacement.x(),
-            strength * displacement.y()
+            cartogramPosForce * displacement.x(),
+            cartogramPosForce * displacement.y()
         };
     }
 }
@@ -267,8 +263,6 @@ void ChoroplethMap::computeRELForces() {
 }
 
 void ChoroplethMap::computeOverlapForces() {
-    constexpr double strength = 0.3;
-
     for (size_t i = 0; i < mapElements.size(); ++i) {
         auto& a = mapElements[i];
 
@@ -285,13 +279,13 @@ void ChoroplethMap::computeOverlapForces() {
 
             if (overlapX < overlapY) {
                 const double dir = a.position.x() < b.position.x() ? -1 : 1;
-                const double magnitude = strength * overlapX;
+                const double magnitude = overlapForce * overlapX;
 
                 a.force += Vec{dir * magnitude, 0 };
                 b.force += Vec{-dir * magnitude, 0 };
             } else {
                 const double dir = a.position.y() < b.position.y() ? -1 : 1;
-                const double magnitude = strength * overlapY;
+                const double magnitude = overlapForce * overlapY;
 
                 a.force += Vec{0, dir * magnitude};
                 b.force += Vec{0, -dir * magnitude};
@@ -302,8 +296,6 @@ void ChoroplethMap::computeOverlapForces() {
 }
 
 void ChoroplethMap::computeBoundaryForces() {
-    constexpr double strength = 0.4;
-
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
 
@@ -312,19 +304,19 @@ void ChoroplethMap::computeBoundaryForces() {
 
         // left side
         if (element.bb->xmin() < container.xmin()) {
-            forceX += strength * (container.xmin()-element.bb->xmin());
+            forceX += boundaryForce * (container.xmin()-element.bb->xmin());
         }
         // right side
         if (element.bb->xmax() > container.xmax()) {
-            forceX -= strength * (element.bb->xmax()-container.xmax());
+            forceX -= boundaryForce * (element.bb->xmax()-container.xmax());
         }
         // bottom side
         if (element.bb->ymin() < container.ymin()) {
-            forceY += strength * (container.ymin()-element.bb->ymin());
+            forceY += boundaryForce * (container.ymin()-element.bb->ymin());
         }
         // top side
         if (element.bb->ymax() > container.ymax()) {
-            forceY -= strength * (element.bb->ymax()-container.ymax());
+            forceY -= boundaryForce * (element.bb->ymax()-container.ymax());
         }
 
         element.force += Vec{forceX, forceY};
@@ -366,7 +358,7 @@ void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
 
     const double gap = b.bb->xmin() - a.bb->xmax();
 
-    const double contactForce = contactStrength * gap;
+    const double contactForce = RELForce * gap;
 
     a.force += Vec{ contactForce, 0.0 };
     b.force += Vec{ -contactForce, 0.0 };

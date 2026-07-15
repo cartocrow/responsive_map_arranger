@@ -65,6 +65,8 @@ class RectangularCartogramDemo : public QMainWindow {
     double m_bboxMinWidth  = 5.0;
     double m_bboxMinHeight = 5.0;
 
+    QTabWidget* m_tabs;
+
     QCheckBox* m_useAdaptiveLayout = nullptr;
     QDoubleSpinBox* m_threshHoldRelaxation = nullptr;
     QDoubleSpinBox* m_frameSizeX = nullptr;
@@ -75,6 +77,16 @@ class RectangularCartogramDemo : public QMainWindow {
     QCheckBox* m_showLinearOrders = nullptr;
     QComboBox* m_cartogramTypeComboBox = nullptr;
     QComboBox* m_mergeHeuristicComboBox = nullptr;
+
+    // choropleth
+    QSpinBox* choroForceIterSpinBox = nullptr;
+    QDoubleSpinBox* forceStepSpinBox = nullptr;
+    QDoubleSpinBox* forceMaxMovementSpinBox = nullptr;
+    QDoubleSpinBox* originalPosForceSpinBox = nullptr;
+    QDoubleSpinBox* cartogramPosForceSpinBox = nullptr;
+    QDoubleSpinBox* RELForceSpinBox = nullptr;
+    QDoubleSpinBox* overlapForceSpinBox = nullptr;
+    QDoubleSpinBox* boundaryForceSpinBox = nullptr;
 
     //video
     QDoubleSpinBox* m_cycleDuration = nullptr;
@@ -90,6 +102,9 @@ class RectangularCartogramDemo : public QMainWindow {
     void loadMap(const std::filesystem::path &mapPath);
     void processData();
     void setCartogramFromREL() const;
+
+    void addGeneralTab();
+    void addChoroplethTab();
 public:
     RectangularCartogramDemo();
 };

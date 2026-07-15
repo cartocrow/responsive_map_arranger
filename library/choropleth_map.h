@@ -58,6 +58,16 @@ public:
 
     MapElement getMapElement(const size_t index) { return mapElements[index]; }
 
+    // forces
+    size_t forceIterationCount = 0;
+    double forceStepSize = 0.15;
+    double forceMaxMovement = 2.0;
+    double originalPosForce = 0.01;
+    double cartogramPosForce = 0.04;
+    double RELForce = 0.12;
+    double overlapForce = 0.3;
+    double boundaryForce = 0.4;
+
 private:
     void setRegions();
     void scaleRegionsToContainer();
@@ -80,7 +90,6 @@ private:
     void translateRegion(MapElement& element, const Vector<Inexact>& delta);
 
     optional<Rect> mapBoundingBox() const;
-
 
 private:
     shared_ptr<RegularEdgeLabeling> m_REL;

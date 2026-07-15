@@ -59,6 +59,14 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_choroplethMap->setFromRel();
 
         m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
+        m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
+        m_choroplethMap->forceStepSize = forceStepSpinBox->value();
+        m_choroplethMap->forceMaxMovement = forceMaxMovementSpinBox->value();
+        m_choroplethMap->originalPosForce = originalPosForceSpinBox->value();
+        m_choroplethMap->cartogramPosForce = cartogramPosForceSpinBox->value();
+        m_choroplethMap->RELForce = RELForceSpinBox->value();
+        m_choroplethMap->overlapForce = overlapForceSpinBox->value();
+        m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
         m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
 
     }
@@ -154,19 +162,12 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
     m_renderer->update();
 }
 
-RectangularCartogramDemo::RectangularCartogramDemo() {
-    setWindowTitle("RectangularCartogramDemo");
-
-    m_renderer = new GeometryWidget();
-    m_renderer->setDrawAxes(false);
-    setCentralWidget(m_renderer);
-
-    auto *dockWidget = new QDockWidget(this);
-    addDockWidget(Qt::RightDockWidgetArea, dockWidget);
+void RectangularCartogramDemo::addGeneralTab() {
     auto *vWidget = new QWidget();
+    m_tabs->addTab(vWidget, "General");
     auto *vLayout = new QVBoxLayout(vWidget);
     vLayout->setAlignment(Qt::AlignTop);
-    dockWidget->setWidget(vWidget);
+    //dockWidget->setWidget(vWidget);
 
     auto *inputSettings = new QLabel("<h3>Input</h3>", vWidget);
     auto loadRELButton = new QPushButton("Load REL (json)");
@@ -566,6 +567,14 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
             m_choroplethMap->setFromRel();
 
             m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
+            m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
+            m_choroplethMap->forceStepSize = forceStepSpinBox->value();
+            m_choroplethMap->forceMaxMovement = forceMaxMovementSpinBox->value();
+            m_choroplethMap->originalPosForce = originalPosForceSpinBox->value();
+            m_choroplethMap->cartogramPosForce = cartogramPosForceSpinBox->value();
+            m_choroplethMap->RELForce = RELForceSpinBox->value();
+            m_choroplethMap->overlapForce = overlapForceSpinBox->value();
+            m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
             m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
         }
 
@@ -799,6 +808,139 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         if (!m_bboxDragging) return;
         m_bboxDragging = false;
     });
+}
+
+void RectangularCartogramDemo::addChoroplethTab() {
+    auto* choroplethSettings = new QWidget();
+    m_tabs->addTab(choroplethSettings, "Choropleth");
+    auto* vLayout = new QVBoxLayout(choroplethSettings);
+    vLayout->setAlignment(Qt::AlignTop);
+
+    auto forceIterLabel = new QLabel("Force iterations");
+    vLayout->addWidget(forceIterLabel);
+    choroForceIterSpinBox = new QSpinBox();
+    choroForceIterSpinBox->setSuffix(" iters");
+    choroForceIterSpinBox->setValue(10);
+    choroForceIterSpinBox->setSingleStep(1);
+    vLayout->addWidget(choroForceIterSpinBox);
+
+    auto forceStepLabel = new QLabel("Force step size");
+    vLayout->addWidget(forceStepLabel);
+    forceStepSpinBox = new QDoubleSpinBox();
+    forceStepSpinBox->setValue(0.15);
+    forceStepSpinBox->setSingleStep(0.05);
+    vLayout->addWidget(forceStepSpinBox);
+
+    auto forceMaxMovementLabel = new QLabel("Max Force movement");
+    vLayout->addWidget(forceMaxMovementLabel);
+    forceMaxMovementSpinBox = new QDoubleSpinBox();
+    forceMaxMovementSpinBox->setValue(2);
+    forceMaxMovementSpinBox->setSingleStep(0.5);
+    vLayout->addWidget(forceMaxMovementSpinBox);
+
+    auto originalPosForceLabel = new QLabel("og pos force");
+    vLayout->addWidget(originalPosForceLabel);
+    originalPosForceSpinBox = new QDoubleSpinBox();
+    //originalForceSpinBox->setSuffix(" :og pos force");
+    originalPosForceSpinBox->setValue(0.01);
+    originalPosForceSpinBox->setMinimum(0);
+    //originalPosForceSpinBox->setMaximum(5);
+    originalPosForceSpinBox->setSingleStep(0.005);
+    vLayout->addWidget(originalPosForceSpinBox);
+
+    auto cartoForcelabel = new QLabel("Cartogram force");
+    vLayout->addWidget(cartoForcelabel);
+    cartogramPosForceSpinBox = new QDoubleSpinBox();
+    cartogramPosForceSpinBox->setValue(0.04);
+    cartogramPosForceSpinBox->setMinimum(0);
+    //cartogramPosForceSpinBox->setMaximum(5);
+    cartogramPosForceSpinBox->setSingleStep(0.005);
+    vLayout->addWidget(cartogramPosForceSpinBox);
+
+    auto RELForceLabel = new QLabel("REL force");
+    vLayout->addWidget(RELForceLabel);
+    RELForceSpinBox = new QDoubleSpinBox();
+    RELForceSpinBox->setValue(0.12);
+    RELForceSpinBox->setMinimum(0);
+    //RELForceSpinBox->setMaximum(5);
+    RELForceSpinBox->setSingleStep(0.005);
+    vLayout->addWidget(RELForceSpinBox);
+
+    auto overlapForceLabel = new QLabel("overlap force");
+    vLayout->addWidget(overlapForceLabel);
+    overlapForceSpinBox = new QDoubleSpinBox();
+    overlapForceSpinBox->setValue(0.3);
+    overlapForceSpinBox->setMinimum(0);
+    //overlapForceSpinBox->setMaximum(5);
+    overlapForceSpinBox->setSingleStep(0.005);
+    vLayout->addWidget(overlapForceSpinBox);
+
+    auto boundaryForceLabel = new QLabel("boundary force");
+    vLayout->addWidget(boundaryForceLabel);
+    boundaryForceSpinBox = new QDoubleSpinBox();
+    boundaryForceSpinBox->setValue(0.4);
+    boundaryForceSpinBox->setMinimum(0);
+    //boundaryForceSpinBox->setMaximum(5);
+    boundaryForceSpinBox->setSingleStep(0.005);
+    vLayout->addWidget(boundaryForceSpinBox);
+
+    connect(choroForceIterSpinBox, qOverload<int>(&QSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
+        setCartogramFromREL();
+    });
+    connect(forceStepSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->forceStepSize = forceStepSpinBox->value();
+        setCartogramFromREL();
+    });
+    connect(forceMaxMovementSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->forceMaxMovement = forceMaxMovementSpinBox->value();
+        setCartogramFromREL();
+    });
+    connect(originalPosForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->originalPosForce = originalPosForceSpinBox->value();
+        setCartogramFromREL();
+    });
+    connect(cartogramPosForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->cartogramPosForce = cartogramPosForceSpinBox->value();
+        setCartogramFromREL();
+    });
+    connect(RELForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->RELForce = RELForceSpinBox->value();
+        setCartogramFromREL();
+    });
+    connect(overlapForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->overlapForce = overlapForceSpinBox->value();
+        setCartogramFromREL();
+    });
+    connect(boundaryForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [this]() {
+        if (!m_relPtr || !m_choroplethMap) return;
+        m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
+        setCartogramFromREL();
+    });
+
+}
+
+RectangularCartogramDemo::RectangularCartogramDemo() {
+    setWindowTitle("RectangularCartogramDemo");
+
+    m_renderer = new GeometryWidget();
+    m_renderer->setDrawAxes(false);
+    setCentralWidget(m_renderer);
+    m_tabs = new QTabWidget();
+
+    auto *dockWidget = new QDockWidget(this);
+    addDockWidget(Qt::RightDockWidgetArea, dockWidget);
+    dockWidget->setWidget(m_tabs);
+
+    addGeneralTab();
+    addChoroplethTab();
 }
 
 int main(int argc, char *argv[]) {
