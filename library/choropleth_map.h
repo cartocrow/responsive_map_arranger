@@ -27,15 +27,24 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using namespace cartocrow;
 using namespace std;
 using Rect = Rectangle<Inexact>;
+using Vec = Vector<Inexact>;
+using Pt = Point<Inexact>;
+
 
 class ChoroplethMap {
     struct MapElement {
-        using Pt = Point<cartocrow::Inexact>;
 
         optional<Region> region;
         optional<Rectangle<Inexact>> bb;
+
         Pt position;
+        Pt originalPosition;
+        Pt cartogramPosition;
+
+        Vec force{0, 0};
+
         Color color{255, 255, 255};
+
     };
 
 public:
@@ -44,12 +53,34 @@ public:
     };
 
     void setFromRel();
+    void runLayout(const size_t iterations);
+    void iterateLayout();
+
     MapElement getMapElement(const size_t index) { return mapElements[index]; }
 
 private:
     void setRegions();
     void scaleRegionsToContainer();
+    void centerOriginalMapInContainer();
+    void saveOriginalPositions();
     void setInitialPositions();
+
+    // Improving map layout
+    void clearForces();
+    void computeOriginalPositionForces();
+    void computeCartogramPositionForces();
+    void computeRELForces();
+    void computeOverlapForces();
+    void computeBoundaryForces();
+    void applyForces();
+
+    void applyHorizontalConstraint(size_t left, size_t right);
+    void applyVerticalConstraint(size_t top, size_t bottom);
+
+    void translateRegion(MapElement& element, const Vector<Inexact>& delta);
+
+    optional<Rect> mapBoundingBox() const;
+
 
 private:
     shared_ptr<RegularEdgeLabeling> m_REL;
