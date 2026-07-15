@@ -21,8 +21,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 void ChoroplethMap::setFromRel() {
     assert(rel.hasBoundingBox());
-    bb = m_REL->getBoundingBox().value();
-    box = Rectangle<Inexact>(bb.left, bb.bottom, bb.right, bb.top);
+    auto [left, right, bottom, top] = m_REL->getBoundingBox().value();
+    container = Rectangle<Inexact>(left, bottom, right, top);
 
 
     const auto &vertices = m_REL->getVertices();
@@ -39,6 +39,7 @@ void ChoroplethMap::setFromRel() {
     }
 
     setRegions();
+    scaleRegionsToContainer();
     setInitialPositions();
 }
 
@@ -62,29 +63,52 @@ void ChoroplethMap::setRegions() {
         }
 
         const size_t index = found->second;
-        auto& vertex = vertices[index];
         auto& mapElement = mapElements[index];
 
-        std::vector<PolygonWithHoles<Exact>> polygons;
-        region.shape.polygons_with_holes(std::back_inserter(polygons));
-
-        std::vector<std::pair<PolygonWithHoles<Exact>, Number<Exact>>> parts;
-
-        for (const auto &p : polygons) {
-            parts.push_back(pair(p, area(p)));
-        }
-
-        std::sort(parts.begin(), parts.end(), [](const auto &p1, const auto &p2) {
-            return p1.second > p2.second;
-        });
-
-        auto regionBB = parts.front().first.bbox();
-
         mapElement.color = region.color;
-        mapElement.bb = regionBB;
+        mapElement.bb = boundingBox(region.shape);
         mapElement.region = region;
     }
 
+}
+
+void ChoroplethMap::scaleRegionsToContainer() {
+    double totalRegionBBArea = 0;
+
+    for (const auto& element : mapElements) {
+        if (!element.region || !element.bb) continue;
+
+        totalRegionBBArea += element.bb->area();
+    }
+
+    if (totalRegionBBArea <= 0.0) return;
+
+    const double scaleFactor = sqrt(container.area() / totalRegionBBArea);
+
+    using Transformation = CGAL::Aff_transformation_2<Inexact>;
+    const Transformation scale{CGAL::SCALING, scaleFactor};
+
+    for (auto& element : mapElements) {
+        if (!element.region || !element.bb) continue;
+
+        const Rect oldBox = *element.bb;
+
+        const Point<Inexact> center{
+            (oldBox.xmin() + oldBox.xmax()) * 0.5,
+            (oldBox.ymin() + oldBox.ymax()) * 0.5
+        };
+
+        const Transformation moveToOrigin{CGAL::TRANSLATION, CGAL::ORIGIN - center };
+        const Transformation moveBack{CGAL::TRANSLATION, center - CGAL::ORIGIN };
+
+        const auto transformation = moveBack * scale * moveToOrigin;
+
+        auto inexactShape = approximate(element.region->shape);
+        inexactShape = transform(transformation, inexactShape);
+        element.region->shape = pretendExact(inexactShape);
+
+        element.bb = boundingBox(element.region->shape);
+    }
 }
 
 void ChoroplethMap::setInitialPositions() {
@@ -118,6 +142,7 @@ void ChoroplethMap::setInitialPositions() {
             offset
         };
 
+        //elements.region->shape = cartocrow::fitInto()
 
         element.region->shape = cartocrow::transform(translation, element.region->shape);
     }
@@ -149,5 +174,5 @@ void ChoroplethPainting::paint(Renderer& renderer) const {
     // draw boundingbox
     renderer.setStroke({ 102,102,102 }, 2);
     renderer.setMode(Renderer::stroke);
-    renderer.draw(m_map->box);
+    renderer.draw(m_map->container);
 };

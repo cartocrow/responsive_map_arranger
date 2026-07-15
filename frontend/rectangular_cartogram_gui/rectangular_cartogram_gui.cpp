@@ -148,6 +148,7 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
     } else if (m_demers) {
         m_demers->setFromREL(*m_relPtr);
     } else if (m_choroplethMap && !m_regionMap.empty()) {
+        m_choroplethMap->setFromRel();
     }
 
     m_renderer->update();

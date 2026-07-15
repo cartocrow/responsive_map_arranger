@@ -26,13 +26,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using namespace cartocrow;
 using namespace std;
+using Rect = Rectangle<Inexact>;
 
 class ChoroplethMap {
     struct MapElement {
         using Pt = Point<cartocrow::Inexact>;
 
         optional<Region> region;
-        optional<CGAL::Bbox_2> bb;
+        optional<Rect> bb;
         Pt position;
         Color color{255, 255, 255};
     };
@@ -44,14 +45,14 @@ public:
 
     void setFromRel();
     void setRegions();
+    void scaleRegionsToContainer();
     void setInitialPositions();
 
 private:
     shared_ptr<RegularEdgeLabeling> m_REL;
     RegionMap m_map;
 
-    BoundingBox bb;
-    Rectangle<Inexact> box;
+    Rect container;
     RectangularDual rectangularDual;
 
     std::vector<MapElement> mapElements;
