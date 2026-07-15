@@ -869,7 +869,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto overlapForceLabel = new QLabel("overlap force");
     vLayout->addWidget(overlapForceLabel);
     overlapForceSpinBox = new QDoubleSpinBox();
-    overlapForceSpinBox->setValue(0.3);
+    overlapForceSpinBox->setValue(2);
     overlapForceSpinBox->setMinimum(0);
     //overlapForceSpinBox->setMaximum(5);
     overlapForceSpinBox->setSingleStep(0.005);
@@ -878,7 +878,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto boundaryForceLabel = new QLabel("boundary force");
     vLayout->addWidget(boundaryForceLabel);
     boundaryForceSpinBox = new QDoubleSpinBox();
-    boundaryForceSpinBox->setValue(0.4);
+    boundaryForceSpinBox->setValue(2);
     boundaryForceSpinBox->setMinimum(0);
     //boundaryForceSpinBox->setMaximum(5);
     boundaryForceSpinBox->setSingleStep(0.005);

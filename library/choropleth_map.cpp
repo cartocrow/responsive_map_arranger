@@ -55,20 +55,16 @@ void ChoroplethMap::setFromRel() {
 
 void ChoroplethMap::runLayout(const size_t iterations) {
     for (size_t i = 0; i < iterations; ++i) {
-        iterateLayout();
+        clearForces();
+
+        computeOriginalPositionForces();
+        computeCartogramPositionForces();
+        computeRELForces();
+        computeOverlapForces();
+        computeBoundaryForces();
+
+        if (applyForces()) break;
     }
-}
-
-void ChoroplethMap::iterateLayout() {
-    clearForces();
-
-    computeOriginalPositionForces();
-    computeCartogramPositionForces();
-    computeRELForces();
-    computeOverlapForces();
-    computeBoundaryForces();
-
-    applyForces();
 }
 
 void ChoroplethMap::setRegions() {
@@ -116,7 +112,7 @@ void ChoroplethMap::scaleRegionsToContainer() {
 
     if (totalRegionBBArea <= 0.0) return;
 
-    const double areaScale = sqrt(container.area() / totalRegionBBArea);
+    const double areaScale = sqrt(container.area() / totalRegionBBArea) * 0.75;
     const double widthScale = width(container) / largestXSpan;
     const double heightScale = height(container) / largestYSpan;
 
@@ -324,7 +320,10 @@ void ChoroplethMap::computeBoundaryForces() {
     }
 }
 
-void ChoroplethMap::applyForces() {
+bool ChoroplethMap::applyForces() {
+    constexpr double stopThreshold = 1e-4;
+
+    double largestMovement = 0.0;
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
 
@@ -338,11 +337,14 @@ void ChoroplethMap::applyForces() {
             dx *= factor;
             dy *= factor;
         }
+        largestMovement = max(largestMovement, hypot(dx, dy));
 
-        if (abs(dx) < 1e-9 && abs(dy) < 1e-9) continue;
+        //if (abs(dx) < 1e-9 && abs(dy) < 1e-9) continue;
 
         translateRegion(element, Vec{dx, dy});
     }
+
+    return largestMovement < stopThreshold;
 }
 
 void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {

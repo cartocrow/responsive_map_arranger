@@ -54,7 +54,6 @@ public:
 
     void setFromRel();
     void runLayout(const size_t iterations);
-    void iterateLayout();
 
     MapElement getMapElement(const size_t index) { return mapElements[index]; }
 
@@ -82,7 +81,7 @@ private:
     void computeRELForces();
     void computeOverlapForces();
     void computeBoundaryForces();
-    void applyForces();
+    bool applyForces();
 
     void applyHorizontalConstraint(size_t left, size_t right);
     void applyVerticalConstraint(size_t top, size_t bottom);
