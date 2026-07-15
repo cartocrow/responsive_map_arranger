@@ -33,7 +33,7 @@ class ChoroplethMap {
         using Pt = Point<cartocrow::Inexact>;
 
         optional<Region> region;
-        optional<Rect> bb;
+        optional<Rectangle<Inexact>> bb;
         Pt position;
         Color color{255, 255, 255};
     };
@@ -44,6 +44,9 @@ public:
     };
 
     void setFromRel();
+    MapElement getMapElement(const size_t index) { return mapElements[index]; }
+
+private:
     void setRegions();
     void scaleRegionsToContainer();
     void setInitialPositions();

@@ -12,6 +12,7 @@
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 
+#include "choropleth_map.h"
 #include "demers.h"
 
 using Inexact = CGAL::Exact_predicates_inexact_constructions_kernel;
@@ -43,11 +44,13 @@ public:
     // New constructors: takes RegularEdgeLabeling (required) and optional dual + options
     RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                 std::shared_ptr<RectangularDual> dual = nullptr,
-                std::shared_ptr<DemersCartogram> demers = nullptr);
+                std::shared_ptr<DemersCartogram> demers = nullptr,
+                std::shared_ptr<ChoroplethMap> choropleth = nullptr);
 
     RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                 std::shared_ptr<RectangularDual> dual,
                 std::shared_ptr<DemersCartogram> demers,
+                std::shared_ptr<ChoroplethMap> choropleth,
                 Options opts);
 
     // setter if you prefer to construct first and set later
@@ -72,6 +75,7 @@ private:
     std::shared_ptr<RegularEdgeLabeling> m_rel;
     std::shared_ptr<RectangularDual> m_dual;
     std::shared_ptr<DemersCartogram> m_demers;
+    std::shared_ptr<ChoroplethMap> m_choropleth;
     Options m_options;
 
     std::unordered_set<int> m_selectedHalfEdges;

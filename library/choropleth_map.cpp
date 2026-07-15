@@ -76,17 +76,25 @@ void ChoroplethMap::setRegions() {
 
 void ChoroplethMap::scaleRegionsToContainer() {
     double totalRegionBBArea = 0;
+    double largestXSpan = 0;
+    double largestYSpan = 0;
 
     for (const auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
+        assert(element.bb);
 
         totalRegionBBArea += element.bb->area();
+        largestXSpan = max(largestXSpan, width(*element.bb));
+        largestYSpan = max(largestYSpan, height(*element.bb));
     }
 
     if (totalRegionBBArea <= 0.0) return;
 
-    const double scaleFactor = sqrt(container.area() / totalRegionBBArea);
+    const double areaScale = sqrt(container.area() / totalRegionBBArea);
+    const double widthScale = width(container) / largestXSpan;
+    const double heightScale = height(container) / largestYSpan;
 
+    const double scaleFactor = min({areaScale, widthScale, heightScale});
     const Transformation scale{CGAL::SCALING, scaleFactor};
 
     for (auto& element : mapElements) {
@@ -124,8 +132,6 @@ void ChoroplethMap::setInitialPositions() {
         }
 
         element.position = rects[i].center();
-
-
         const auto target = rects[i].center();
         const auto& regionBB = *element.bb;
 

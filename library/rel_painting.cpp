@@ -7,6 +7,8 @@
 #include <array>
 #include <limits>
 
+#include <cartocrow/core/polygon_helpers.h>
+
 // If RegularEdgeLabeling and the nested types are in a namespace (e.g. rel::),
 // either add `using namespace rel;` here, or qualify them below (e.g. rel::RegularEdgeLabeling).
 // The code below assumes the class is visible as `RegularEdgeLabeling` and the types
@@ -14,14 +16,16 @@
 
 RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                          std::shared_ptr<RectangularDual> dual,
-                         std::shared_ptr<DemersCartogram> demers)
-    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_options() {}
+                         std::shared_ptr<DemersCartogram> demers,
+                         std::shared_ptr<ChoroplethMap> choropleth)
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_choropleth(std::move(choropleth)), m_options() {}
 
 RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                          std::shared_ptr<RectangularDual> dual,
                          std::shared_ptr<DemersCartogram> demers,
+                         std::shared_ptr<ChoroplethMap> choropleth,
                          Options opts)
-    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_options(std::move(opts)) {}
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_choropleth(std::move(choropleth)), m_options(std::move(opts)) {}
 
 void RELPainting::setRegularEdgeLabeling(std::shared_ptr<RegularEdgeLabeling> rel) {
     m_rel = std::move(rel);
@@ -37,8 +41,8 @@ void RELPainting::paint(Renderer &renderer) const {
     if (nRegions == 0) return;
 
     // ---------- positions: ALWAYS use RectangularDual (user requested) ----------
-    if (!m_dual && !m_demers) {
-        std::cerr << "RELPainting::paint: expected RectangularDual or DemersCartogram but m_dual and m_demers are null\n";
+    if (!m_dual && !m_demers && !m_choropleth) {
+        std::cerr << "RELPainting::paint: expected RectangularDual, DemersCartogram or ChoroplethMap but m_dual, m_demers and m_choroplath are null\n";
         return;
     }
     // if (m_dual->rectangles().size() != nRegions) {
@@ -73,6 +77,14 @@ void RELPainting::paint(Renderer &renderer) const {
             //const double cx = center.x();// = 0.5 * (r.left + r.right);
             //const double cy = 0.5 * (r.bottom + r.top);
             pos[i+4] = { center.x(), center.y() };
+        }
+    }
+    else if (m_choropleth) {
+        for (size_t i = 4; i < nRegions; ++i) {
+            const auto &box = m_choropleth->getMapElement(i).region;
+            if (!box) continue;
+            auto point = cartocrow::centroid(approximate(box->shape));
+            pos[i] = { point.x(), point.y() };
         }
     }
 

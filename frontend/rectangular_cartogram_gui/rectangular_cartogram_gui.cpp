@@ -68,7 +68,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
     relDrawingOptions.drawLabels = true;
     relDrawingOptions.drawREL = m_showREL->isChecked();
 
-    m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers);
+    m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_choroplethMap);
     m_relPainting->drawRel(m_showREL->isChecked());
 
     m_renderer->addPainting(m_relPainting, "REL");
@@ -576,7 +576,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
         relDrawingOptions.drawLabels = true;
         relDrawingOptions.drawREL = m_showREL->isChecked();
 
-        m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers);
+        m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_choroplethMap);
 
         m_renderer->addPainting(m_relPainting, "REL");
 
