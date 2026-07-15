@@ -250,7 +250,7 @@ void ChoroplethMap::computeRELForces() {
          const Vertex targetVertex = vertices[target];
 
          if (source < 4 || target < 4 ) continue; // skip outer vertices
-         if (!sourceVertex.isLandRegion || targetVertex.isLandRegion) continue;
+         if (!sourceVertex.isLandRegion || !targetVertex.isLandRegion) continue;
 
          const auto sourceIndex = static_cast<size_t>(source);
          const auto targetIndex = static_cast<size_t>(target);
