@@ -19,6 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "choropleth_map.h"
 #include "cartocrow/core/transform_helpers.h"
 
+using Transformation = CGAL::Aff_transformation_2<Inexact>;
+
 void ChoroplethMap::setFromRel() {
     assert(rel.hasBoundingBox());
     auto [left, right, bottom, top] = m_REL->getBoundingBox().value();
@@ -85,7 +87,6 @@ void ChoroplethMap::scaleRegionsToContainer() {
 
     const double scaleFactor = sqrt(container.area() / totalRegionBBArea);
 
-    using Transformation = CGAL::Aff_transformation_2<Inexact>;
     const Transformation scale{CGAL::SCALING, scaleFactor};
 
     for (auto& element : mapElements) {
@@ -124,7 +125,6 @@ void ChoroplethMap::setInitialPositions() {
 
         element.position = rects[i].center();
 
-        using K = cartocrow::Exact;
 
         const auto target = rects[i].center();
         const auto& regionBB = *element.bb;
@@ -132,19 +132,25 @@ void ChoroplethMap::setInitialPositions() {
         const double sourceX = (regionBB.xmin() + regionBB.xmax()) * 0.5;
         const double sourceY = (regionBB.ymin() + regionBB.ymax()) * 0.5;
 
-        const cartocrow::Vector<K> offset{
-            K::FT(target.x() - sourceX),
-            K::FT(target.y() - sourceY)
+        const Vector<Inexact> offset{
+            target.x() - sourceX,
+            target.y() - sourceY
         };
 
-        const CGAL::Aff_transformation_2<K> translation{
+        const CGAL::Aff_transformation_2<Inexact> translation{
             CGAL::TRANSLATION,
             offset
         };
 
-        //elements.region->shape = cartocrow::fitInto()
-
-        element.region->shape = cartocrow::transform(translation, element.region->shape);
+        auto shape = approximate(element.region->shape);
+        shape = transform(translation, shape);
+        element.region->shape = pretendExact(shape);
+        element.bb = CGAL::Bbox_2{
+            regionBB.xmin() + offset.x(),
+            regionBB.ymin() + offset.y(),
+            regionBB.xmax() + offset.x(),
+            regionBB.ymax() + offset.y()
+        };
     }
 }
 
