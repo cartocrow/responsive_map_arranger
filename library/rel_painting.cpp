@@ -88,7 +88,7 @@ void RELPainting::paint(Renderer &renderer) const {
         }
     }
 
-    const double arrowSize = static_cast<double>(m_options.arrowSize);
+    const double arrowSize = static_cast<double>(m_options.arrowSize * 10 / nRegions);
     const double strokeW = static_cast<double>(m_options.strokeWidth);
 
     // convenience lambdas for drawing with your renderer API
