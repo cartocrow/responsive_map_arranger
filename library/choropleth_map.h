@@ -83,7 +83,7 @@ private:
     bool applyForces();
 
     void applyHorizontalConstraint(size_t left, size_t right);
-    void applyVerticalConstraint(size_t top, size_t bottom);
+    void applyVerticalConstraint(size_t bottom, size_t top);
 
     void translateRegion(MapElement& element, const Vector<Inexact>& delta);
     void transformRegion(MapElement& element, const CGAL::Aff_transformation_2<Inexact>& transformation);
@@ -98,6 +98,8 @@ private:
     RectangularDual rectangularDual;
 
     std::vector<MapElement> mapElements;
+
+    double forceThreshold = 1e-4;
 
     friend class ChoroplethPainting;
 };

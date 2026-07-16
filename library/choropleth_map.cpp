@@ -144,8 +144,7 @@ void ChoroplethMap::saveOriginalPositions() {
     }
 }
 
-void ChoroplethMap::setInitialPositions()
-{
+void ChoroplethMap::setInitialPositions() {
     rectangularDual.setFromREL();
     const auto& rects = rectangularDual.rectangles();
 
@@ -155,9 +154,7 @@ void ChoroplethMap::setInitialPositions()
     for (std::size_t i = 0; i < count; ++i) {
         auto& element = mapElements[i];
 
-        if (!element.region || !element.bb) {
-            continue;
-        }
+        if (!element.region || !element.bb) continue;
 
         const auto target = rects[i].center();
 
@@ -175,13 +172,12 @@ void ChoroplethMap::clearForces() {
 }
 
 void ChoroplethMap::computeOriginalPositionForces() {
-    for (auto& element : mapElements) {
-        if (!element.region || !element.bb) {
-            continue;
-        }
+    if (originalPosForce < forceThreshold) return;
 
-        const Vec displacement =
-            element.originalPosition - element.position;
+    for (auto& element : mapElements) {
+        if (!element.region || !element.bb) continue;
+
+        const Vec displacement = element.originalPosition - element.position;
 
         element.force = element.force + Vec{
             originalPosForce * displacement.x(),
@@ -191,13 +187,12 @@ void ChoroplethMap::computeOriginalPositionForces() {
 }
 
 void ChoroplethMap::computeCartogramPositionForces() {
-    for (auto& element : mapElements) {
-        if (!element.region || !element.bb) {
-            continue;
-        }
+    if (cartogramPosForce < forceThreshold) return;
 
-        const Vec displacement =
-            element.cartogramPosition - element.position;
+    for (auto& element : mapElements) {
+        if (!element.region || !element.bb) continue;
+
+        const Vec displacement = element.cartogramPosition - element.position;
 
         element.force = element.force + Vec{
             cartogramPosForce * displacement.x(),
@@ -207,6 +202,8 @@ void ChoroplethMap::computeCartogramPositionForces() {
 }
 
 void ChoroplethMap::computeRELForces() {
+    if (RELForce < forceThreshold) return;
+
     const vector<HalfEdge>& halfEdges = m_REL->getHalfEdges();
     const vector<Vertex>& vertices = m_REL->getVertices();
 
@@ -234,6 +231,8 @@ void ChoroplethMap::computeRELForces() {
 }
 
 void ChoroplethMap::computeOverlapForces() {
+    if (overlapForce < forceThreshold) return;
+
     for (size_t i = 0; i < mapElements.size(); ++i) {
         auto& a = mapElements[i];
 
@@ -267,6 +266,8 @@ void ChoroplethMap::computeOverlapForces() {
 }
 
 void ChoroplethMap::computeBoundaryForces() {
+    if (boundaryForce < forceThreshold) return;
+
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
 
@@ -295,8 +296,6 @@ void ChoroplethMap::computeBoundaryForces() {
 }
 
 bool ChoroplethMap::applyForces() {
-    constexpr double stopThreshold = 1e-4;
-
     double largestMovement = 0.0;
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
@@ -318,7 +317,7 @@ bool ChoroplethMap::applyForces() {
         translateRegion(element, Vec{dx, dy});
     }
 
-    return largestMovement < stopThreshold;
+    return largestMovement < forceThreshold;
 }
 
 void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
@@ -347,7 +346,7 @@ void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
     // b.force = b.force + Vec{ 0.0, -alignmentForce };
 }
 
-void ChoroplethMap::applyVerticalConstraint(size_t top, size_t bottom) {
+void ChoroplethMap::applyVerticalConstraint(size_t bottom, size_t top) {
     auto& a = mapElements[bottom];
     auto& b = mapElements[top];
 
