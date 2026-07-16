@@ -42,14 +42,10 @@ void ChoroplethMap::setFromRel() {
     }
 
     setRegions();
-
-    scaleRegionsToContainer();
-    centerOriginalMapInContainer();
+    normalizeMap(0.75);
     saveOriginalPositions();
-
     setInitialPositions();
-
-
+    
     runLayout(forceIterationCount);
 }
 
@@ -96,67 +92,46 @@ void ChoroplethMap::setRegions() {
 
 }
 
-void ChoroplethMap::scaleRegionsToContainer() {
-    double totalRegionBBArea = 0;
-    double largestXSpan = 0;
-    double largestYSpan = 0;
+void ChoroplethMap::normalizeMap(const double areaFraction) {
+    if (areaFraction <= 0.0 || areaFraction > 1.0) return;
+
+    const Rect mapBB = *mapBoundingBox();
+
+    double totalRegionArea = 0.0;
+    double largestRegionWidth = 0.0;
+    double largestRegionHeight = 0.0;
 
     for (const auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
-        assert(element.bb);
-
-        totalRegionBBArea += element.bb->area();
-        largestXSpan = max(largestXSpan, width(*element.bb));
-        largestYSpan = max(largestYSpan, height(*element.bb));
+        totalRegionArea += CGAL::to_double(element.bb->area());
+        largestRegionWidth = max(largestRegionWidth, width(*element.bb));
+        largestRegionHeight = max(largestRegionHeight, height(*element.bb));
     }
 
-    if (totalRegionBBArea <= 0.0) return;
+    if (totalRegionArea <= 0.0) return;
 
-    const double areaScale = sqrt(container.area() / totalRegionBBArea) * 0.75;
-    const double widthScale = width(container) / largestXSpan;
-    const double heightScale = height(container) / largestYSpan;
+    const double containerArea = CGAL::to_double(container.area());
+    const double containerWidth = CGAL::to_double(cartocrow::width(container));
+    const double containerHeight = CGAL::to_double(cartocrow::height(container));
 
-    const double scaleFactor = min({areaScale, widthScale, heightScale});
+
+    const double areaScale = std::sqrt(containerArea / totalRegionArea) * areaFraction;
+    const double widthScale = containerWidth / largestRegionWidth;
+    const double heightScale = containerHeight / largestRegionHeight;
+
+    const double scaleFactor = std::min({areaScale, widthScale, heightScale});
     const Transformation scale{CGAL::SCALING, scaleFactor};
+
+    const Pt mapCenter = centroid(mapBB);
+    const Pt containerCenter = centroid(container);
+
+    const Transformation moveToOrigin{ CGAL::TRANSLATION, CGAL::ORIGIN - mapCenter };
+    const Transformation moveToContainer{ CGAL::TRANSLATION, containerCenter - CGAL::ORIGIN };
+    const Transformation transformation = moveToContainer * scale * moveToOrigin;
 
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
-
-        const Rect oldBox = *element.bb;
-
-        const Point<Inexact> center{
-            (oldBox.xmin() + oldBox.xmax()) * 0.5,
-            (oldBox.ymin() + oldBox.ymax()) * 0.5
-        };
-
-        const Transformation moveToOrigin{CGAL::TRANSLATION, CGAL::ORIGIN - center };
-        const Transformation moveBack{CGAL::TRANSLATION, center - CGAL::ORIGIN };
-
-        const auto transformation = moveBack * scale * moveToOrigin;
-
-        auto inexactShape = approximate(element.region->shape);
-        inexactShape = transform(transformation, inexactShape);
-        element.region->shape = pretendExact(inexactShape);
-
-        element.bb = boundingBox(element.region->shape);
-    }
-}
-
-void ChoroplethMap::centerOriginalMapInContainer() {
-    const auto mapBox = mapBoundingBox();
-    if (!mapBox) return;
-
-    const Pt mapCenter = centroid(*mapBox);
-    const Pt containerCenter = centroid(container);
-
-    const Vec delta = containerCenter - mapCenter;
-
-    for (auto& element : mapElements) {
-        if (!element.region || !element.bb) {
-            continue;
-        }
-
-        translateRegion(element, delta);
+        transformRegion(element, transformation);
     }
 }
 
@@ -164,7 +139,7 @@ void ChoroplethMap::saveOriginalPositions() {
     for (auto& element : mapElements) {
         if (!element.region || !element.bb) continue;
 
-        element.position = centroid(*element.bb);
+        element.position = centroid(approximate(element.region->shape));
         element.originalPosition = element.position;
     }
 }
@@ -422,6 +397,19 @@ void ChoroplethMap::translateRegion(MapElement& element, const Vec& translation)
     };
 
     element.position = element.position + translation;
+}
+
+void ChoroplethMap::transformRegion(MapElement &element, const CGAL::Aff_transformation_2<Inexact> &transformation) {
+    if (!element.region || !element.bb) return;
+
+    auto inexactShape = approximate(element.region->shape);
+
+    inexactShape = transform(transformation, inexactShape);
+    element.region->shape = pretendExact(inexactShape);
+
+    element.bb = boundingBox(element.region->shape);
+
+    element.position = centroid(approximate(element.region->shape));
 }
 
 optional<Rect> ChoroplethMap::mapBoundingBox() const {

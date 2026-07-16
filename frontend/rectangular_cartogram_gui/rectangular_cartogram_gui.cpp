@@ -842,7 +842,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     vLayout->addWidget(originalPosForceLabel);
     originalPosForceSpinBox = new QDoubleSpinBox();
     //originalForceSpinBox->setSuffix(" :og pos force");
-    originalPosForceSpinBox->setValue(0.01);
+    originalPosForceSpinBox->setValue(0.2);
     originalPosForceSpinBox->setMinimum(0);
     //originalPosForceSpinBox->setMaximum(5);
     originalPosForceSpinBox->setSingleStep(0.005);
@@ -851,7 +851,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto cartoForcelabel = new QLabel("Cartogram force");
     vLayout->addWidget(cartoForcelabel);
     cartogramPosForceSpinBox = new QDoubleSpinBox();
-    cartogramPosForceSpinBox->setValue(0.04);
+    cartogramPosForceSpinBox->setValue(0.1);
     cartogramPosForceSpinBox->setMinimum(0);
     //cartogramPosForceSpinBox->setMaximum(5);
     cartogramPosForceSpinBox->setSingleStep(0.005);
@@ -860,7 +860,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto RELForceLabel = new QLabel("REL force");
     vLayout->addWidget(RELForceLabel);
     RELForceSpinBox = new QDoubleSpinBox();
-    RELForceSpinBox->setValue(0.12);
+    RELForceSpinBox->setValue(0.1);
     RELForceSpinBox->setMinimum(0);
     //RELForceSpinBox->setMaximum(5);
     RELForceSpinBox->setSingleStep(0.005);
@@ -869,7 +869,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto overlapForceLabel = new QLabel("overlap force");
     vLayout->addWidget(overlapForceLabel);
     overlapForceSpinBox = new QDoubleSpinBox();
-    overlapForceSpinBox->setValue(2);
+    overlapForceSpinBox->setValue(3);
     overlapForceSpinBox->setMinimum(0);
     //overlapForceSpinBox->setMaximum(5);
     overlapForceSpinBox->setSingleStep(0.005);
@@ -878,7 +878,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto boundaryForceLabel = new QLabel("boundary force");
     vLayout->addWidget(boundaryForceLabel);
     boundaryForceSpinBox = new QDoubleSpinBox();
-    boundaryForceSpinBox->setValue(2);
+    boundaryForceSpinBox->setValue(5);
     boundaryForceSpinBox->setMinimum(0);
     //boundaryForceSpinBox->setMaximum(5);
     boundaryForceSpinBox->setSingleStep(0.005);

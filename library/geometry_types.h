@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cartocrow/core/rectangle_helpers.h"
+
 struct BoundingBox
 {
     double left   = 0;
@@ -29,4 +31,23 @@ CGAL::Bbox_2 boundingBox(const cartocrow::PolygonSet<K>& shape)
     }
 
     return result;
+}
+
+inline cartocrow::Rectangle<cartocrow::Inexact> shrinkRectangle(const cartocrow::Rectangle<cartocrow::Inexact>& r, double factor)
+{
+    const auto c = cartocrow::centroid(r);
+
+    const double halfWidth  = cartocrow::width(r) * factor * 0.5;
+    const double halfHeight = cartocrow::height(r) * factor * 0.5;
+
+    return {
+        cartocrow::Point<cartocrow::Inexact>{
+            c.x() - halfWidth,
+            c.y() - halfHeight
+        },
+        cartocrow::Point<cartocrow::Inexact>{
+            c.x() + halfWidth,
+            c.y() + halfHeight
+        }
+    };
 }

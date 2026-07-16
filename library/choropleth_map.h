@@ -69,8 +69,7 @@ public:
 
 private:
     void setRegions();
-    void scaleRegionsToContainer();
-    void centerOriginalMapInContainer();
+    void normalizeMap(const double areaFraction);
     void saveOriginalPositions();
     void setInitialPositions();
 
@@ -87,6 +86,7 @@ private:
     void applyVerticalConstraint(size_t top, size_t bottom);
 
     void translateRegion(MapElement& element, const Vector<Inexact>& delta);
+    void transformRegion(MapElement& element, const CGAL::Aff_transformation_2<Inexact>& transformation);
 
     optional<Rect> mapBoundingBox() const;
 
