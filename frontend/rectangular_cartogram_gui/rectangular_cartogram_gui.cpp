@@ -195,7 +195,7 @@ void RectangularCartogramDemo::addGeneralTab() {
     m_useAdaptiveLayout->setChecked(true);
     auto relaxationLabel = new QLabel("Critical Relaxation", vWidget);
     m_threshHoldRelaxation = new QDoubleSpinBox(vWidget);
-    m_threshHoldRelaxation->setValue(0.3);
+    m_threshHoldRelaxation->setValue(0.1);
     m_threshHoldRelaxation->setMinimum(0);
     m_threshHoldRelaxation->setMaximum(1);
     m_threshHoldRelaxation->setSingleStep(0.1);
@@ -860,7 +860,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto RELForceLabel = new QLabel("REL force");
     vLayout->addWidget(RELForceLabel);
     RELForceSpinBox = new QDoubleSpinBox();
-    RELForceSpinBox->setValue(1);
+    RELForceSpinBox->setValue(0.2);
     RELForceSpinBox->setMinimum(0);
     //RELForceSpinBox->setMaximum(5);
     RELForceSpinBox->setSingleStep(0.005);

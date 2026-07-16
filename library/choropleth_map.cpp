@@ -214,7 +214,6 @@ void ChoroplethMap::computeRELForces() {
          const auto& edge = halfEdges[edgeId];
          if (edge.isDeleted || edge.color == BLACK || !edge.outgoing) continue;
 
-        //std::cout << "doing something "<< std::endl;
          const int source = edge.vertex;
          const int target = m_REL->neighborOfHalfEdge(static_cast<int>(edgeId));
          const Vertex sourceVertex = vertices[source];
@@ -331,14 +330,16 @@ void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
     constexpr double contactStrength = 0.12;
     constexpr double alignmentStrength = 0.01;
 
-    const double gap = b.bb->xmin() - a.bb->xmax();
+    const double allowedOverlap = 0.0 * min(width(*a.bb), width(*b.bb));
+
+    // positive: bb gap | zero: bb touch | negative: bb overlap
+    const double gap = b.bb->xmin() - a.bb->xmax();// + allowedOverlap;
 
     const double contactForce = RELForce * gap;
 
     a.force += Vec{ contactForce, 0.0 };
     b.force += Vec{ -contactForce, 0.0 };
 
-    // // Mildly encourage vertical alignment, but do not force equal centers.
     // const double verticalDifference = b.position.y() - a.position.y();
     // const double alignmentForce = alignmentStrength * verticalDifference;
     //
@@ -354,13 +355,12 @@ void ChoroplethMap::applyVerticalConstraint(size_t top, size_t bottom) {
 
     constexpr double contactStrength = 0.12;
     constexpr double alignmentStrength = 0.01;
+    const double allowedOverlap = 0.0 * min(height(*a.bb), height(*b.bb));
+    const double gap = b.bb->ymin() - a.bb->ymax();// + allowedOverlap;
 
-    const double gap = b.bb->ymin() - a.bb->ymax();
-
-    const double contactForce = contactStrength * gap;
+    const double contactForce = RELForce * gap;
 
     a.force += Vec{ 0.0, contactForce };
-
     b.force += Vec{ 0.0, -contactForce };
 
     // const double horizontalDifference = b.position.x() - a.position.x();
