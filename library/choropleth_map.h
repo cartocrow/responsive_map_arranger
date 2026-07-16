@@ -58,14 +58,14 @@ public:
     MapElement getMapElement(const size_t index) { return mapElements[index]; }
 
     // forces
-    size_t forceIterationCount = 0;
-    double forceStepSize = 0.15;
-    double forceMaxMovement = 2.0;
-    double originalPosForce = 0.01;
-    double cartogramPosForce = 0.04;
-    double RELForce = 0.12;
-    double overlapForce = 0.3;
-    double boundaryForce = 0.4;
+    size_t forceIterationCount;
+    double forceStepSize;
+    double forceMaxMovement;
+    double originalPosForce;
+    double cartogramPosForce;
+    double RELForce;
+    double overlapForce;
+    double boundaryForce ;
 
 private:
     void setRegions();

@@ -820,21 +820,21 @@ void RectangularCartogramDemo::addChoroplethTab() {
     vLayout->addWidget(forceIterLabel);
     choroForceIterSpinBox = new QSpinBox();
     choroForceIterSpinBox->setSuffix(" iters");
-    choroForceIterSpinBox->setValue(10);
+    choroForceIterSpinBox->setValue(20);
     choroForceIterSpinBox->setSingleStep(1);
     vLayout->addWidget(choroForceIterSpinBox);
 
     auto forceStepLabel = new QLabel("Force step size");
     vLayout->addWidget(forceStepLabel);
     forceStepSpinBox = new QDoubleSpinBox();
-    forceStepSpinBox->setValue(0.15);
+    forceStepSpinBox->setValue(0.05);
     forceStepSpinBox->setSingleStep(0.05);
     vLayout->addWidget(forceStepSpinBox);
 
     auto forceMaxMovementLabel = new QLabel("Max Force movement");
     vLayout->addWidget(forceMaxMovementLabel);
     forceMaxMovementSpinBox = new QDoubleSpinBox();
-    forceMaxMovementSpinBox->setValue(2);
+    forceMaxMovementSpinBox->setValue(1);
     forceMaxMovementSpinBox->setSingleStep(0.5);
     vLayout->addWidget(forceMaxMovementSpinBox);
 
@@ -860,7 +860,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto RELForceLabel = new QLabel("REL force");
     vLayout->addWidget(RELForceLabel);
     RELForceSpinBox = new QDoubleSpinBox();
-    RELForceSpinBox->setValue(0.1);
+    RELForceSpinBox->setValue(1);
     RELForceSpinBox->setMinimum(0);
     //RELForceSpinBox->setMaximum(5);
     RELForceSpinBox->setSingleStep(0.005);
@@ -869,7 +869,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto overlapForceLabel = new QLabel("overlap force");
     vLayout->addWidget(overlapForceLabel);
     overlapForceSpinBox = new QDoubleSpinBox();
-    overlapForceSpinBox->setValue(3);
+    overlapForceSpinBox->setValue(5);
     overlapForceSpinBox->setMinimum(0);
     //overlapForceSpinBox->setMaximum(5);
     overlapForceSpinBox->setSingleStep(0.005);
@@ -878,7 +878,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto boundaryForceLabel = new QLabel("boundary force");
     vLayout->addWidget(boundaryForceLabel);
     boundaryForceSpinBox = new QDoubleSpinBox();
-    boundaryForceSpinBox->setValue(5);
+    boundaryForceSpinBox->setValue(6);
     boundaryForceSpinBox->setMinimum(0);
     //boundaryForceSpinBox->setMaximum(5);
     boundaryForceSpinBox->setSingleStep(0.005);

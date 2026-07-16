@@ -42,10 +42,10 @@ void ChoroplethMap::setFromRel() {
     }
 
     setRegions();
-    normalizeMap(0.75);
+    normalizeMap(0.7);
     saveOriginalPositions();
     setInitialPositions();
-    
+
     runLayout(forceIterationCount);
 }
 
