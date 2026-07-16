@@ -329,10 +329,10 @@ void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
     constexpr double contactStrength = 0.12;
     constexpr double alignmentStrength = 0.01;
 
-    const double allowedOverlap = 0.0 * min(width(*a.bb), width(*b.bb));
+    const double allowedOverlap = 0.05 * min(width(*a.bb), width(*b.bb));
 
     // positive: bb gap | zero: bb touch | negative: bb overlap
-    const double gap = b.bb->xmin() - a.bb->xmax();// + allowedOverlap;
+    const double gap = b.bb->xmin() - a.bb->xmax() + allowedOverlap;
 
     const double contactForce = RELForce * gap;
 
@@ -352,10 +352,8 @@ void ChoroplethMap::applyVerticalConstraint(size_t bottom, size_t top) {
 
     if (!a.bb || !b.bb) return;
 
-    constexpr double contactStrength = 0.12;
-    constexpr double alignmentStrength = 0.01;
-    const double allowedOverlap = 0.0 * min(height(*a.bb), height(*b.bb));
-    const double gap = b.bb->ymin() - a.bb->ymax();// + allowedOverlap;
+    const double allowedOverlap = 0.05 * min(height(*a.bb), height(*b.bb));
+    const double gap = b.bb->ymin() - a.bb->ymax() + allowedOverlap;
 
     const double contactForce = RELForce * gap;
 
