@@ -79,7 +79,6 @@ private:
     void normalizeMap(const double areaFraction);
     void saveOriginalPositions();
     void setCartogramPositions();
-    void setInitialPositions();
     void initializeComponentPositions();
     void buildComponents();
 

@@ -150,35 +150,11 @@ void ChoroplethMap::setCartogramPositions() {
     rectangularDual.setFromREL();
     const auto& rects = rectangularDual.rectangles();
 
-    const std::size_t count =
-        std::min(mapElements.size(), rects.size());
-
-    for (std::size_t i = 0; i < count; ++i) {
+    for (std::size_t i = 0; i < mapElements.size(); ++i) {
         auto& element = mapElements[i];
         if (!element.region || !element.bb) continue;
 
         element.cartogramPosition = rects[i].center();
-    }
-}
-
-void ChoroplethMap::setInitialPositions() {
-    rectangularDual.setFromREL();
-    const auto& rects = rectangularDual.rectangles();
-
-    const std::size_t count =
-        std::min(mapElements.size(), rects.size());
-
-    for (std::size_t i = 0; i < count; ++i) {
-        auto& element = mapElements[i];
-
-        if (!element.region || !element.bb) continue;
-
-        //const auto target = rects[i].center();
-
-        element.cartogramPosition = rects[i].center();
-
-        //const auto delta = target - element.position;
-        //translateRegion(element, delta);
     }
 }
 
@@ -235,11 +211,9 @@ void ChoroplethMap::buildComponents() {
 
     for (size_t i = 0; i < elementCount; ++i) {
         const int componentId = componentOfVertex[i];
-
         if (componentId < 0) continue;
 
         componentOfElement[i] = componentId;
-
         mapComponents[componentId].members.push_back(i);
     }
 
@@ -259,17 +233,6 @@ void ChoroplethMap::clearForces() {
 void ChoroplethMap::computeOriginalPositionForces() {
     if (originalPosForce < forceThreshold) return;
 
-    // for (auto& element : mapElements) {
-    //     if (!element.region || !element.bb) continue;
-    //
-    //     const Vec displacement = element.originalPosition - element.position;
-    //
-    //     element.force = element.force + Vec{
-    //         originalPosForce * displacement.x(),
-    //         originalPosForce * displacement.y()
-    //     };
-    // }
-
     for (auto& component : mapComponents) {
         const Vec displacement = component.originalPosition - component.position;
         component.force = component.force + originalPosForce * displacement;
@@ -278,17 +241,6 @@ void ChoroplethMap::computeOriginalPositionForces() {
 
 void ChoroplethMap::computeCartogramPositionForces() {
     if (cartogramPosForce < forceThreshold) return;
-
-    // for (auto& element : mapElements) {
-    //     if (!element.region || !element.bb) continue;
-    //
-    //     const Vec displacement = element.cartogramPosition - element.position;
-    //
-    //     element.force = element.force + Vec{
-    //         cartogramPosForce * displacement.x(),
-    //         cartogramPosForce * displacement.y()
-    //     };
-    // }
 
     for (auto& component : mapComponents) {
         const Vec displacement = component.cartogramPosition - component.position;
@@ -408,8 +360,6 @@ void ChoroplethMap::computeBoundaryForces() {
 bool ChoroplethMap::applyForces() {
     double largestMovement = 0.0;
     for (auto& component : mapComponents) {
-        //if (!element.region || !element.bb) continue;
-
         double dx = forceStepSize * component.force.x();
         double dy = forceStepSize * component.force.y();
 
@@ -421,8 +371,6 @@ bool ChoroplethMap::applyForces() {
             dy *= factor;
         }
         largestMovement = max(largestMovement, hypot(dx, dy));
-
-        //if (abs(dx) < 1e-9 && abs(dy) < 1e-9) continue;
 
         translateComponent(component, Vec{dx, dy});
     }
@@ -475,23 +423,18 @@ void ChoroplethMap::applyVerticalConstraint(size_t bottom, size_t top, size_t bo
 }
 
 void ChoroplethMap::translateRegion(MapElement& element, const Vec& translation) {
-    if (!element.region || !element.bb) {
-        return;
-    }
+    if (!element.region || !element.bb) return;
 
     const CGAL::Aff_transformation_2<Inexact> transformation{
         CGAL::TRANSLATION,
         translation
     };
 
-    auto inexactShape =
-        approximate(element.region->shape);
+    auto inexactShape = approximate(element.region->shape);
 
-    inexactShape =
-        cartocrow::transform(transformation, inexactShape);
+    inexactShape = cartocrow::transform(transformation, inexactShape);
 
-    element.region->shape =
-        pretendExact(inexactShape);
+    element.region->shape = pretendExact(inexactShape);
 
     const Rect oldBox = *element.bb;
 
@@ -532,9 +475,7 @@ optional<Rect> ChoroplethMap::mapBoundingBox() const {
     std::optional<Rect> result;
 
     for (const auto& element : mapElements) {
-        if (!element.region || !element.bb) {
-            continue;
-        }
+        if (!element.region || !element.bb) continue;
 
         if (!result) {
             result = *element.bb;
@@ -557,10 +498,7 @@ optional<Rect> ChoroplethMap::mapBoundingBox() const {
 }
 
 void ChoroplethPainting::paint(Renderer& renderer) const {
-
-    if (!m_map) {
-        return;
-    }
+    if (!m_map) return;
 
     renderer.setMode(Renderer::fill | Renderer::stroke);
 
@@ -568,8 +506,7 @@ void ChoroplethPainting::paint(Renderer& renderer) const {
     auto& mapElements = m_map->mapElements;
     for (size_t i = 4; i < relVertices.size(); i++) {
         if (!relVertices[i].isLandRegion) continue;
-        //DemersPosition dp = m_cartogram->locations[i];
-        //cout << mapElements[i].color.r << " " << mapElements[i].color.g << " " << mapElements[i].color.b << endl;
+
         renderer.setFill(mapElements[i].color);
         renderer.draw(mapElements[i].region->shape);
 
