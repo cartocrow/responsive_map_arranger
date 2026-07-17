@@ -133,6 +133,7 @@ void RectangularCartogramDemo::processData() {
 
     m_relPtr = std::make_shared<RegularEdgeLabeling>(m_rel);
     m_relPtr->enableAdaptiveLayout(m_useAdaptiveLayout->isChecked());
+    m_relPtr->setThreshHoldRelaxation(m_threshHoldRelaxation->value());
     m_relPtr->setMergeHeuristic(static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentIndex()));
     m_relPtr->setBoundingBox(BoundingBox{0, m_frameSizeX->value(), -m_frameSizeY->value(), 0});
 
@@ -195,7 +196,7 @@ void RectangularCartogramDemo::addGeneralTab() {
     m_useAdaptiveLayout->setChecked(true);
     auto relaxationLabel = new QLabel("Critical Relaxation", vWidget);
     m_threshHoldRelaxation = new QDoubleSpinBox(vWidget);
-    m_threshHoldRelaxation->setValue(0.1);
+    m_threshHoldRelaxation->setValue(0);
     m_threshHoldRelaxation->setMinimum(0);
     m_threshHoldRelaxation->setMaximum(1);
     m_threshHoldRelaxation->setSingleStep(0.1);
@@ -842,7 +843,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     vLayout->addWidget(forceIterLabel);
     choroForceIterSpinBox = new QSpinBox();
     choroForceIterSpinBox->setSuffix(" iters");
-    choroForceIterSpinBox->setValue(20);
+    choroForceIterSpinBox->setValue(10);
     choroForceIterSpinBox->setSingleStep(1);
     vLayout->addWidget(choroForceIterSpinBox);
 
@@ -882,7 +883,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto RELForceLabel = new QLabel("REL force");
     vLayout->addWidget(RELForceLabel);
     RELForceSpinBox = new QDoubleSpinBox();
-    RELForceSpinBox->setValue(10);
+    RELForceSpinBox->setValue(1);
     RELForceSpinBox->setMinimum(0);
     //RELForceSpinBox->setMaximum(5);
     RELForceSpinBox->setSingleStep(0.005);
@@ -891,7 +892,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto overlapForceLabel = new QLabel("overlap force");
     vLayout->addWidget(overlapForceLabel);
     overlapForceSpinBox = new QDoubleSpinBox();
-    overlapForceSpinBox->setValue(0);
+    overlapForceSpinBox->setValue(10);
     overlapForceSpinBox->setMinimum(0);
     //overlapForceSpinBox->setMaximum(5);
     overlapForceSpinBox->setSingleStep(0.005);

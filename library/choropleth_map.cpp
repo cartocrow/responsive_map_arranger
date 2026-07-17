@@ -45,11 +45,10 @@ void ChoroplethMap::setFromRel() {
     normalizeMap(0.7);
     saveOriginalPositions();
     setCartogramPositions();
-    //setInitialPositions();
     buildComponents();
     initializeComponentPositions();
 
-    //runLayout(forceIterationCount);
+    runLayout(forceIterationCount);
 }
 
 void ChoroplethMap::runLayout(const size_t iterations) {
@@ -239,7 +238,7 @@ void ChoroplethMap::buildComponents() {
 
         if (componentId < 0) continue;
 
-        componentOfElement[componentId] = i;
+        componentOfElement[i] = componentId;
 
         mapComponents[componentId].members.push_back(i);
     }
@@ -318,10 +317,18 @@ void ChoroplethMap::computeRELForces() {
          const auto sourceIndex = static_cast<size_t>(source);
          const auto targetIndex = static_cast<size_t>(target);
 
+        const int sourceComponent = componentOfElement[sourceIndex];
+        const int targetComponent = componentOfElement[targetIndex];
+
+        // do not apply force between regions of same element.
+        if (sourceComponent == targetComponent ||
+            sourceComponent < 0 || targetComponent < 0 ||
+            sourceComponent >= mapComponents.size() || targetComponent >= mapComponents.size()) continue;
+
         if (edge.color == BLUE) { //horizontal adjacency
-            applyHorizontalConstraint(sourceIndex, targetIndex);
+            applyHorizontalConstraint(sourceIndex, targetIndex, sourceComponent, targetComponent);
         } else if (edge.color == RED) { //vertical adjacency
-            applyVerticalConstraint(sourceIndex, targetIndex);
+            applyVerticalConstraint(sourceIndex, targetIndex, sourceComponent, targetComponent);
         }
     }
 }
@@ -347,14 +354,20 @@ void ChoroplethMap::computeOverlapForces() {
                 const double dir = a.position.x() < b.position.x() ? -1 : 1;
                 const double magnitude = overlapForce * overlapX;
 
-                a.force += Vec{dir * magnitude, 0 };
-                b.force += Vec{-dir * magnitude, 0 };
+                const int aComponent = componentOfElement[i];
+                const int bComponent = componentOfElement[j];
+
+                mapComponents[aComponent].force += Vec{dir * magnitude, 0 };
+                mapComponents[bComponent].force += Vec{-dir * magnitude, 0 };
             } else {
                 const double dir = a.position.y() < b.position.y() ? -1 : 1;
                 const double magnitude = overlapForce * overlapY;
 
-                a.force += Vec{0, dir * magnitude};
-                b.force += Vec{0, -dir * magnitude};
+                const int aComponent = componentOfElement[i];
+                const int bComponent = componentOfElement[j];
+
+                mapComponents[aComponent].force += Vec{0, dir * magnitude};
+                mapComponents[bComponent].force += Vec{0, -dir * magnitude};
             }
 
         }
@@ -364,7 +377,8 @@ void ChoroplethMap::computeOverlapForces() {
 void ChoroplethMap::computeBoundaryForces() {
     if (boundaryForce < forceThreshold) return;
 
-    for (auto& element : mapElements) {
+    for (size_t i = 0; i < mapElements.size(); ++i) {
+        auto& element = mapElements[i];
         if (!element.region || !element.bb) continue;
 
         double forceX = 0.0;
@@ -386,18 +400,18 @@ void ChoroplethMap::computeBoundaryForces() {
         if (element.bb->ymax() > container.ymax()) {
             forceY -= boundaryForce * (element.bb->ymax()-container.ymax());
         }
-
-        element.force += Vec{forceX, forceY};
+        auto& component = mapComponents[componentOfElement[i]];
+        component.force += Vec{forceX, forceY};
     }
 }
 
 bool ChoroplethMap::applyForces() {
     double largestMovement = 0.0;
-    for (auto& element : mapElements) {
-        if (!element.region || !element.bb) continue;
+    for (auto& component : mapComponents) {
+        //if (!element.region || !element.bb) continue;
 
-        double dx = forceStepSize * element.force.x();
-        double dy = forceStepSize * element.force.y();
+        double dx = forceStepSize * component.force.x();
+        double dy = forceStepSize * component.force.y();
 
         const double length = sqrt(dx * dx + dy * dy);
 
@@ -410,13 +424,13 @@ bool ChoroplethMap::applyForces() {
 
         //if (abs(dx) < 1e-9 && abs(dy) < 1e-9) continue;
 
-        translateRegion(element, Vec{dx, dy});
+        translateComponent(component, Vec{dx, dy});
     }
 
     return largestMovement < forceThreshold;
 }
 
-void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
+void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right, size_t leftComponent, size_t rightComponent) {
     auto& a = mapElements[left];
     auto& b = mapElements[right];
 
@@ -429,8 +443,8 @@ void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
 
     const double contactForce = RELForce * gap;
 
-    a.force += Vec{ contactForce, 0.0 };
-    b.force += Vec{ -contactForce, 0.0 };
+    mapComponents[leftComponent].force += Vec{ contactForce, 0.0 };
+    mapComponents[rightComponent].force += Vec{ -contactForce, 0.0 };
 
     // const double verticalDifference = b.position.y() - a.position.y();
     // const double alignmentForce = alignmentStrength * verticalDifference;
@@ -439,7 +453,7 @@ void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
     // b.force = b.force + Vec{ 0.0, -alignmentForce };
 }
 
-void ChoroplethMap::applyVerticalConstraint(size_t bottom, size_t top) {
+void ChoroplethMap::applyVerticalConstraint(size_t bottom, size_t top, size_t bottomComponent, size_t topComponent) {
     auto& a = mapElements[bottom];
     auto& b = mapElements[top];
 
@@ -450,8 +464,8 @@ void ChoroplethMap::applyVerticalConstraint(size_t bottom, size_t top) {
 
     const double contactForce = RELForce * gap;
 
-    a.force += Vec{ 0.0, contactForce };
-    b.force += Vec{ 0.0, -contactForce };
+    mapComponents[bottomComponent].force += Vec{ 0.0, contactForce };
+    mapComponents[topComponent].force += Vec{ 0.0, -contactForce };
 
     // const double horizontalDifference = b.position.x() - a.position.x();
     // const double alignmentForce = alignmentStrength * horizontalDifference;

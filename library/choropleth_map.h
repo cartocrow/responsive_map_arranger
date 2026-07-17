@@ -92,8 +92,8 @@ private:
     void computeBoundaryForces();
     bool applyForces();
 
-    void applyHorizontalConstraint(size_t left, size_t right);
-    void applyVerticalConstraint(size_t bottom, size_t top);
+    void applyHorizontalConstraint(size_t left, size_t right, size_t leftComponent, size_t rightComponent);
+    void applyVerticalConstraint(size_t bottom, size_t top, size_t bottomComponent, size_t topComponent);
 
     void translateRegion(MapElement& element, const Vec& delta);
     void translateComponent(size_t componentIndex, const Vec& delta);

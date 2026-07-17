@@ -1323,8 +1323,6 @@ vector<int> RegularEdgeLabeling::componentOfVertex() const {
 
         if (!isLandVertex(u) || !isLandVertex(v)) continue;
 
-        std::cout << "Active Edge: " << canonical << " (" << u <<" - " << v << ")" << std::endl;
-
         ds.unite(u, v);
     }
 
@@ -1534,8 +1532,6 @@ void RegularEdgeLabeling::deactivatePreservedEdges(int edgeId) {
     if (canonicalEdge == -1) return;
 
     m_preservedEdges[canonicalEdge].active = false;
-
-    std::cout << "Deactivated edge " << edgeId << std::endl;
 }
 
 // Return cost + vertex path (excluding outer vertices)
