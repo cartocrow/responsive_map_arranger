@@ -32,6 +32,14 @@ using Pt = Point<Inexact>;
 
 
 class ChoroplethMap {
+    struct MapComponent {
+        std::vector<size_t> members;
+
+        Pt position;
+        Pt originalPosition;
+        Pt cartogramPosition;
+        Vec force{0, 0};
+    };
     struct MapElement {
 
         optional<Region> region;
@@ -44,7 +52,6 @@ class ChoroplethMap {
         Vec force{0, 0};
 
         Color color{255, 255, 255};
-
     };
 
 public:
@@ -71,7 +78,10 @@ private:
     void setRegions();
     void normalizeMap(const double areaFraction);
     void saveOriginalPositions();
+    void setCartogramPositions();
     void setInitialPositions();
+    void initializeComponentPositions();
+    void buildComponents();
 
     // Improving map layout
     void clearForces();
@@ -85,7 +95,9 @@ private:
     void applyHorizontalConstraint(size_t left, size_t right);
     void applyVerticalConstraint(size_t bottom, size_t top);
 
-    void translateRegion(MapElement& element, const Vector<Inexact>& delta);
+    void translateRegion(MapElement& element, const Vec& delta);
+    void translateComponent(size_t componentIndex, const Vec& delta);
+    void translateComponent(MapComponent component, const Vec& delta);
     void transformRegion(MapElement& element, const CGAL::Aff_transformation_2<Inexact>& transformation);
 
     optional<Rect> mapBoundingBox() const;
@@ -98,6 +110,9 @@ private:
     RectangularDual rectangularDual;
 
     std::vector<MapElement> mapElements;
+    vector<MapComponent> mapComponents;
+
+    vector<int> componentOfElement;
 
     double forceThreshold = 1e-4;
 

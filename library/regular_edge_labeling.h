@@ -28,6 +28,10 @@ enum EdgeColor {
     BLACK = 2
 };
 
+struct PreservedEdgeState {
+    bool active = true;
+};
+
 struct HalfEdge {
     int32_t vertex = -1; //vertex index
     int32_t twin = -1; // opposite half-edge
@@ -98,6 +102,12 @@ public:
     void adjustSeaRegionSizes(bool vertically, int longestPath);
     bool deleteSeaRegionIfPossible(int seaVertexID);
 
+    vector<int> componentOfVertex() const;
+
+    bool isLandVertex(const int v) const {
+        const Vertex vertex = m_vertices[v];
+        return isValidVertex(v) && isInnerVertex(v) && vertex.isLandRegion;
+    }
     bool isValidVertex(const int v) const {
         return 0 <= v && v < static_cast<int>(m_vertices.size()) && !m_vertices[v].isDeleted;
     }
@@ -110,6 +120,9 @@ public:
 
     bool isOuterVertexLabel(const int v) const {return v < 4; }
     bool isInnerVertex(const int v) const { return v >= 4; }
+
+    bool isEdgePreserved(int edgeId) const;
+    void deactivatePreservedEdges(int edgeId);
 
 
     std::pair<double, std::vector<int>> getLongestHorizontalPath() const;
@@ -180,12 +193,17 @@ public:
     bool hasValidEdgeColorFlip(int edgeId) const;
 
 private:
+    void InitializePreservedEdges();
+
+private:
     vector<Vertex> m_vertices;
     unordered_map<string, int> m_labelToIndex;
     vector<HalfEdge> m_halfEdges;
 
     vector<Vertex> m_initVertices;
     vector<HalfEdge> m_initHalfEdges;
+
+    vector<PreservedEdgeState> m_preservedEdges;
 
     int m_initLongestVerticalPath;
     int m_initLongestHorizontalPath;

@@ -13,6 +13,8 @@
 #include <cartocrow/core/region_arrangement.h>
 #include <cartocrow/renderer/geometry_renderer.h>
 
+#include "disjoint_set.h"
+
 using json = nlohmann::json;
 using namespace std;
 using namespace cartocrow;
@@ -650,6 +652,7 @@ void RegularEdgeLabeling::adjustToBB() {
     m_vertices = m_initVertices;
     m_halfEdges = m_initHalfEdges;
 
+    InitializePreservedEdges();
     normalizeVertexWeights();
     computePreferredSizes();
 
@@ -1301,6 +1304,54 @@ bool RegularEdgeLabeling::deleteSeaRegionIfPossible(int seaVertexID) {
     return false;
 }
 
+vector<int> RegularEdgeLabeling::componentOfVertex() const {
+    DisjointSet ds(m_vertices.size());
+
+    // Unite all active preserved edges.
+    for (int he = 0; he < static_cast<int>(m_halfEdges.size()); ++he) {
+        if (!isValidHalfEdge(he)) continue;
+
+        const int canonical = canonicalHalfEdge(he);
+
+        // Only process each undirected edge once.
+        if (canonical != he) continue;
+
+        if (!m_preservedEdges[canonical].active) continue;
+
+        const int u = m_halfEdges[canonical].vertex;
+        const int v = neighborOfHalfEdge(canonical);
+
+        if (!isLandVertex(u) || !isLandVertex(v)) continue;
+
+        std::cout << "Active Edge: " << canonical << " (" << u <<" - " << v << ")" << std::endl;
+
+        ds.unite(u, v);
+    }
+
+    vector<int> component(m_vertices.size(), -1);
+
+    std::unordered_map<int, int> rootToComponent;
+
+    int nextComponent = 0;
+
+    for (int v = 0; v < static_cast<int>(m_vertices.size()); ++v) {
+
+        if (!isValidVertex(v)) continue;
+
+        const int root = ds.find(v);
+
+        auto [it, inserted] =
+            rootToComponent.emplace(root, nextComponent);
+
+        if (inserted)
+            ++nextComponent;
+
+        component[v] = it->second;
+    }
+
+    return component;
+}
+
 static std::pair<double, std::vector<int>> REL_longestPathPred_generic(
     const RegularEdgeLabeling &rel,
     EdgeColor color,
@@ -1465,6 +1516,26 @@ int RegularEdgeLabeling::findHalfEdgeToNeighbor(int vertexID, int neighborID) co
         }
     }
     return -1;
+}
+
+bool RegularEdgeLabeling::isEdgePreserved(int edgeId) const {
+    if  (!isValidHalfEdge(edgeId)) return false;
+
+    const int canonicalEdge = canonicalHalfEdge(edgeId);
+
+    return canonicalEdge != -1 && m_preservedEdges[canonicalEdge].active;
+}
+
+void RegularEdgeLabeling::deactivatePreservedEdges(int edgeId) {
+    if (!isValidHalfEdge(edgeId)) return;
+
+    const int canonicalEdge = canonicalHalfEdge(edgeId);
+
+    if (canonicalEdge == -1) return;
+
+    m_preservedEdges[canonicalEdge].active = false;
+
+    std::cout << "Deactivated edge " << edgeId << std::endl;
 }
 
 // Return cost + vertex path (excluding outer vertices)
@@ -2578,19 +2649,20 @@ bool RegularEdgeLabeling::flipEdgeColor(const int edgeId) {
     if (halfEdge.twin < 0 || halfEdge.twin >= m_halfEdges.size()) return false;
     HalfEdge &twin = m_halfEdges[halfEdge.twin];
 
+    bool success = false;
+
     if (halfEdge.color == BLUE) {
         halfEdge.color = RED;
         twin.color = RED;
-
-        return true;
+        success =  true;
     } else if (halfEdge.color == RED) {
         halfEdge.color = BLUE;
         twin.color = BLUE;
-
-        return true;
+        success =  true;
     }
 
-    return false;
+    if (success) deactivatePreservedEdges(edgeId);
+    return success;
 }
 
 bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
@@ -2645,22 +2717,6 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     int cVertex = m_halfEdges[m_halfEdges[cEdge].twin].vertex;
     int dVertex = m_halfEdges[m_halfEdges[dEdge].twin].vertex;
 
-    // cout << "c edges: " << endl;
-    //
-    // for (auto edge : m_vertices[cVertex].edges) {
-    //     cout << edge << endl;
-    // }
-    // cout << "d edges: " << endl;
-    //
-    // for (auto edge : m_vertices[dVertex].edges) {
-    //     cout << edge << endl;
-    // }
-    // cout << m_vertices[a].label << " " << m_vertices[b].label << endl;
-    // cout << baseEdgeId << " " << endEdgeId << endl;
-    // cout << m_vertices[cVertex].label << " " << m_vertices[dVertex].label << endl;
-    //
-    // cout << cEdge << " " << dEdge << endl;
-
     // PERFORM FLIP
     // 1) erase a and b from lists
     {
@@ -2696,17 +2752,6 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     m_halfEdges[baseEdgeId].vertex = cVertex;
     m_halfEdges[endEdgeId].vertex = dVertex;
 
-    // cout << "c edges: " << endl;
-    //
-    // for (auto edge : m_vertices[cVertex].edges) {
-    //     cout << edge << endl;
-    // }
-    // cout << "d edges: " << endl;
-    //
-    // for (auto edge : m_vertices[dVertex].edges) {
-    //     cout << edge << endl;
-    // }
-
     // 5) update id string
     string originC = m_vertices [cVertex].label;
     string destD  = m_vertices[ m_halfEdges[endEdgeId].vertex ].label;
@@ -2716,6 +2761,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     string destC  = m_vertices[ m_halfEdges[baseEdgeId].vertex ].label; // cVert
     m_halfEdges[endEdgeId].id_str = originD + "->" + destC;
 
+    deactivatePreservedEdges(baseEdgeId);
     return true;
 }
 
@@ -2723,6 +2769,7 @@ void RegularEdgeLabeling::revertEdgeDirection(int edgeId) {
     HalfEdge &edge = m_halfEdges[edgeId];
     edge.outgoing = !edge.outgoing;
     m_halfEdges[edge.twin].outgoing = !m_halfEdges[edge.twin].outgoing;
+    deactivatePreservedEdges(edgeId);
 }
 
 void RegularEdgeLabeling::fixEdgeDirection(int edgeId) {
@@ -2783,6 +2830,21 @@ bool RegularEdgeLabeling::hasValidEdgeColorFlip(const int edgeId) const {
         return true;
     }
     return false;
+}
+
+void RegularEdgeLabeling::InitializePreservedEdges() {
+    m_preservedEdges.assign(m_halfEdges.size(), {false});
+
+    for (int he = 0; he < static_cast<int>(m_halfEdges.size()); ++he) {
+        if (!isValidHalfEdge(he)) continue;;
+
+        const int canonical = canonicalHalfEdge(he);
+
+        if (canonical != he) continue;;
+        if (m_halfEdges[he].color == BLACK) continue;
+
+        m_preservedEdges[canonical].active = true;
+    }
 }
 
 // ---------------- printSummary ----------------

@@ -44,9 +44,12 @@ void ChoroplethMap::setFromRel() {
     setRegions();
     normalizeMap(0.7);
     saveOriginalPositions();
-    setInitialPositions();
+    setCartogramPositions();
+    //setInitialPositions();
+    buildComponents();
+    initializeComponentPositions();
 
-    runLayout(forceIterationCount);
+    //runLayout(forceIterationCount);
 }
 
 void ChoroplethMap::runLayout(const size_t iterations) {
@@ -144,6 +147,21 @@ void ChoroplethMap::saveOriginalPositions() {
     }
 }
 
+void ChoroplethMap::setCartogramPositions() {
+    rectangularDual.setFromREL();
+    const auto& rects = rectangularDual.rectangles();
+
+    const std::size_t count =
+        std::min(mapElements.size(), rects.size());
+
+    for (std::size_t i = 0; i < count; ++i) {
+        auto& element = mapElements[i];
+        if (!element.region || !element.bb) continue;
+
+        element.cartogramPosition = rects[i].center();
+    }
+}
+
 void ChoroplethMap::setInitialPositions() {
     rectangularDual.setFromREL();
     const auto& rects = rectangularDual.rectangles();
@@ -156,48 +174,126 @@ void ChoroplethMap::setInitialPositions() {
 
         if (!element.region || !element.bb) continue;
 
-        const auto target = rects[i].center();
+        //const auto target = rects[i].center();
 
-        element.cartogramPosition = target;
+        element.cartogramPosition = rects[i].center();
 
-        const auto delta = target - element.position;
-        translateRegion(element, delta);
+        //const auto delta = target - element.position;
+        //translateRegion(element, delta);
     }
+}
+
+void ChoroplethMap::initializeComponentPositions() {
+    for (MapComponent& component : mapComponents) {
+        if (component.members.empty()) continue;
+
+        double currentX = 0.0;
+        double currentY = 0.0;
+        double originalX = 0.0;
+        double originalY = 0.0;
+        double cartogramX = 0.0;
+        double cartogramY = 0.0;
+
+        for (const std::size_t elementIndex : component.members) {
+
+            const MapElement& element = mapElements[elementIndex];
+
+            currentX += element.position.x();
+            currentY += element.position.y();
+            originalX += element.originalPosition.x();
+            originalY += element.originalPosition.y();
+            cartogramX += element.cartogramPosition.x();
+            cartogramY += element.cartogramPosition.y();
+             }
+
+        const double count = static_cast<double>(component.members.size());
+        component.position = Pt( currentX / count, currentY / count);
+        component.originalPosition = Pt( originalX / count, originalY / count);
+        component.cartogramPosition = Pt( cartogramX / count, cartogramY / count);
+
+        component.force = Vec(0.0, 0.0);
+
+        translateComponent(component, component.cartogramPosition - component.position);
+    }
+}
+
+void ChoroplethMap::buildComponents() {
+    const vector<int> componentOfVertex = m_REL->componentOfVertex();
+
+    mapComponents.clear();
+    componentOfElement.assign(componentOfVertex.size(), -1);
+
+    int componentCount = 0;
+
+    for (const int componentId : componentOfVertex) {
+        if (componentId >= 0) {
+            componentCount = max(componentCount, componentId + 1);
+        }
+    }
+
+    mapComponents.resize(componentCount);
+    const size_t elementCount = min(mapElements.size(), componentOfVertex.size());
+
+    for (size_t i = 0; i < elementCount; ++i) {
+        const int componentId = componentOfVertex[i];
+
+        if (componentId < 0) continue;
+
+        componentOfElement[componentId] = i;
+
+        mapComponents[componentId].members.push_back(i);
+    }
+
+    initializeComponentPositions();
 }
 
 void ChoroplethMap::clearForces() {
     for (auto& element : mapElements) {
         element.force = {0,0};
     }
+
+    for (auto& component : mapComponents) {
+        component.force = {0,0};
+    }
 }
 
 void ChoroplethMap::computeOriginalPositionForces() {
     if (originalPosForce < forceThreshold) return;
 
-    for (auto& element : mapElements) {
-        if (!element.region || !element.bb) continue;
+    // for (auto& element : mapElements) {
+    //     if (!element.region || !element.bb) continue;
+    //
+    //     const Vec displacement = element.originalPosition - element.position;
+    //
+    //     element.force = element.force + Vec{
+    //         originalPosForce * displacement.x(),
+    //         originalPosForce * displacement.y()
+    //     };
+    // }
 
-        const Vec displacement = element.originalPosition - element.position;
-
-        element.force = element.force + Vec{
-            originalPosForce * displacement.x(),
-            originalPosForce * displacement.y()
-        };
+    for (auto& component : mapComponents) {
+        const Vec displacement = component.originalPosition - component.position;
+        component.force = component.force + originalPosForce * displacement;
     }
 }
 
 void ChoroplethMap::computeCartogramPositionForces() {
     if (cartogramPosForce < forceThreshold) return;
 
-    for (auto& element : mapElements) {
-        if (!element.region || !element.bb) continue;
+    // for (auto& element : mapElements) {
+    //     if (!element.region || !element.bb) continue;
+    //
+    //     const Vec displacement = element.cartogramPosition - element.position;
+    //
+    //     element.force = element.force + Vec{
+    //         cartogramPosForce * displacement.x(),
+    //         cartogramPosForce * displacement.y()
+    //     };
+    // }
 
-        const Vec displacement = element.cartogramPosition - element.position;
-
-        element.force = element.force + Vec{
-            cartogramPosForce * displacement.x(),
-            cartogramPosForce * displacement.y()
-        };
+    for (auto& component : mapComponents) {
+        const Vec displacement = component.cartogramPosition - component.position;
+        component.force = component.force + cartogramPosForce * displacement;
     }
 }
 
@@ -326,9 +422,6 @@ void ChoroplethMap::applyHorizontalConstraint(size_t left, size_t right) {
 
     if (!a.bb || !b.bb) return;
 
-    constexpr double contactStrength = 0.12;
-    constexpr double alignmentStrength = 0.01;
-
     const double allowedOverlap = 0.05 * min(width(*a.bb), width(*b.bb));
 
     // positive: bb gap | zero: bb touch | negative: bb overlap
@@ -394,6 +487,18 @@ void ChoroplethMap::translateRegion(MapElement& element, const Vec& translation)
     };
 
     element.position = element.position + translation;
+}
+
+void ChoroplethMap::translateComponent(const size_t componentIndex, const Vec &delta) {
+    const MapComponent& component = mapComponents.at(componentIndex);
+    translateComponent(component, delta);
+}
+
+void ChoroplethMap::translateComponent(MapComponent component, const Vec &delta) {
+    for (const size_t i : component.members) {
+        translateRegion(mapElements[i], delta);
+    }
+    component.position += delta;
 }
 
 void ChoroplethMap::transformRegion(MapElement &element, const CGAL::Aff_transformation_2<Inexact> &transformation) {

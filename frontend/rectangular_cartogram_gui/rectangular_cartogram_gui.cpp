@@ -567,7 +567,6 @@ void RectangularCartogramDemo::addGeneralTab() {
             m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
         } else if (m_cartogramType == CHOROPLETH_MAP) {
             m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
-            m_choroplethMap->setFromRel();
 
             m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
             m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
@@ -578,6 +577,9 @@ void RectangularCartogramDemo::addGeneralTab() {
             m_choroplethMap->RELForce = RELForceSpinBox->value();
             m_choroplethMap->overlapForce = overlapForceSpinBox->value();
             m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
+
+            m_choroplethMap->setFromRel();
+
             m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
         }
 
