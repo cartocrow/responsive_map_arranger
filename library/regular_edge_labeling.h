@@ -1,8 +1,11 @@
 #pragma once
 
+#include <algorithm>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <unordered_map>
 #include <vector>
 #include <cartocrow/core/core.h>
@@ -26,6 +29,27 @@ enum EdgeColor {
     RED = 0,
     BLUE = 1,
     BLACK = 2
+};
+
+class HeuristicCost {
+public:
+    HeuristicCost() = default;
+    HeuristicCost(std::initializer_list<double> values) : m_values(values) {}
+
+    bool operator<(const HeuristicCost &other) const {
+        return std::lexicographical_compare(
+            m_values.begin(), m_values.end(),
+            other.m_values.begin(), other.m_values.end()
+        );
+    }
+
+    [[nodiscard]] bool empty() const { return m_values.empty(); }
+    [[nodiscard]] double component(size_t index, double fallback = 0.0) const {
+        return index < m_values.size() ? m_values[index] : fallback;
+    }
+
+private:
+    vector<double> m_values;
 };
 
 struct PreservedEdgeState {
@@ -69,6 +93,15 @@ struct Vertex {
     cartocrow::Color color{255, 255, 255};
 };
 
+struct CollapseMetrics {
+    bool valid = false;
+    int mergeCount = 0;
+    int openingCount = 0;
+    int changedEdgeCount = 0;
+    double uniqueAffectedVertexWeight = 0.0;
+    double resultingPathCost = std::numeric_limits<double>::infinity();
+};
+
 class RegularEdgeLabeling {
 public:
     RegularEdgeLabeling() = default;
@@ -86,9 +119,11 @@ public:
 
     void adjustToBB();
 
-    bool lowestOfTwoIsFirst(const std::pair<double, double> &costOne, const std::pair<double, double> &costTwo) const;
+    bool lowestOfTwoIsFirst(const HeuristicCost &costOne, const HeuristicCost &costTwo) const;
     // Returns the edgeID of the lowest cost to collapse and the direction. False = from source | True = from target (e.g., false (from left), true (from right))
     std::pair<int, bool> getLowestCostMerge(std::vector<int> const &path) const;
+    HeuristicCost evaluateMergeHeuristic(int edgeId, bool fromSource) const;
+    CollapseMetrics simulateCollapseMetrics(int edgeId, bool fromSource) const;
     std::pair<double, double> mergeEdgeCountCost(int edgeId, bool fromSource) const;
     std::pair<double, double> mergeWeightCost(int edgeId, bool fromSource) const;
     std::pair<double, double> mergeEdgeWeightCost(int edgeId, bool fromSource) const;
@@ -193,6 +228,19 @@ public:
     bool hasValidEdgeColorFlip(int edgeId) const;
 
 private:
+    struct SimulationStats {
+        int mergeCount = 0;
+        int openingCount = 0;
+        int changedEdgeCount = 0;
+        unordered_set<int> affectedVertices;
+    };
+
+    void noteMergeOperation(int edgeId);
+    void noteOpeningOperation(int edgeId);
+    void noteChangedVertices(initializer_list<int> vertices);
+    void noteEdgeMutation(int edgeId);
+    double resultingPathCostForColor(EdgeColor color) const;
+
     void InitializePreservedEdges();
 
 private:
@@ -214,6 +262,7 @@ private:
     double m_threshHoldRelaxation = 0.5;
 
     MergeHeuristic m_mergeHeuristic = MIN_EDGE;
+    SimulationStats *m_activeSimulationStats = nullptr;
 
     static string dirKey(const std::string &a, const std::string &b);
     static string undirKey(const std::string &a, const std::string &b);

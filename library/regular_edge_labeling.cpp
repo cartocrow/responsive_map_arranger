@@ -712,16 +712,9 @@ void RegularEdgeLabeling::adjustToBB() {
 }
 
 
-bool RegularEdgeLabeling::lowestOfTwoIsFirst(const std::pair<double, double> &costOne,
-                                         const std::pair<double, double> &costTwo) const {
-
-    if (costOne.first < costTwo.first) return true;
-    if (costOne.first > costTwo.first) return false;
-
-    if (costOne.second < costTwo.second) return true;
-    if (costOne.second > costTwo.second) return false;
-
-    return true;
+bool RegularEdgeLabeling::lowestOfTwoIsFirst(const HeuristicCost &costOne,
+                                         const HeuristicCost &costTwo) const {
+    return costOne < costTwo || !(costTwo < costOne);
 }
 
 
@@ -945,7 +938,7 @@ static double forcedInsertedEdgePathCost(
 
 std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> const &path) const {
     std::pair lowestCostMerge(-1, false);
-    std::pair<double, double> lowestCost = std::pair(numeric_limits<double>::infinity(), numeric_limits<double>::infinity());
+    HeuristicCost lowestCost({numeric_limits<double>::infinity()});
 
     for (int i = 0; i < path.size() - 1; i++) {
         int edge = -1;
@@ -954,34 +947,8 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
             if (m_halfEdges[m_halfEdges[he].twin].vertex == path[i+1])
                 edge = he;
         }
-        std::pair<double, double> costFromSource = std::pair(0.0, 0.0);
-        std::pair<double, double> costFromTarget = std::pair(0.0, 0.0);
-
-        switch (m_mergeHeuristic) {
-            case MIN_EDGE:
-                costFromSource = mergeEdgeCountCost(edge, true);
-                costFromTarget = mergeEdgeCountCost(edge, false);
-                break;
-            case MIN_WEIGHT:
-                costFromSource = mergeWeightCost(edge, true);
-                costFromTarget = mergeWeightCost(edge, false);
-                break;
-            case MIN_EDGE_MIN_WEIGHT:
-                costFromSource = mergeEdgeWeightCost(edge, true);
-                costFromTarget = mergeEdgeWeightCost(edge, false);
-                break;
-            case MIN_MAX_PATH:
-                //std::cout << "merge path cost" << std::endl;
-                costFromSource = mergePathCost(edge, true);
-                costFromTarget = mergePathCost(edge, false);
-
-                //std::cout << costFromSource.first << " " << costFromSource.second << std::endl;
-                //std::cout << costFromTarget.first << " " << costFromTarget.second << std::endl;
-                break;
-            default: // default to LOWEST_EDGE_COUNT
-                costFromSource = mergeEdgeCountCost(edge, true);
-                costFromTarget = mergeEdgeCountCost(edge, false);
-        }
+        HeuristicCost costFromSource = evaluateMergeHeuristic(edge, true);
+        HeuristicCost costFromTarget = evaluateMergeHeuristic(edge, false);
 
         if (lowestOfTwoIsFirst(costFromSource, costFromTarget)) {
             if (!lowestOfTwoIsFirst(lowestCost, costFromSource)) {
@@ -997,151 +964,156 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
     return lowestCostMerge;
 }
 
+HeuristicCost RegularEdgeLabeling::evaluateMergeHeuristic(int edgeId, bool fromSource) const {
+    CollapseMetrics metrics = simulateCollapseMetrics(edgeId, fromSource);
+    if (!metrics.valid) {
+        return {numeric_limits<double>::infinity()};
+    }
+
+    const double mergeSteps = static_cast<double>(metrics.mergeCount);
+
+    switch (m_mergeHeuristic) {
+        case MIN_EDGE:
+            return {mergeSteps};
+        case MIN_WEIGHT:
+            return {metrics.uniqueAffectedVertexWeight};
+        case MIN_EDGE_MIN_WEIGHT:
+            return {mergeSteps, metrics.uniqueAffectedVertexWeight};
+        case MIN_MAX_PATH:
+            return {metrics.resultingPathCost, metrics.uniqueAffectedVertexWeight};
+        default:
+            return {mergeSteps};
+    }
+}
+
+CollapseMetrics RegularEdgeLabeling::simulateCollapseMetrics(int edgeId, bool fromSource) const {
+    CollapseMetrics metrics;
+    if (!isValidHalfEdge(edgeId)) {
+        return metrics;
+    }
+
+    const int baseEdgeId = getCanonicalHalfEdge(edgeId);
+    if (!isValidHalfEdge(baseEdgeId)) {
+        return metrics;
+    }
+
+    const EdgeColor originalColor = m_halfEdges[baseEdgeId].color;
+    if (originalColor != RED && originalColor != BLUE) {
+        return metrics;
+    }
+
+    RegularEdgeLabeling simulation = *this;
+    SimulationStats stats;
+    simulation.m_activeSimulationStats = &stats;
+
+    const bool merged = originalColor == RED
+        ? (fromSource
+            ? simulation.mergeMaxHorizontalSegmentFromLeft(baseEdgeId)
+            : simulation.mergeMaxHorizontalSegmentFromRight(baseEdgeId))
+        : (fromSource
+            ? simulation.mergeMaxVerticalSegmentFromBottom(baseEdgeId)
+            : simulation.mergeMaxVerticalSegmentFromTop(baseEdgeId));
+
+    simulation.m_activeSimulationStats = nullptr;
+    if (!merged) {
+        return metrics;
+    }
+
+    metrics.valid = true;
+    metrics.mergeCount = stats.mergeCount;
+    metrics.openingCount = stats.openingCount;
+    metrics.changedEdgeCount = stats.changedEdgeCount;
+    metrics.resultingPathCost = simulation.resultingPathCostForColor(originalColor);
+    if (!std::isfinite(metrics.resultingPathCost)) {
+        metrics.resultingPathCost = numeric_limits<double>::infinity();
+    }
+
+    for (int vertexId : stats.affectedVertices) {
+        if (simulation.isValidVertex(vertexId) && simulation.isInnerVertex(vertexId)) {
+            metrics.uniqueAffectedVertexWeight += simulation.m_vertices[vertexId].weight;
+        }
+    }
+
+    return metrics;
+}
+
 
 std::pair<double, double> RegularEdgeLabeling::mergeEdgeCountCost(int edgeId, bool fromSource) const {
-    if (edgeId < 0 || edgeId >= m_halfEdges.size()) {
-        cerr << "Invalid edgeId " << edgeId << endl;
-        return {-1, -1};
-    }
-    const int twinId = m_halfEdges[edgeId].twin;
-    if (twinId < 0 || twinId >= m_halfEdges.size()){
-        cerr << "Invalid twinEdge id " << twinId << endl;
-        return {-1, -1};
-    }
-
-    int baseEdgeId = -1;
-
-    if (m_halfEdges[edgeId].outgoing)
-        baseEdgeId = edgeId;
-    else baseEdgeId = twinId;
-
-    const HalfEdge &baseEdge = m_halfEdges[baseEdgeId];
-    const Vertex &baseVertex = m_vertices[baseEdge.vertex];
-
-    int edgeCount = 0;
-
-    if ((fromSource && baseEdge.color == RED) || (!fromSource && baseEdge.color == BLUE)) {
-        // next cyclic
-        int currentEdgeId = baseEdgeId;
-        int nextCyclicEdgeId = getNextCyclicEdge(currentEdgeId);
-
-        do {
-            edgeCount++;
-            nextCyclicEdgeId = getNextCyclicEdge(currentEdgeId);
-
-            if (m_halfEdges[nextCyclicEdgeId].color != baseEdge.color) {
-                nextCyclicEdgeId = getNextCyclicEdge(m_halfEdges[nextCyclicEdgeId].twin);
-            }
-            currentEdgeId = nextCyclicEdgeId;
-        }
-        while (m_halfEdges[nextCyclicEdgeId].color == baseEdge.color);
-    } else {
-        // previous cyclic
-        int currentEdgeId = baseEdgeId;
-        int previousCyclicEdge = getPreviousCyclicEdge(currentEdgeId);
-
-        do {
-            edgeCount++;
-            previousCyclicEdge = getPreviousCyclicEdge(currentEdgeId);
-
-            if (m_halfEdges[previousCyclicEdge].color != baseEdge.color) {
-                previousCyclicEdge = getPreviousCyclicEdge(m_halfEdges[previousCyclicEdge].twin);
-            }
-            currentEdgeId = previousCyclicEdge;
-        } while (m_halfEdges[previousCyclicEdge].color == baseEdge.color);
-    }
-
-    return {edgeCount, 0};
+    CollapseMetrics metrics = simulateCollapseMetrics(edgeId, fromSource);
+    if (!metrics.valid) return {-1.0, -1.0};
+    return {static_cast<double>(metrics.mergeCount), 0.0};
 }
 
 std::pair<double, double> RegularEdgeLabeling::mergeWeightCost(int edgeId, bool fromSource) const {
-    int baseEdgeId = -1;
-
-    if (m_halfEdges[edgeId].outgoing)
-        baseEdgeId = edgeId;
-    else baseEdgeId = m_halfEdges[edgeId].twin;
-
-    const HalfEdge &baseEdge = m_halfEdges[baseEdgeId];
-    const Vertex &baseVertex = m_vertices[baseEdge.vertex];
-
-    unordered_set<int> merge_vertices;
-
-    if ((fromSource && baseEdge.color == RED) || (!fromSource && baseEdge.color == BLUE)) {
-        // next cyclic
-        int currentEdgeId = baseEdgeId;
-        int nextCyclicEdgeId = getNextCyclicEdge(currentEdgeId);
-
-        do {
-            HalfEdge he = m_halfEdges[currentEdgeId];
-            merge_vertices.insert(he.vertex);
-            merge_vertices.insert(m_halfEdges[he.twin].vertex);
-            //edgeCount++;
-            nextCyclicEdgeId = getNextCyclicEdge(currentEdgeId);
-
-            if (m_halfEdges[nextCyclicEdgeId].color != baseEdge.color) {
-                nextCyclicEdgeId = getNextCyclicEdge(m_halfEdges[nextCyclicEdgeId].twin);
-            }
-            currentEdgeId = nextCyclicEdgeId;
-        }
-        while (m_halfEdges[nextCyclicEdgeId].color == baseEdge.color);
-    } else {
-        // previous cyclic
-        int currentEdgeId = baseEdgeId;
-        int previousCyclicEdge = getPreviousCyclicEdge(currentEdgeId);
-
-        do {
-            HalfEdge he = m_halfEdges[currentEdgeId];
-            merge_vertices.insert(he.vertex);
-            merge_vertices.insert(m_halfEdges[he.twin].vertex);
-
-            previousCyclicEdge = getPreviousCyclicEdge(currentEdgeId);
-
-            if (m_halfEdges[previousCyclicEdge].color != baseEdge.color) {
-                previousCyclicEdge = getPreviousCyclicEdge(m_halfEdges[previousCyclicEdge].twin);
-            }
-            currentEdgeId = previousCyclicEdge;
-        } while (m_halfEdges[previousCyclicEdge].color == baseEdge.color);
-    }
-
-    double totalWeight = 0;
-    for (const auto &v : merge_vertices) {
-        totalWeight += m_vertices[v].weight;
-    }
-
-    return  {totalWeight, 0};
+    CollapseMetrics metrics = simulateCollapseMetrics(edgeId, fromSource);
+    if (!metrics.valid) return {-1.0, -1.0};
+    return {metrics.uniqueAffectedVertexWeight, 0.0};
 }
 
 std::pair<double, double> RegularEdgeLabeling::mergeEdgeWeightCost(int edgeId, bool fromSource) const {
-    double edgeCost = mergeEdgeCountCost(edgeId, fromSource).first;
-    double weightCost = mergeWeightCost(edgeId, fromSource).first;
-
-    return {edgeCost, weightCost};
+    CollapseMetrics metrics = simulateCollapseMetrics(edgeId, fromSource);
+    if (!metrics.valid) return {-1.0, -1.0};
+    return {
+        static_cast<double>(metrics.mergeCount),
+        metrics.uniqueAffectedVertexWeight
+    };
 }
 
 std::pair<double, double> RegularEdgeLabeling::mergePathCost(int edgeId, bool fromSource) const {
-    int baseEdgeId = -1;
+    CollapseMetrics metrics = simulateCollapseMetrics(edgeId, fromSource);
+    if (!metrics.valid) return {-1.0, -1.0};
+    return {metrics.resultingPathCost, metrics.uniqueAffectedVertexWeight};
+}
 
-    if (m_halfEdges[edgeId].outgoing)
-        baseEdgeId = edgeId;
-    else baseEdgeId = m_halfEdges[edgeId].twin;
+void RegularEdgeLabeling::noteMergeOperation(int edgeId) {
+    if (m_activeSimulationStats == nullptr) return;
 
-    const HalfEdge &baseEdge = m_halfEdges[baseEdgeId];
-    const Vertex &baseVertex = m_vertices[baseEdge.vertex];
+    ++m_activeSimulationStats->mergeCount;
+    noteEdgeMutation(edgeId);
+}
 
-    const int a = baseEdge.vertex;
-    const int b = m_halfEdges[baseEdge.twin].vertex;
+void RegularEdgeLabeling::noteOpeningOperation(int edgeId) {
+    if (m_activeSimulationStats == nullptr) return;
 
-    double cost = POS_INF;
+    ++m_activeSimulationStats->openingCount;
+    noteEdgeMutation(edgeId);
+}
 
-    if (baseEdge.color == RED) {
-        // Pretend the red edge becomes blue and measure the longest blue West->East path that uses it.
-        cost = forcedInsertedEdgePathCost(*this, a, b, BLUE);
-    } else if (baseEdge.color == BLUE) {
-        // Symmetric case: pretend the blue edge becomes red and measure the longest red South->North path that uses it.
-        cost = forcedInsertedEdgePathCost(*this, a, b, RED);
+void RegularEdgeLabeling::noteChangedVertices(initializer_list<int> vertices) {
+    if (m_activeSimulationStats == nullptr) return;
+
+    for (int vertexId : vertices) {
+        if (isValidVertex(vertexId)) {
+            m_activeSimulationStats->affectedVertices.insert(vertexId);
+        }
     }
+}
 
-    return {cost, mergeWeightCost(edgeId, fromSource).first};
+void RegularEdgeLabeling::noteEdgeMutation(int edgeId) {
+    if (m_activeSimulationStats == nullptr) return;
+    if (!isValidHalfEdge(edgeId)) return;
+
+    ++m_activeSimulationStats->changedEdgeCount;
+
+    const int canonicalEdgeId = getCanonicalHalfEdge(edgeId);
+    if (!isValidHalfEdge(canonicalEdgeId)) return;
+    const int twinId = m_halfEdges[canonicalEdgeId].twin;
+    if (!isValidHalfEdge(twinId)) return;
+
+    noteChangedVertices({
+        m_halfEdges[canonicalEdgeId].vertex,
+        m_halfEdges[twinId].vertex
+    });
+}
+
+double RegularEdgeLabeling::resultingPathCostForColor(EdgeColor color) const {
+    if (color == RED) {
+        return getLongestHorizontalPath().first;
+    }
+    if (color == BLUE) {
+        return getLongestVerticalPath().first;
+    }
+    return numeric_limits<double>::infinity();
 }
 
 void RegularEdgeLabeling::normalizeVertexWeights() {
@@ -1819,6 +1791,7 @@ int RegularEdgeLabeling::getLeftmostRedWhileOpeningFace(int edgeId) {
         bool nonComparableVertices = (baseFirst && leftBaseVertex != m_halfEdges[leftQuadEdge].vertex) || (!baseFirst && leftBaseVertex == m_halfEdges[leftQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(leftQuadEdge)) {
+            noteOpeningOperation(leftQuadEdge);
             flipEdgeColor(leftQuadEdge);
             fixEdgeDirection(leftQuadEdge);
             leftMostRedEdge = getLastOutgoingRed(m_halfEdges[leftMostRedEdge].vertex);
@@ -1855,7 +1828,7 @@ int RegularEdgeLabeling::getRightmostRedWhileOpeningFace(int edgeId) {
         bool nonComparableVertices = (baseFirst && rightBaseVertex == m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && rightBaseVertex != m_halfEdges[rightQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(rightQuadEdge)) {
-
+            noteOpeningOperation(rightQuadEdge);
             flipEdgeColor(rightQuadEdge);
             fixEdgeDirection(rightQuadEdge);
 
@@ -1892,6 +1865,7 @@ int RegularEdgeLabeling::getLowestBlueWhileOpeningFace(int edgeId) {
         bool nonComparableVertices = (baseFirst && lowestBaseVertex != m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && lowestBaseVertex == m_halfEdges[rightQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(rightQuadEdge)) {
+            noteOpeningOperation(rightQuadEdge);
             flipEdgeColor(rightQuadEdge);
             fixEdgeDirection(rightQuadEdge);
             lowestBLueEdge = getFirstOutgoingBlue(m_halfEdges[lowestBLueEdge].vertex);
@@ -1929,6 +1903,7 @@ int RegularEdgeLabeling::getHighestBlueWhileOpeningFace(int edgeId) {
 
         if (nonComparableVertices && hasValidEdgeColorFlip(leftQuadEdge)) {
             //std::cout << "relabeling edge: " << leftQuadEdge << std::endl;
+            noteOpeningOperation(leftQuadEdge);
             flipEdgeColor(leftQuadEdge);
             fixEdgeDirection(leftQuadEdge);
             highestBLueEdge = getLastOutgoingBlue(m_halfEdges[highestBLueEdge].vertex);
@@ -1970,6 +1945,8 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
     Vertex &baseVertex = m_vertices[baseEdge.vertex];
     Vertex &endVertex = m_vertices[endEdge.vertex];
 
+    noteMergeOperation(baseEdgeId);
+
     // If the bottom vertex needs to go to the left
     if (baseVertex.horizontal_order_index < endVertex.horizontal_order_index) {
         // If bottom vertex is last in the subsequence then we first want to flip all blue outgoing edge of the base node (highest to lowest order)
@@ -1985,6 +1962,7 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
                 int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
                 if (rightQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    noteOpeningOperation(rightQuadEdge);
                     flipEdgeColor(rightQuadEdge);
                     fixEdgeDirection(rightQuadEdge);
                 }
@@ -2039,6 +2017,7 @@ bool RegularEdgeLabeling::mergeLeftMostRedEdge(int edgeId) {
                 int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
                 if (rightQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    noteOpeningOperation(rightQuadEdge);
                     flipEdgeColor(rightQuadEdge);
                     fixEdgeDirection(rightQuadEdge);
                 }
@@ -2113,6 +2092,8 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
     Vertex &baseVertex = m_vertices[baseEdge.vertex];
     Vertex &endVertex = m_vertices[endEdge.vertex];
 
+    noteMergeOperation(baseEdgeId);
+
     if (baseVertex.horizontal_order_index > endVertex.horizontal_order_index) {
         // If bottom vertex is first in the subsequence then we first want to flip all blue incoming edge of the base node (highest to lowest order)
         {
@@ -2125,6 +2106,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
                 if (leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)){// leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    noteOpeningOperation(leftQuadEdge);
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
                 }
@@ -2177,6 +2159,7 @@ bool RegularEdgeLabeling::mergeRightMostRedEdge(int edgeId) {
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
                 if (leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)){// leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
                     // instead: open up the blue face if rightquad edge is connected to the baseVertex and rightquad edge can be relabeled
+                    noteOpeningOperation(leftQuadEdge);
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
                 }
@@ -2248,6 +2231,8 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
     Vertex &baseVertex = m_vertices[baseEdge.vertex];
     Vertex &endVertex = m_vertices[endEdge.vertex];
 
+    noteMergeOperation(baseEdgeId);
+
     // If the left vertex needs to go to the bottom
     if (baseVertex.vertical_order_index < endVertex.vertical_order_index) {
 
@@ -2261,6 +2246,7 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
 
                 if (leftQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
+                    noteOpeningOperation(leftQuadEdge);
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
                 } else {
@@ -2309,6 +2295,7 @@ bool RegularEdgeLabeling::mergeLowestBlueEdge(int edgeId) {
                 int leftQuadBaseVertex = m_halfEdges[leftQuadEdge].vertex;
 
                 if (leftQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(leftQuadEdge)) {
+                    noteOpeningOperation(leftQuadEdge);
                     flipEdgeColor(leftQuadEdge);
                     fixEdgeDirection(leftQuadEdge);
                 } else {
@@ -2386,6 +2373,8 @@ bool RegularEdgeLabeling::mergeHighestBlueEdge(int edgeId) {
     Vertex &baseVertex = m_vertices[baseEdge.vertex];
     Vertex &endVertex = m_vertices[endEdge.vertex];
 
+    noteMergeOperation(baseEdgeId);
+
     if (baseVertex.vertical_order_index > endVertex.vertical_order_index) {
         // flip all incoming red edges of the left vertex (right to left order)
         { //left vertex is lowest in face.
@@ -2397,6 +2386,7 @@ bool RegularEdgeLabeling::mergeHighestBlueEdge(int edgeId) {
                 int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
 
                 if (rightQuadBaseVertex == baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
+                    noteOpeningOperation(rightQuadEdge);
                     flipEdgeColor(rightQuadEdge);
                     fixEdgeDirection(rightQuadEdge);
                 } else {
@@ -2444,6 +2434,7 @@ bool RegularEdgeLabeling::mergeHighestBlueEdge(int edgeId) {
                 int rightQuadBaseVertex = m_halfEdges[rightQuadEdge].vertex;
 
                 if (rightQuadBaseVertex != baseEdge.vertex && hasValidEdgeColorFlip(rightQuadEdge)) {
+                    noteOpeningOperation(rightQuadEdge);
                     flipEdgeColor(rightQuadEdge);
                     fixEdgeDirection(rightQuadEdge);
                 } else {
@@ -2641,6 +2632,7 @@ int RegularEdgeLabeling::canonicalHalfEdge(int he) const {
 
 bool RegularEdgeLabeling::flipEdgeColor(const int edgeId) {
     if (edgeId < 0 || edgeId >= m_halfEdges.size()) return false;
+    noteEdgeMutation(edgeId);
     HalfEdge &halfEdge = m_halfEdges[edgeId];
     if (halfEdge.twin < 0 || halfEdge.twin >= m_halfEdges.size()) return false;
     HalfEdge &twin = m_halfEdges[halfEdge.twin];
@@ -2713,6 +2705,9 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
     int cVertex = m_halfEdges[m_halfEdges[cEdge].twin].vertex;
     int dVertex = m_halfEdges[m_halfEdges[dEdge].twin].vertex;
 
+    noteChangedVertices({a, b, cVertex, dVertex});
+    noteEdgeMutation(baseEdgeId);
+
     // PERFORM FLIP
     // 1) erase a and b from lists
     {
@@ -2762,6 +2757,7 @@ bool RegularEdgeLabeling::flipEdgeDiagonally(const int edgeId, bool clockwise) {
 }
 
 void RegularEdgeLabeling::revertEdgeDirection(int edgeId) {
+    noteEdgeMutation(edgeId);
     HalfEdge &edge = m_halfEdges[edgeId];
     edge.outgoing = !edge.outgoing;
     m_halfEdges[edge.twin].outgoing = !m_halfEdges[edge.twin].outgoing;
