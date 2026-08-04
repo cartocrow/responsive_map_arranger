@@ -1788,7 +1788,7 @@ int RegularEdgeLabeling::getLeftmostRedWhileOpeningFace(int edgeId) {
 
         bool baseFirst = m_vertices[leftBaseVertex].horizontal_order_index < m_vertices[leftEndVertex].horizontal_order_index;
         int leftQuadEdge = getFlippableEdgeInLeftQuad(getCanonicalHalfEdge(leftMostRedEdge));
-        bool nonComparableVertices = (baseFirst && leftBaseVertex != m_halfEdges[leftQuadEdge].vertex) || (!baseFirst && leftBaseVertex == m_halfEdges[leftQuadEdge].vertex);
+        bool nonComparableVertices = (leftQuadEdge < 0) || (baseFirst && leftBaseVertex != m_halfEdges[leftQuadEdge].vertex) || (!baseFirst && leftBaseVertex == m_halfEdges[leftQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(leftQuadEdge)) {
             noteOpeningOperation(leftQuadEdge);
@@ -1862,7 +1862,7 @@ int RegularEdgeLabeling::getLowestBlueWhileOpeningFace(int edgeId) {
 
         bool baseFirst = m_vertices[lowestBaseVertex].vertical_order_index < m_vertices[lowestEndVertex].vertical_order_index;
         int rightQuadEdge = getFlippableEdgeInRightQuad(lowestBLueEdge);
-        bool nonComparableVertices = (baseFirst && lowestBaseVertex != m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && lowestBaseVertex == m_halfEdges[rightQuadEdge].vertex);
+        bool nonComparableVertices =  (rightQuadEdge < 0) || (baseFirst && lowestBaseVertex != m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && lowestBaseVertex == m_halfEdges[rightQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(rightQuadEdge)) {
             noteOpeningOperation(rightQuadEdge);
@@ -1899,7 +1899,7 @@ int RegularEdgeLabeling::getHighestBlueWhileOpeningFace(int edgeId) {
 
         bool baseFirst = m_vertices[highestBaseVertex].vertical_order_index < m_vertices[highestEndVertex].vertical_order_index;
         int leftQuadEdge = getFlippableEdgeInLeftQuad(highestBLueEdge);
-        bool nonComparableVertices = (baseFirst && highestBaseVertex == m_halfEdges[leftQuadEdge].vertex) || (!baseFirst && highestBaseVertex != m_halfEdges[leftQuadEdge].vertex);
+        bool nonComparableVertices = (leftQuadEdge < 0) ||  (baseFirst && highestBaseVertex == m_halfEdges[leftQuadEdge].vertex) || (!baseFirst && highestBaseVertex != m_halfEdges[leftQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(leftQuadEdge)) {
             //std::cout << "relabeling edge: " << leftQuadEdge << std::endl;
