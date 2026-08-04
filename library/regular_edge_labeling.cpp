@@ -1825,7 +1825,7 @@ int RegularEdgeLabeling::getRightmostRedWhileOpeningFace(int edgeId) {
 
         bool baseFirst = m_vertices[rightBaseVertex].horizontal_order_index < m_vertices[rightEndVertex].horizontal_order_index;
         int rightQuadEdge = getFlippableEdgeInRightQuad(rightMostRedEdge);
-        bool nonComparableVertices = (baseFirst && rightBaseVertex == m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && rightBaseVertex != m_halfEdges[rightQuadEdge].vertex);
+        bool nonComparableVertices = (rightQuadEdge <0) || (baseFirst && rightBaseVertex == m_halfEdges[rightQuadEdge].vertex) || (!baseFirst && rightBaseVertex != m_halfEdges[rightQuadEdge].vertex);
 
         if (nonComparableVertices && hasValidEdgeColorFlip(rightQuadEdge)) {
             noteOpeningOperation(rightQuadEdge);
