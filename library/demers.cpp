@@ -42,7 +42,7 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 		// stay in box horizontally
 		const int xv = var_vertex_start + 2 * (i - 4);
 		glp_set_col_bnds(lp, xv, GLP_FR, 0, 0);
-		glp_set_obj_coef(lp, xv, 0.0000001);
+		glp_set_obj_coef(lp, xv, 0.1);
 
 		{ // v.x + scale * rad <= bb.right 
 			const int vars[] = { 0, xv, var_scale };
@@ -63,7 +63,7 @@ void DemersCartogram::setFromREL(RegularEdgeLabeling& rel) {
 		// stay in box vertically
 		const int yv = xv + 1;
 		glp_set_col_bnds(lp, yv, GLP_FR, 0, 0);
-		glp_set_obj_coef(lp, yv, 0.0000001);
+		glp_set_obj_coef(lp, yv, 0.1);
 
 		{ // v.y + scale * rad <= bb.top 
 			const int vars[] = { 0, yv, var_scale };
