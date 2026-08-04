@@ -23,7 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using Transformation = CGAL::Aff_transformation_2<Inexact>;
 
 void ChoroplethMap::setFromRel() {
-    assert(rel.hasBoundingBox());
+    assert(m_REL->hasBoundingBox());
     auto [left, right, bottom, top] = m_REL->getBoundingBox().value();
     container = Rectangle<Inexact>(left, bottom, right, top);
 

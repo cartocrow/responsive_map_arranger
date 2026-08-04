@@ -42,7 +42,7 @@ struct DSU {
 
 void RectangularDual::setFromREL() {
 
-    assert(rel.hasBoundingBox());
+    assert(m_REL->hasBoundingBox());
     BoundingBox bb = m_REL->getBoundingBox().value();
     box = Rectangle(bb.left, bb.bottom, bb.right, bb.top);
 
