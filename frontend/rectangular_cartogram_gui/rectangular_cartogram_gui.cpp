@@ -240,43 +240,6 @@ void RectangularCartogramDemo::addGeneralTab() {
     vLayout->addWidget(m_drawLabels);
     vLayout->addWidget(m_showLinearOrders);
 
-    auto *videoLabel = new QLabel("<h3>Stats</h3>", vWidget);
-    auto *btnStartVid = new QPushButton("Start Video", vWidget);
-    auto *cycleLabel = new QLabel("Cycle duration", vWidget);
-    auto *cycleCountLabel = new QLabel("Cycle count", vWidget);
-    auto *fpsLabel = new QLabel("Vid FPS", vWidget);
-    auto *aspectLabel = new QLabel("Vid min container width", vWidget);
-    m_cycleDuration = new QDoubleSpinBox(vWidget);
-    m_cycleDuration->setValue(10);
-    m_cycleDuration->setMinimum(1);
-    m_cycleDuration->setMaximum(60);
-    m_cycleDuration->setSingleStep(1);
-    m_cycleCount = new QSpinBox(vWidget);
-    m_cycleCount->setValue(2);
-    m_cycleCount->setMaximum(100);
-    m_cycleCount->setMinimum(1);
-    m_cycleCount->setSingleStep(1);
-    m_vidFPS = new QSpinBox(vWidget);
-    m_vidFPS->setValue(60);
-    m_vidFPS->setMinimum(20);
-    m_vidFPS->setMaximum(120);
-    m_vidFPS->setSingleStep(5);
-    m_vidMinAspectSize = new QDoubleSpinBox(vWidget);
-    m_vidMinAspectSize->setValue(30);
-    m_vidMinAspectSize->setMinimum(1);
-    m_vidMinAspectSize->setMaximum(5000);
-    m_vidMinAspectSize->setSingleStep(5);
-    vLayout->addWidget(videoLabel);
-    vLayout->addWidget(btnStartVid);
-    vLayout->addWidget(cycleLabel);
-    vLayout->addWidget(m_cycleDuration);
-    vLayout->addWidget(cycleCountLabel);
-    vLayout->addWidget(m_cycleCount);
-    vLayout->addWidget(fpsLabel);
-    vLayout->addWidget(m_vidFPS);
-    vLayout->addWidget(aspectLabel);
-    vLayout->addWidget(m_vidMinAspectSize);
-
     auto *statsLabel = new QLabel("<h3>Stats</h3>", vWidget);
     auto *btnAspectRatioDeviation = new QPushButton("Aspect Ratio Deviation");
     vLayout->addWidget(statsLabel);
@@ -304,152 +267,6 @@ void RectangularCartogramDemo::addGeneralTab() {
     vLayout->addWidget(btnMergeSegmentFromLeft);
     vLayout->addWidget(btnMergeSegmentFromRight);
     vLayout->addWidget(btnClearSelection);
-
-
-    connect(btnStartVid, &QPushButton::clicked, this, [this]() {
-        std::cout << "vid button clicked :)" << std::endl;
-        if (!m_relPtr) return;
-
-        auto startContainer = m_relPtr->getBoundingBox();
-        double area = startContainer->area();
-        double startWidth = startContainer->width();
-        double startHeight = startContainer->height();
-
-        int fps = m_vidFPS->value();
-        double cycleDuration = m_cycleDuration->value();
-        int maxCycles = m_cycleCount->value();
-
-        int frameCount = static_cast<int>(cycleDuration * fps);
-        if (fps <= 0 || frameCount < 4 || maxCycles <= 0) return;
-
-        double frameTime = 1.0 / static_cast<double>(fps);
-        int intervalMs = static_cast<int>(frameTime * 1000.0);
-
-        auto aspectRatios = std::make_shared<std::vector<std::pair<double, double> > >();
-
-
-        double startW = 666;
-        double startH = 666.0;
-
-        double p1W = 666.0;
-        double p1H = 60.0;
-
-        double p2W = 200.0;
-        double p2H = 200.0;
-
-        double p3W = 60.0;
-        double p3H = 666.0;
-
-        int totalFrames = frameCount;
-        int segmentFrames = totalFrames / 4;
-        if (segmentFrames <= 0) return;
-
-        // cubic ease-in-out
-        auto easeInOutCubic = [](double t) {
-            if (t < 0.5) {
-                return 4.0 * t * t * t;
-            } else {
-                double u = -2.0 * t + 2.0;
-                return 1.0 - (u * u * u) / 2.0;
-            }
-        };
-
-        // squared ease-in-out
-        auto easeInOutQuadratic = [](double t) {
-            if (t < 0.5) {
-                return 4.0 * t * t;
-            } else {
-                double u = -2.0 * t + 2.0;
-                return 1.0 - (u * u) / 2.0;
-            }
-        };
-
-        auto addSegment = [&](double w0, double h0, double w1, double h1, int frames, bool includeStart) {
-            int startIndex = includeStart ? 0 : 1;
-            for (int i = startIndex; i <= frames; ++i) {
-                double t = static_cast<double>(i) / static_cast<double>(frames);
-                double te = t;//easeInOutQuadratic(t);
-
-                double w = w0 + te * (w1 - w0);
-                double h = h0 + te * (h1 - h0);
-
-                aspectRatios->push_back({w, h});
-            }
-        };
-
-        // 100x100 -> 30x333
-        addSegment(startW, startH, p1W, p1H, segmentFrames, true);
-
-        // 30x333 -> 333x333
-        addSegment(p1W, p1H, p2W, p2H, segmentFrames, false);
-
-        // 333x333 -> 333x30
-        addSegment(p2W, p2H, p3W, p3H, segmentFrames, false);
-
-        // 333x30 -> 100x100
-        addSegment(p3W, p3H, startW, startH, segmentFrames, false);
-
-        std::filesystem::create_directories("data/frames");
-
-        // SVG export using CartoCrow renderer
-        auto exportFrameSvg = [this](int frameNumber) {
-            std::ostringstream name;
-            name << "data/frames/frame_"
-                    << std::setw(5) << std::setfill('0')
-                    << frameNumber << ".svg";
-
-            cartocrow::renderer::SvgRenderer svg;
-
-            if (m_cartogramType == RECTANGULAR_CARTOGRAM && m_rectPainting) {
-                svg.addPainting(m_rectPainting, "cartogram");
-            } else if (m_cartogramType == DEMERS_CARTOGRAM && m_demersPainting) {
-                svg.addPainting(m_demersPainting, "cartogram");
-            }
-
-            if (m_showREL && m_showREL->isChecked() && m_relPainting) {
-                svg.addPainting(m_relPainting, "rel");
-            }
-
-            svg.save(name.str());
-        };
-
-        auto timer = new QTimer(this);
-
-        auto cycle = std::make_shared<int>(0);
-        auto frame = std::make_shared<int>(0);
-        auto globalFrame = std::make_shared<int>(0);
-
-        connect(timer, &QTimer::timeout, this,
-                [this, timer, aspectRatios, cycle, frame, globalFrame, maxCycles, exportFrameSvg]() {
-                    if (!m_relPtr || aspectRatios->empty()) {
-                        timer->stop();
-                        timer->deleteLater();
-                        return;
-                    }
-
-                    if (*cycle >= maxCycles) {
-                        timer->stop();
-                        timer->deleteLater();
-                        return;
-                    }
-
-                    const auto &[w, h] = (*aspectRatios)[*frame];
-                    m_relPtr->setBoundingBox(BoundingBox{0, w, -h, 0});
-                    setCartogramFromREL();
-
-                    exportFrameSvg(*globalFrame);
-                    ++(*globalFrame);
-
-                    ++(*frame);
-                    if (*frame >= static_cast<int>(aspectRatios->size())) {
-                        *frame = 0;
-                        ++(*cycle);
-                    }
-                });
-
-        timer->start(intervalMs);
-    });
-
 
     connect(loadRELButton, &QPushButton::clicked, [this, loadRELButton]() {
         QString startDir = QString::fromStdString(m_settings.getString("dir", "data"));
@@ -950,6 +767,194 @@ void RectangularCartogramDemo::addChoroplethTab() {
 
 }
 
+void RectangularCartogramDemo::addVideoTab() {
+    auto* videoSettings = new QWidget();
+    m_tabs->addTab(videoSettings, "Video");
+    auto* vLayout = new QVBoxLayout(videoSettings);
+    vLayout->setAlignment(Qt::AlignTop);
+
+    auto *videoLabel = new QLabel("<h3>Stats</h3>");
+    auto *btnStartVid = new QPushButton("Start Video");
+    auto *cycleLabel = new QLabel("Cycle duration");
+    auto *cycleCountLabel = new QLabel("Cycle count");
+    auto *fpsLabel = new QLabel("Vid FPS");
+    auto *aspectLabel = new QLabel("Vid min container width");
+    m_cycleDuration = new QDoubleSpinBox();
+    m_cycleDuration->setValue(10);
+    m_cycleDuration->setMinimum(1);
+    m_cycleDuration->setMaximum(60);
+    m_cycleDuration->setSingleStep(1);
+    m_cycleCount = new QSpinBox();
+    m_cycleCount->setValue(2);
+    m_cycleCount->setMaximum(100);
+    m_cycleCount->setMinimum(1);
+    m_cycleCount->setSingleStep(1);
+    m_vidFPS = new QSpinBox();
+    m_vidFPS->setValue(60);
+    m_vidFPS->setMinimum(20);
+    m_vidFPS->setMaximum(120);
+    m_vidFPS->setSingleStep(5);
+    m_vidMinAspectSize = new QDoubleSpinBox();
+    m_vidMinAspectSize->setValue(30);
+    m_vidMinAspectSize->setMinimum(1);
+    m_vidMinAspectSize->setMaximum(5000);
+    m_vidMinAspectSize->setSingleStep(5);
+    vLayout->addWidget(videoLabel);
+    vLayout->addWidget(btnStartVid);
+    vLayout->addWidget(cycleLabel);
+    vLayout->addWidget(m_cycleDuration);
+    vLayout->addWidget(cycleCountLabel);
+    vLayout->addWidget(m_cycleCount);
+    vLayout->addWidget(fpsLabel);
+    vLayout->addWidget(m_vidFPS);
+    vLayout->addWidget(aspectLabel);
+    vLayout->addWidget(m_vidMinAspectSize);
+
+    connect(btnStartVid, &QPushButton::clicked, this, [this]() {
+        std::cout << "vid button clicked :)" << std::endl;
+        if (!m_relPtr) return;
+
+        auto startContainer = m_relPtr->getBoundingBox();
+        double area = startContainer->area();
+        double startWidth = startContainer->width();
+        double startHeight = startContainer->height();
+
+        int fps = m_vidFPS->value();
+        double cycleDuration = m_cycleDuration->value();
+        int maxCycles = m_cycleCount->value();
+
+        int frameCount = static_cast<int>(cycleDuration * fps);
+        if (fps <= 0 || frameCount < 4 || maxCycles <= 0) return;
+
+        double frameTime = 1.0 / static_cast<double>(fps);
+        int intervalMs = static_cast<int>(frameTime * 1000.0);
+
+        auto aspectRatios = std::make_shared<std::vector<std::pair<double, double> > >();
+
+
+        double startW = 666;
+        double startH = 666.0;
+
+        double p1W = 666.0;
+        double p1H = 60.0;
+
+        double p2W = 200.0;
+        double p2H = 200.0;
+
+        double p3W = 60.0;
+        double p3H = 666.0;
+
+        int totalFrames = frameCount;
+        int segmentFrames = totalFrames / 4;
+        if (segmentFrames <= 0) return;
+
+        // cubic ease-in-out
+        auto easeInOutCubic = [](double t) {
+            if (t < 0.5) {
+                return 4.0 * t * t * t;
+            } else {
+                double u = -2.0 * t + 2.0;
+                return 1.0 - (u * u * u) / 2.0;
+            }
+        };
+
+        // squared ease-in-out
+        auto easeInOutQuadratic = [](double t) {
+            if (t < 0.5) {
+                return 4.0 * t * t;
+            } else {
+                double u = -2.0 * t + 2.0;
+                return 1.0 - (u * u) / 2.0;
+            }
+        };
+
+        auto addSegment = [&](double w0, double h0, double w1, double h1, int frames, bool includeStart) {
+            int startIndex = includeStart ? 0 : 1;
+            for (int i = startIndex; i <= frames; ++i) {
+                double t = static_cast<double>(i) / static_cast<double>(frames);
+                double te = t;//easeInOutQuadratic(t);
+
+                double w = w0 + te * (w1 - w0);
+                double h = h0 + te * (h1 - h0);
+
+                aspectRatios->push_back({w, h});
+            }
+        };
+
+        // 100x100 -> 30x333
+        addSegment(startW, startH, p1W, p1H, segmentFrames, true);
+
+        // 30x333 -> 333x333
+        addSegment(p1W, p1H, p2W, p2H, segmentFrames, false);
+
+        // 333x333 -> 333x30
+        addSegment(p2W, p2H, p3W, p3H, segmentFrames, false);
+
+        // 333x30 -> 100x100
+        addSegment(p3W, p3H, startW, startH, segmentFrames, false);
+
+        std::filesystem::create_directories("data/frames");
+
+        // SVG export using CartoCrow renderer
+        auto exportFrameSvg = [this](int frameNumber) {
+            std::ostringstream name;
+            name << "data/frames/frame_"
+                    << std::setw(5) << std::setfill('0')
+                    << frameNumber << ".svg";
+
+            cartocrow::renderer::SvgRenderer svg;
+
+            if (m_cartogramType == RECTANGULAR_CARTOGRAM && m_rectPainting) {
+                svg.addPainting(m_rectPainting, "cartogram");
+            } else if (m_cartogramType == DEMERS_CARTOGRAM && m_demersPainting) {
+                svg.addPainting(m_demersPainting, "cartogram");
+            }
+
+            if (m_showREL && m_showREL->isChecked() && m_relPainting) {
+                svg.addPainting(m_relPainting, "rel");
+            }
+
+            svg.save(name.str());
+        };
+
+        auto timer = new QTimer(this);
+
+        auto cycle = std::make_shared<int>(0);
+        auto frame = std::make_shared<int>(0);
+        auto globalFrame = std::make_shared<int>(0);
+
+        connect(timer, &QTimer::timeout, this,
+                [this, timer, aspectRatios, cycle, frame, globalFrame, maxCycles, exportFrameSvg]() {
+                    if (!m_relPtr || aspectRatios->empty()) {
+                        timer->stop();
+                        timer->deleteLater();
+                        return;
+                    }
+
+                    if (*cycle >= maxCycles) {
+                        timer->stop();
+                        timer->deleteLater();
+                        return;
+                    }
+
+                    const auto &[w, h] = (*aspectRatios)[*frame];
+                    m_relPtr->setBoundingBox(BoundingBox{0, w, -h, 0});
+                    setCartogramFromREL();
+
+                    exportFrameSvg(*globalFrame);
+                    ++(*globalFrame);
+
+                    ++(*frame);
+                    if (*frame >= static_cast<int>(aspectRatios->size())) {
+                        *frame = 0;
+                        ++(*cycle);
+                    }
+                });
+
+        timer->start(intervalMs);
+    });
+}
+
 RectangularCartogramDemo::RectangularCartogramDemo() {
     setWindowTitle("RectangularCartogramDemo");
 
@@ -964,6 +969,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
 
     addGeneralTab();
     addChoroplethTab();
+    addVideoTab();
 }
 
 int main(int argc, char *argv[]) {

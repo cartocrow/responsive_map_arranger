@@ -105,6 +105,7 @@ class RectangularCartogramDemo : public QMainWindow {
 
     void addGeneralTab();
     void addChoroplethTab();
+    void addVideoTab();
 public:
     RectangularCartogramDemo();
 };
