@@ -82,7 +82,7 @@ public:
 
     // STATISTICS
     double aspectRatioDeviation(int vertexId) const;
-    double totalAspectRatioDeviation() const;
+    double averageAspectRatioDeviation() const;
 
 private:
 

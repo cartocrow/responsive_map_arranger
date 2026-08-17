@@ -20,6 +20,7 @@
 
 #include "library/demers.h"
 #include "library/choropleth_map.h"
+#include "library/centroid_vector_distortion.h"
 
 
 #include "persistent_settings.h"
@@ -43,6 +44,7 @@ class RectangularCartogramDemo : public QMainWindow {
     json m_RELData;
     json m_weightData;
     RegionMap m_regionMap;
+    RegionCentroidMap m_regionCentroids;
     RegularEdgeLabeling m_rel;
     std::shared_ptr<RegularEdgeLabeling> m_relPtr;
     std::shared_ptr<LayoutGuide> m_layoutGuide;
@@ -77,6 +79,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QCheckBox* m_showLinearOrders = nullptr;
     QComboBox* m_cartogramTypeComboBox = nullptr;
     QComboBox* m_mergeHeuristicComboBox = nullptr;
+    QSpinBox* m_localMetricNeighborCount = nullptr;
 
     // choropleth
     QSpinBox* choroForceIterSpinBox = nullptr;
@@ -102,6 +105,9 @@ class RectangularCartogramDemo : public QMainWindow {
     void loadMap(const std::filesystem::path &mapPath);
     void processData();
     void setCartogramFromREL() const;
+    void exportAspectRatioDeviationSweep() const;
+    void exportCentroidVectorDistortionSweep() const;
+    static std::string mergeHeuristicLabel(MergeHeuristic heuristic);
 
     void addGeneralTab();
     void addChoroplethTab();

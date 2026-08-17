@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <algorithm>
+#include <cmath>
 
 
 using namespace std;
@@ -729,20 +730,28 @@ bool RectangularDual::computeRectanglesFromSegments() {
 double RectangularDual::aspectRatioDeviation(int rectId) const {
     if (rects[rectId].isDisabled) return 0.0;
 
-    double preveredAspectRatio = m_REL->getVertices()[rectId].preferred_aspect_ratio;
-    double aspectRatio = rects[rectId].aspectRatio();
+    const double preferredAspectRatio = m_REL->getVertices()[rectId].preferred_aspect_ratio;
+    const double aspectRatio = rects[rectId].aspectRatio();
+    if (preferredAspectRatio <= 0.0 || aspectRatio <= 0.0) {
+        return 0.0;
+    }
 
-    return abs(preveredAspectRatio - aspectRatio);
+    return std::abs(std::log(aspectRatio / preferredAspectRatio));
 }
 
-double RectangularDual::totalAspectRatioDeviation() const {
+double RectangularDual::averageAspectRatioDeviation() const {
     double totalDeviation = 0.0;
+    int regionCount = 0;
+
+    auto vertices = m_REL->getVertices();
     for (size_t i = 4; i < rects.size(); ++i) {
-        if (rects[i].isDisabled) return 0.0;
+
+        if (!vertices[i].isLandRegion) continue;
+        regionCount++;
         totalDeviation += aspectRatioDeviation(i);
     }
 
-    return totalDeviation;
+    return totalDeviation / regionCount;
 }
 
 // ---------- topoSort: Kahn (returns false on cycle) ----------

@@ -9,6 +9,15 @@
 #include <QFileDialog>
 #include <QTimer>
 
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <limits>
+#include <sstream>
+#include <unordered_map>
+#include <vector>
+
 #include <nlohmann/json.hpp>
 
 #include "library/regular_edge_labeling.h"
@@ -16,6 +25,301 @@
 #include <cartocrow/reader/region_map_reader.h>
 
 using json = nlohmann::json;
+
+namespace {
+
+struct SweepSample {
+    double width;
+    double height;
+};
+
+std::vector<SweepSample> sweepSamples() {
+    return {
+        {30.0, 333.0},
+        {50.0, 200.0},
+        {80.0, 125.0},
+        {100.0, 100.0},
+        {125.0, 80.0},
+        {200.0, 50.0},
+        {333.0, 30.0},
+    };
+}
+
+std::shared_ptr<RegularEdgeLabeling> makeSweepREL(
+    const std::shared_ptr<RegularEdgeLabeling> &sourceRel,
+    bool adaptiveLayout,
+    MergeHeuristic heuristic,
+    double thresholdRelaxation,
+    double width,
+    double height) {
+    auto runRel = std::make_shared<RegularEdgeLabeling>(*sourceRel);
+    runRel->enableAdaptiveLayout(adaptiveLayout);
+    runRel->setThreshHoldRelaxation(thresholdRelaxation);
+    runRel->setMergeHeuristic(heuristic);
+    runRel->setBoundingBox(BoundingBox{0, width, -height, 0});
+    return runRel;
+}
+
+}
+
+std::string RectangularCartogramDemo::mergeHeuristicLabel(MergeHeuristic heuristic) {
+    switch (heuristic) {
+        case MIN_EDGE:
+            return "min-edge";
+        case MIN_WEIGHT:
+            return "min-weight";
+        case MIN_EDGE_MIN_WEIGHT:
+            return "min-edge-min-weight";
+        case MIN_MAX_PATH:
+            return "min-max-path";
+        default:
+            return "unknown";
+    }
+}
+
+void RectangularCartogramDemo::exportAspectRatioDeviationSweep() const {
+    if (!m_relPtr) {
+        std::cerr << "Load a REL before exporting aspect ratio deviations." << std::endl;
+        return;
+    }
+
+    const double frameWidth = m_frameSizeX->value();
+    const double frameHeight = m_frameSizeY->value();
+    const double area = frameWidth * frameHeight;
+    if (frameWidth <= 0.0 || frameHeight <= 0.0 || area <= 0.0) {
+        std::cerr << "Frame size must be positive for aspect ratio export." << std::endl;
+        return;
+    }
+
+    std::filesystem::create_directories("data");
+    const QString defaultPath = QString::fromStdString((std::filesystem::path("data") / "aspect_ratio_deviation_sweep.csv").string());
+    const QString selectedPath = QFileDialog::getSaveFileName(
+        const_cast<RectangularCartogramDemo*>(this),
+        tr("Save aspect ratio deviation sweep"),
+        defaultPath,
+        tr("CSV files (*.csv);;All files (*)"));
+    if (selectedPath.isEmpty()) return;
+
+    std::ofstream out(selectedPath.toStdString());
+    if (!out) {
+        std::cerr << "Failed to open output file " << selectedPath.toStdString() << std::endl;
+        return;
+    }
+
+    const auto samples = sweepSamples();
+
+    struct RunConfig {
+        bool adaptiveLayout;
+        MergeHeuristic heuristic;
+        std::string runLabel;
+    };
+
+    const std::vector<RunConfig> runConfigs = {
+        {false, static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentData().toInt()), "adaptive-off"},
+        {true, MIN_EDGE, "adaptive-on-min-edge"},
+        {true, MIN_WEIGHT, "adaptive-on-min-weight"},
+        {true, MIN_EDGE_MIN_WEIGHT, "adaptive-on-min-edge-min-weight"},
+        {true, MIN_MAX_PATH, "adaptive-on-min-max-path"},
+    };
+
+    out << std::fixed << std::setprecision(8);
+    out << "run,adaptive_layout,merge_heuristic,sample_index,container_aspect_ratio,log_container_aspect_ratio,container_width,container_height,average_aspect_ratio_deviation\n";
+
+    for (const auto &config : runConfigs) {
+        for (std::size_t i = 0; i < samples.size(); ++i) {
+            const double width = samples[i].width;
+            const double height = samples[i].height;
+            const double aspectRatio = width / height;
+            const double logAspectRatio = std::log(aspectRatio);
+
+            auto runRel = makeSweepREL(
+                m_relPtr,
+                config.adaptiveLayout,
+                config.heuristic,
+                m_threshHoldRelaxation->value(),
+                width,
+                height);
+
+            if (!runRel->isValidREL()) {
+                out << config.runLabel << ','
+                    << (config.adaptiveLayout ? "true" : "false") << ','
+                    << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                    << i << ','
+                    << aspectRatio << ','
+                    << logAspectRatio << ','
+                    << width << ','
+                    << height << ','
+                    << "nan\n";
+                continue;
+            }
+
+            auto dual = std::make_shared<RectangularDual>(runRel);
+            dual->setFromREL();
+
+            out << config.runLabel << ','
+                << (config.adaptiveLayout ? "true" : "false") << ','
+                << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                << i << ','
+                << aspectRatio << ','
+                << logAspectRatio << ','
+                << width << ','
+                << height << ','
+                << dual->averageAspectRatioDeviation() << '\n';
+        }
+    }
+
+    std::cout << "Aspect ratio sweep written to " << selectedPath.toStdString() << std::endl;
+}
+
+void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
+    if (!m_relPtr) {
+        std::cerr << "Load a REL before measuring local distortion metrics." << std::endl;
+        return;
+    }
+
+    if (m_cartogramType == CHOROPLETH_MAP) {
+        std::cerr << "Local distortion metrics are only implemented for rectangular and Demers cartograms." << std::endl;
+        return;
+    }
+
+    if (m_regionCentroids.empty()) {
+        std::cerr << "Load an IPE map before measuring local distortion metrics." << std::endl;
+        return;
+    }
+
+    const double frameWidth = m_frameSizeX->value();
+    const double frameHeight = m_frameSizeY->value();
+    const std::size_t neighborCount = static_cast<std::size_t>(m_localMetricNeighborCount->value());
+    if (frameWidth <= 0.0 || frameHeight <= 0.0) {
+        std::cerr << "Frame size must be positive for local distortion export." << std::endl;
+        return;
+    }
+    if (neighborCount == 0) {
+        std::cerr << "Neighbor count must be positive for local distortion export." << std::endl;
+        return;
+    }
+
+    std::filesystem::create_directories("data");
+    const QString defaultPath = QString::fromStdString((std::filesystem::path("data") / "local_distortion_sweep.csv").string());
+    const QString selectedPath = QFileDialog::getSaveFileName(
+        const_cast<RectangularCartogramDemo*>(this),
+        tr("Save local distortion sweep"),
+        defaultPath,
+        tr("CSV files (*.csv);;All files (*)"));
+    if (selectedPath.isEmpty()) return;
+
+    std::ofstream out(selectedPath.toStdString());
+    if (!out) {
+        std::cerr << "Failed to open output file " << selectedPath.toStdString() << std::endl;
+        return;
+    }
+
+    const auto samples = sweepSamples();
+    const auto cartogramTypeLabel = (m_cartogramType == RECTANGULAR_CARTOGRAM) ? "rectangular" : "demers";
+    struct RunConfig {
+        bool adaptiveLayout;
+        MergeHeuristic heuristic;
+        std::string runLabel;
+    };
+
+    const std::vector<RunConfig> runConfigs = {
+        {false, static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentData().toInt()), "adaptive-off"},
+        {true, MIN_EDGE, "adaptive-on-min-edge"},
+        {true, MIN_WEIGHT, "adaptive-on-min-weight"},
+        {true, MIN_EDGE_MIN_WEIGHT, "adaptive-on-min-edge-min-weight"},
+        {true, MIN_MAX_PATH, "adaptive-on-min-max-path"},
+    };
+
+    out << std::fixed << std::setprecision(8);
+    out << "run,cartogram_type,adaptive_layout,merge_heuristic,k,sample_index,container_aspect_ratio,log_container_aspect_ratio,container_width,container_height,deform_k,ortho_order_k,distance_scale_factor,matched_region_count,neighbor_pair_count,ortho_violation_count,ortho_constraint_count\n";
+
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        const double width = samples[i].width;
+        const double height = samples[i].height;
+        const double aspectRatio = width / height;
+        const double logAspectRatio = std::log(aspectRatio);
+
+        std::cout << "Local distortion sweep sample " << i + 1 << "/" << samples.size()
+                  << " at aspect ratio " << aspectRatio << std::endl;
+
+        for (const auto &config : runConfigs) {
+            auto runRel = makeSweepREL(
+                m_relPtr,
+                config.adaptiveLayout,
+                config.heuristic,
+                m_threshHoldRelaxation->value(),
+                width,
+                height);
+
+            if (!runRel->isValidREL()) {
+                out << config.runLabel << ','
+                    << cartogramTypeLabel << ','
+                    << (config.adaptiveLayout ? "true" : "false") << ','
+                    << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                    << neighborCount << ','
+                    << i << ','
+                    << aspectRatio << ','
+                    << logAspectRatio << ','
+                    << width << ','
+                    << height << ','
+                    << "nan,"
+                    << "nan,"
+                    << "nan,"
+                    << 0 << ','
+                    << 0 << ','
+                    << 0 << ','
+                    << 0 << '\n';
+                continue;
+            }
+
+            RegionCentroidMap runCentroids;
+            if (m_cartogramType == RECTANGULAR_CARTOGRAM) {
+                auto runDual = std::make_shared<RectangularDual>(runRel);
+                runDual->setFromREL();
+                runCentroids = rectangularRegionCentroids(*runDual, *runRel);
+            } else {
+                DemersCartogram runDemers;
+                runDemers.setFromREL(*runRel);
+                runCentroids = demersRegionCentroids(runDemers);
+            }
+
+            const auto metrics = localDistortionMetrics(
+                m_regionCentroids,
+                runCentroids,
+                neighborCount);
+
+            out << config.runLabel << ','
+                << cartogramTypeLabel << ','
+                << (config.adaptiveLayout ? "true" : "false") << ','
+                << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                << neighborCount << ','
+                << i << ','
+                << aspectRatio << ','
+                << logAspectRatio << ','
+                << width << ','
+                << height << ',';
+
+            if (std::isnan(metrics.deformK)) out << "nan";
+            else out << metrics.deformK;
+            out << ',';
+
+            if (std::isnan(metrics.orthoOrderK)) out << "nan";
+            else out << metrics.orthoOrderK;
+            out << ',';
+
+            if (std::isnan(metrics.distanceScaleFactor)) out << "nan";
+            else out << metrics.distanceScaleFactor;
+
+            out << ',' << metrics.validSiteCount
+                << ',' << metrics.validPairCount
+                << ',' << metrics.orthogonalViolationCount
+                << ',' << metrics.orthogonalConstraintCount
+                << '\n';
+        }
+    }
+
+    std::cout << "Local distortion sweep written to " << selectedPath.toStdString() << std::endl;
+}
 
 
 void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath) {
@@ -110,6 +414,7 @@ void RectangularCartogramDemo::loadMap(const std::filesystem::path &mapPath) {
     }
 
     m_regionMap = ipeToRegionMap(mapPath);
+    m_regionCentroids = regionCentroids(m_regionMap);
 
     if (m_relPtr) {
         m_relPtr->setValuesFromRegionMap(m_regionMap);
@@ -196,7 +501,7 @@ void RectangularCartogramDemo::addGeneralTab() {
     m_useAdaptiveLayout->setChecked(true);
     auto relaxationLabel = new QLabel("Critical Relaxation", vWidget);
     m_threshHoldRelaxation = new QDoubleSpinBox(vWidget);
-    m_threshHoldRelaxation->setValue(0);
+    m_threshHoldRelaxation->setValue(0.3);
     m_threshHoldRelaxation->setMinimum(0);
     m_threshHoldRelaxation->setMaximum(1);
     m_threshHoldRelaxation->setSingleStep(0.1);
@@ -242,8 +547,19 @@ void RectangularCartogramDemo::addGeneralTab() {
 
     auto *statsLabel = new QLabel("<h3>Stats</h3>", vWidget);
     auto *btnAspectRatioDeviation = new QPushButton("Aspect Ratio Deviation");
+    auto *btnExportAspectRatioDeviationSweep = new QPushButton("Export Aspect Ratio Sweep");
+    auto *localMetricNeighborCountLabel = new QLabel("Local metric k", vWidget);
+    m_localMetricNeighborCount = new QSpinBox(vWidget);
+    m_localMetricNeighborCount->setMinimum(1);
+    m_localMetricNeighborCount->setMaximum(1000);
+    m_localMetricNeighborCount->setValue(8);
+    auto *btnMeasureCentroidVectorDistortion = new QPushButton("Measure local distortion metrics");
     vLayout->addWidget(statsLabel);
     vLayout->addWidget(btnAspectRatioDeviation);
+    vLayout->addWidget(btnExportAspectRatioDeviationSweep);
+    vLayout->addWidget(localMetricNeighborCountLabel);
+    vLayout->addWidget(m_localMetricNeighborCount);
+    vLayout->addWidget(btnMeasureCentroidVectorDistortion);
 
     // EDGE SELECTION/MANIPULATION BUTTONS
     auto *selectionLabel = new QLabel("<h3>Selection Actions</h3>", vWidget);
@@ -427,7 +743,15 @@ void RectangularCartogramDemo::addGeneralTab() {
     connect(btnAspectRatioDeviation, &QPushButton::clicked, [this]() {
         if (!m_rectPainting) return;
 
-        std::cout << "Total aspect ratio deviation = " << m_rectangularDual->totalAspectRatioDeviation() << std::endl;
+        std::cout << "Total aspect ratio deviation = " << m_rectangularDual->averageAspectRatioDeviation() << std::endl;
+    });
+
+    connect(btnExportAspectRatioDeviationSweep, &QPushButton::clicked, [this]() {
+        exportAspectRatioDeviationSweep();
+    });
+
+    connect(btnMeasureCentroidVectorDistortion, &QPushButton::clicked, [this]() {
+        exportCentroidVectorDistortionSweep();
     });
 
     connect(btnClearSelection, &QPushButton::clicked, [this]() {

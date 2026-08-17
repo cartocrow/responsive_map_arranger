@@ -27,6 +27,7 @@ public:
 	void setFromREL(RegularEdgeLabeling& rel);
 
 	const DemersPosition& getDemersPosition(int index) const { return locations.at(index); }
+	const std::vector<DemersPosition>& positions() const { return locations; }
 private:
 
 	using Rect = cartocrow::Rectangle<cartocrow::Inexact>;

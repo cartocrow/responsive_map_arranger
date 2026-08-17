@@ -1,4 +1,5 @@
 set(SOURCES
+		centroid_vector_distortion.cpp
 		rectangular_cartogram_painting.cpp
 		rectangular_dual.cpp
 		regular_edge_labeling.cpp
@@ -9,6 +10,7 @@ set(SOURCES
 		choropleth_map.cpp
 )
 set(HEADERS
+		centroid_vector_distortion.h
 		geometry_types.h
 		rectangular_cartogram_painting.h
 		rectangular_dual.h
