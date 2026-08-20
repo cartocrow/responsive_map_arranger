@@ -128,6 +128,11 @@ void RELPainting::paint(Renderer &renderer) const {
         const int v = halfedges[twin].vertex;
         if (v < 0 || v >= (int)nRegions) continue;
 
+        if (m_choropleth) {
+            if (u > 3 && !vertices[u].isLandRegion) continue;
+            if (v > 3 && !vertices[v].isLandRegion) continue;
+        }
+
         const double ax = pos[u].first;
         const double ay = pos[u].second;
         const double bx = pos[v].first;

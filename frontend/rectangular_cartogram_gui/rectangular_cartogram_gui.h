@@ -90,6 +90,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QDoubleSpinBox* RELForceSpinBox = nullptr;
     QDoubleSpinBox* overlapForceSpinBox = nullptr;
     QDoubleSpinBox* boundaryForceSpinBox = nullptr;
+    QCheckBox* m_useValueColorRamp = nullptr;
 
     //video
     QDoubleSpinBox* m_cycleDuration = nullptr;
