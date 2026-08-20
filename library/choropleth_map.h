@@ -39,6 +39,7 @@ class ChoroplethMap {
         Pt originalPosition;
         Pt cartogramPosition;
         Vec force{0, 0};
+        Vec velocity{0, 0};
     };
     struct MapElement {
 
@@ -51,7 +52,8 @@ class ChoroplethMap {
 
         Vec force{0, 0};
 
-        Color color{255, 255, 255};
+        Color baseColor{255, 255, 255};
+        Color fillColor{255, 255, 255};
     };
 
 public:
@@ -61,6 +63,7 @@ public:
 
     void setFromRel();
     void runLayout(const size_t iterations);
+    void setUseValueColors(bool useValueColors);
 
     MapElement getMapElement(const size_t index) { return mapElements[index]; }
 
@@ -76,11 +79,13 @@ public:
 
 private:
     void setRegions();
+    void updateFillColors();
     void normalizeMap(const double areaFraction);
     void saveOriginalPositions();
     void setCartogramPositions();
-    void initializeComponentPositions();
     void buildComponents();
+    void initializeComponentMetadata();
+    void placeComponentsFromCartogram();
 
     // Improving map layout
     void clearForces();
@@ -93,10 +98,11 @@ private:
 
     void applyHorizontalConstraint(size_t left, size_t right, size_t leftComponent, size_t rightComponent);
     void applyVerticalConstraint(size_t bottom, size_t top, size_t bottomComponent, size_t topComponent);
+    optional<Rect> componentBoundingBox(const MapComponent& component) const;
 
     void translateRegion(MapElement& element, const Vec& delta);
     void translateComponent(size_t componentIndex, const Vec& delta);
-    void translateComponent(MapComponent component, const Vec& delta);
+    void translateComponent(MapComponent& component, const Vec& delta);
     void transformRegion(MapElement& element, const CGAL::Aff_transformation_2<Inexact>& transformation);
 
     optional<Rect> mapBoundingBox() const;
@@ -114,6 +120,7 @@ private:
     vector<int> componentOfElement;
 
     double forceThreshold = 1e-4;
+    bool m_useValueColors = false;
 
     friend class ChoroplethPainting;
 };

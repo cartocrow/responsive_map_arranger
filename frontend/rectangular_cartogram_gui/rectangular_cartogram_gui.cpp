@@ -360,9 +360,6 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_rectangularDual = nullptr;
     } else if (m_cartogramType == CHOROPLETH_MAP) {
         m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
-        m_choroplethMap->setFromRel();
-
-        m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
         m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
         m_choroplethMap->forceStepSize = forceStepSpinBox->value();
         m_choroplethMap->forceMaxMovement = forceMaxMovementSpinBox->value();
@@ -371,6 +368,10 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_choroplethMap->RELForce = RELForceSpinBox->value();
         m_choroplethMap->overlapForce = overlapForceSpinBox->value();
         m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
+        m_choroplethMap->setUseValueColors(m_useValueColorRamp->isChecked());
+        m_choroplethMap->setFromRel();
+
+        m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
         m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
 
     }
@@ -701,8 +702,6 @@ void RectangularCartogramDemo::addGeneralTab() {
             m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
         } else if (m_cartogramType == CHOROPLETH_MAP) {
             m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
-
-            m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
             m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
             m_choroplethMap->forceStepSize = forceStepSpinBox->value();
             m_choroplethMap->forceMaxMovement = forceMaxMovementSpinBox->value();
@@ -711,9 +710,11 @@ void RectangularCartogramDemo::addGeneralTab() {
             m_choroplethMap->RELForce = RELForceSpinBox->value();
             m_choroplethMap->overlapForce = overlapForceSpinBox->value();
             m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
+            m_choroplethMap->setUseValueColors(m_useValueColorRamp->isChecked());
 
             m_choroplethMap->setFromRel();
 
+            m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
             m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
         }
 
@@ -1006,7 +1007,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     vLayout->addWidget(originalPosForceLabel);
     originalPosForceSpinBox = new QDoubleSpinBox();
     //originalForceSpinBox->setSuffix(" :og pos force");
-    originalPosForceSpinBox->setValue(0.2);
+    originalPosForceSpinBox->setValue(0);
     originalPosForceSpinBox->setMinimum(0);
     //originalPosForceSpinBox->setMaximum(5);
     originalPosForceSpinBox->setSingleStep(0.005);
@@ -1015,7 +1016,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto cartoForcelabel = new QLabel("Cartogram force");
     vLayout->addWidget(cartoForcelabel);
     cartogramPosForceSpinBox = new QDoubleSpinBox();
-    cartogramPosForceSpinBox->setValue(0.1);
+    cartogramPosForceSpinBox->setValue(0);
     cartogramPosForceSpinBox->setMinimum(0);
     //cartogramPosForceSpinBox->setMaximum(5);
     cartogramPosForceSpinBox->setSingleStep(0.005);
@@ -1024,10 +1025,10 @@ void RectangularCartogramDemo::addChoroplethTab() {
     auto RELForceLabel = new QLabel("REL force");
     vLayout->addWidget(RELForceLabel);
     RELForceSpinBox = new QDoubleSpinBox();
-    RELForceSpinBox->setValue(1);
+    RELForceSpinBox->setValue(0);
     RELForceSpinBox->setMinimum(0);
     //RELForceSpinBox->setMaximum(5);
-    RELForceSpinBox->setSingleStep(0.005);
+    RELForceSpinBox->setSingleStep(1);
     vLayout->addWidget(RELForceSpinBox);
 
     auto overlapForceLabel = new QLabel("overlap force");
@@ -1036,7 +1037,7 @@ void RectangularCartogramDemo::addChoroplethTab() {
     overlapForceSpinBox->setValue(10);
     overlapForceSpinBox->setMinimum(0);
     //overlapForceSpinBox->setMaximum(5);
-    overlapForceSpinBox->setSingleStep(0.005);
+    overlapForceSpinBox->setSingleStep(1);
     vLayout->addWidget(overlapForceSpinBox);
 
     auto boundaryForceLabel = new QLabel("boundary force");
@@ -1045,8 +1046,12 @@ void RectangularCartogramDemo::addChoroplethTab() {
     boundaryForceSpinBox->setValue(99);
     boundaryForceSpinBox->setMinimum(0);
     //boundaryForceSpinBox->setMaximum(5);
-    boundaryForceSpinBox->setSingleStep(0.005);
+    boundaryForceSpinBox->setSingleStep(1);
     vLayout->addWidget(boundaryForceSpinBox);
+
+    m_useValueColorRamp = new QCheckBox("Color by value", choroplethSettings);
+    m_useValueColorRamp->setChecked(true);
+    vLayout->addWidget(m_useValueColorRamp);
 
     connect(choroForceIterSpinBox, qOverload<int>(&QSpinBox::valueChanged), [this]() {
         if (!m_relPtr || !m_choroplethMap) return;
@@ -1087,6 +1092,11 @@ void RectangularCartogramDemo::addChoroplethTab() {
         if (!m_relPtr || !m_choroplethMap) return;
         m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
         setCartogramFromREL();
+    });
+    connect(m_useValueColorRamp, &QCheckBox::toggled, [this](bool checked) {
+        if (!m_choroplethMap) return;
+        m_choroplethMap->setUseValueColors(checked);
+        m_renderer->update();
     });
 
 }

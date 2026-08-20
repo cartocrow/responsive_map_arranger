@@ -14,13 +14,35 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
 #include <type_traits>
+#include <unordered_map>
 
 #include "choropleth_map.h"
 #include "cartocrow/core/transform_helpers.h"
 #include "cartocrow/core/polygon_helpers.h"
 
 using Transformation = CGAL::Aff_transformation_2<Inexact>;
+
+namespace {
+
+Color choroplethRampColor(const int index) {
+    static const std::array<Color, 5> kRamp = {
+        Color{0xef, 0xf3, 0xff},
+        Color{0xbd, 0xd7, 0xe7},
+        Color{0x6b, 0xae, 0xd6},
+        Color{0x31, 0x82, 0xbd},
+        Color{0x08, 0x51, 0x9c},
+    };
+
+    return kRamp[std::clamp(index, 0, static_cast<int>(kRamp.size()) - 1)];
+}
+
+}
 
 void ChoroplethMap::setFromRel() {
     assert(m_REL->hasBoundingBox());
@@ -37,16 +59,19 @@ void ChoroplethMap::setFromRel() {
 
     for (int v = 4; v < V; ++v) {
         MapElement element;
-        element.color = vertices[v].color;
+        element.baseColor = vertices[v].color;
+        element.fillColor = vertices[v].color;
         mapElements[v] = element;
     }
 
     setRegions();
+    updateFillColors();
     normalizeMap(0.7);
     saveOriginalPositions();
     setCartogramPositions();
     buildComponents();
-    initializeComponentPositions();
+    initializeComponentMetadata();
+    placeComponentsFromCartogram();
 
     runLayout(forceIterationCount);
 }
@@ -87,11 +112,63 @@ void ChoroplethMap::setRegions() {
         const size_t index = found->second;
         auto& mapElement = mapElements[index];
 
-        mapElement.color = region.color;
+        mapElement.baseColor = region.color;
+        mapElement.fillColor = region.color;
         mapElement.bb = boundingBox(region.shape);
         mapElement.region = region;
     }
 
+}
+
+void ChoroplethMap::setUseValueColors(const bool useValueColors) {
+    m_useValueColors = useValueColors;
+    updateFillColors();
+}
+
+void ChoroplethMap::updateFillColors() {
+    if (!m_useValueColors) {
+        for (auto& element : mapElements) {
+            element.fillColor = element.baseColor;
+        }
+        return;
+    }
+
+    const auto& vertices = m_REL->getVertices();
+    double minValue = std::numeric_limits<double>::infinity();
+    double maxValue = -std::numeric_limits<double>::infinity();
+
+    for (size_t i = 4; i < mapElements.size() && i < vertices.size(); ++i) {
+        if (!mapElements[i].region || !vertices[i].isLandRegion) continue;
+
+        const double value = std::isfinite(vertices[i].oldWeight) ? vertices[i].oldWeight : vertices[i].weight;
+        if (!std::isfinite(value)) continue;
+
+        minValue = std::min(minValue, value);
+        maxValue = std::max(maxValue, value);
+    }
+
+    if (!std::isfinite(minValue) || !std::isfinite(maxValue)) {
+        for (auto& element : mapElements) {
+            element.fillColor = element.baseColor;
+        }
+        return;
+    }
+
+    const double range = maxValue - minValue;
+    for (size_t i = 4; i < mapElements.size() && i < vertices.size(); ++i) {
+        auto& element = mapElements[i];
+        if (!element.region || !vertices[i].isLandRegion) continue;
+
+        const double value = std::isfinite(vertices[i].oldWeight) ? vertices[i].oldWeight : vertices[i].weight;
+        if (!std::isfinite(value) || range <= 0.0) {
+            element.fillColor = choroplethRampColor(0);
+            continue;
+        }
+
+        const double normalized = std::clamp((value - minValue) / range, 0.0, 1.0);
+        const int bucket = std::min(4, static_cast<int>(normalized * 5.0));
+        element.fillColor = choroplethRampColor(bucket);
+    }
 }
 
 void ChoroplethMap::normalizeMap(const double areaFraction) {
@@ -158,7 +235,7 @@ void ChoroplethMap::setCartogramPositions() {
     }
 }
 
-void ChoroplethMap::initializeComponentPositions() {
+void ChoroplethMap::initializeComponentMetadata() {
     for (MapComponent& component : mapComponents) {
         if (component.members.empty()) continue;
 
@@ -169,26 +246,22 @@ void ChoroplethMap::initializeComponentPositions() {
         double cartogramX = 0.0;
         double cartogramY = 0.0;
 
-        for (const std::size_t elementIndex : component.members) {
-
+        for (const size_t elementIndex : component.members) {
             const MapElement& element = mapElements[elementIndex];
-
             currentX += element.position.x();
             currentY += element.position.y();
             originalX += element.originalPosition.x();
             originalY += element.originalPosition.y();
             cartogramX += element.cartogramPosition.x();
             cartogramY += element.cartogramPosition.y();
-             }
+        }
 
         const double count = static_cast<double>(component.members.size());
-        component.position = Pt( currentX / count, currentY / count);
-        component.originalPosition = Pt( originalX / count, originalY / count);
-        component.cartogramPosition = Pt( cartogramX / count, cartogramY / count);
-
+        component.position = Pt(currentX / count, currentY / count);
+        component.originalPosition = Pt(originalX / count, originalY / count);
+        component.cartogramPosition = Pt(cartogramX / count, cartogramY / count);
         component.force = Vec(0.0, 0.0);
-
-        translateComponent(component, component.cartogramPosition - component.position);
+        component.velocity = Vec(0.0, 0.0);
     }
 }
 
@@ -198,26 +271,41 @@ void ChoroplethMap::buildComponents() {
     mapComponents.clear();
     componentOfElement.assign(componentOfVertex.size(), -1);
 
-    int componentCount = 0;
-
-    for (const int componentId : componentOfVertex) {
-        if (componentId >= 0) {
-            componentCount = max(componentCount, componentId + 1);
-        }
-    }
-
-    mapComponents.resize(componentCount);
     const size_t elementCount = min(mapElements.size(), componentOfVertex.size());
+    unordered_map<int, int> componentRemap;
 
     for (size_t i = 0; i < elementCount; ++i) {
+        if (!mapElements[i].region || !mapElements[i].bb) continue;
+
         const int componentId = componentOfVertex[i];
         if (componentId < 0) continue;
 
-        componentOfElement[i] = componentId;
-        mapComponents[componentId].members.push_back(i);
-    }
+        auto [it, inserted] = componentRemap.emplace(componentId, static_cast<int>(mapComponents.size()));
+        if (inserted) {
+            mapComponents.emplace_back();
+        }
 
-    initializeComponentPositions();
+        componentOfElement[i] = it->second;
+        mapComponents[it->second].members.push_back(i);
+    }
+}
+
+void ChoroplethMap::placeComponentsFromCartogram() {
+    const size_t componentCount = mapComponents.size();
+    if (componentCount == 0) return;
+
+    for (size_t i = 0; i < componentCount; ++i) {
+        auto& component = mapComponents[i];
+        Vec averageDisplacement{0.0, 0.0};
+
+        for (const size_t elementIndex : component.members) {
+            averageDisplacement = averageDisplacement
+                + (mapElements[elementIndex].cartogramPosition - mapElements[elementIndex].originalPosition);
+        }
+
+        averageDisplacement = averageDisplacement / static_cast<double>(component.members.size());
+        translateComponent(component, averageDisplacement);
+    }
 }
 
 void ChoroplethMap::clearForces() {
@@ -288,40 +376,53 @@ void ChoroplethMap::computeRELForces() {
 void ChoroplethMap::computeOverlapForces() {
     if (overlapForce < forceThreshold) return;
 
-    for (size_t i = 0; i < mapElements.size(); ++i) {
-        auto& a = mapElements[i];
+    for (size_t i = 0; i < mapComponents.size(); ++i) {
+        const auto boundsA = componentBoundingBox(mapComponents[i]);
+        if (!boundsA) continue;
 
-        if (!a.region || !a.bb) continue;
+        for (size_t j = i + 1; j < mapComponents.size(); ++j) {
+            const auto boundsB = componentBoundingBox(mapComponents[j]);
+            if (!boundsB) continue;
 
-        for (size_t j = i + 1; j < mapElements.size(); ++j) {
-            auto& b = mapElements[j];
-            if (!b.region || !b.bb) continue;
+            const double componentOverlapX = min(boundsA->xmax(), boundsB->xmax()) - max(boundsA->xmin(), boundsB->xmin());
+            const double componentOverlapY = min(boundsA->ymax(), boundsB->ymax()) - max(boundsA->ymin(), boundsB->ymin());
+            if (componentOverlapX <= 0.0 || componentOverlapY <= 0.0) continue;
 
-            const double overlapX = min(a.bb->xmax(), b.bb->xmax()) - max(a.bb->xmin(), b.bb->xmin());
-            const double overlapY = min(a.bb->ymax(), b.bb->ymax()) - max(a.bb->ymin(), b.bb->ymin());
+            double regionOverlapX = 0.0;
+            double regionOverlapY = 0.0;
 
-            if (overlapX <= 0 || overlapY <= 0) continue;
+            for (const size_t memberA : mapComponents[i].members) {
+                const auto& elementA = mapElements[memberA];
+                if (!elementA.bb) continue;
 
-            if (overlapX < overlapY && overlapX > 0) {
-                const double dir = a.position.x() < b.position.x() ? -1 : 1;
-                const double magnitude = overlapForce * overlapX;
+                for (const size_t memberB : mapComponents[j].members) {
+                    const auto& elementB = mapElements[memberB];
+                    if (!elementB.bb) continue;
 
-                const int aComponent = componentOfElement[i];
-                const int bComponent = componentOfElement[j];
+                    const double overlapX = min(elementA.bb->xmax(), elementB.bb->xmax())
+                                          - max(elementA.bb->xmin(), elementB.bb->xmin());
+                    const double overlapY = min(elementA.bb->ymax(), elementB.bb->ymax())
+                                          - max(elementA.bb->ymin(), elementB.bb->ymin());
+                    if (overlapX <= 0.0 || overlapY <= 0.0) continue;
 
-                mapComponents[aComponent].force += Vec{dir * magnitude, 0 };
-                mapComponents[bComponent].force += Vec{-dir * magnitude, 0 };
-            } else {
-                const double dir = a.position.y() < b.position.y() ? -1 : 1;
-                const double magnitude = overlapForce * overlapY;
-
-                const int aComponent = componentOfElement[i];
-                const int bComponent = componentOfElement[j];
-
-                mapComponents[aComponent].force += Vec{0, dir * magnitude};
-                mapComponents[bComponent].force += Vec{0, -dir * magnitude};
+                    regionOverlapX += overlapX;
+                    regionOverlapY += overlapY;
+                }
             }
 
+            if (regionOverlapX <= 0.0 || regionOverlapY <= 0.0) continue;
+
+            if (regionOverlapX <= regionOverlapY) {
+                const double dir = mapComponents[i].position.x() <= mapComponents[j].position.x() ? -1.0 : 1.0;
+                const double magnitude = overlapForce * regionOverlapX;
+                mapComponents[i].force += Vec{dir * magnitude, 0.0};
+                mapComponents[j].force += Vec{-dir * magnitude, 0.0};
+            } else {
+                const double dir = mapComponents[i].position.y() <= mapComponents[j].position.y() ? -1.0 : 1.0;
+                const double magnitude = overlapForce * regionOverlapY;
+                mapComponents[i].force += Vec{0.0, dir * magnitude};
+                mapComponents[j].force += Vec{0.0, -dir * magnitude};
+            }
         }
     }
 }
@@ -329,39 +430,37 @@ void ChoroplethMap::computeOverlapForces() {
 void ChoroplethMap::computeBoundaryForces() {
     if (boundaryForce < forceThreshold) return;
 
-    for (size_t i = 0; i < mapElements.size(); ++i) {
-        auto& element = mapElements[i];
-        if (!element.region || !element.bb) continue;
+    for (auto& component : mapComponents) {
+        const auto bounds = componentBoundingBox(component);
+        if (!bounds) continue;
 
         double forceX = 0.0;
         double forceY = 0.0;
 
-        // left side
-        if (element.bb->xmin() < container.xmin()) {
-            forceX += boundaryForce * (container.xmin()-element.bb->xmin());
+        if (bounds->xmin() < container.xmin()) {
+            forceX += boundaryForce * (container.xmin() - bounds->xmin());
         }
-        // right side
-        if (element.bb->xmax() > container.xmax()) {
-            forceX -= boundaryForce * (element.bb->xmax()-container.xmax());
+        if (bounds->xmax() > container.xmax()) {
+            forceX -= boundaryForce * (bounds->xmax() - container.xmax());
         }
-        // bottom side
-        if (element.bb->ymin() < container.ymin()) {
-            forceY += boundaryForce * (container.ymin()-element.bb->ymin());
+        if (bounds->ymin() < container.ymin()) {
+            forceY += boundaryForce * (container.ymin() - bounds->ymin());
         }
-        // top side
-        if (element.bb->ymax() > container.ymax()) {
-            forceY -= boundaryForce * (element.bb->ymax()-container.ymax());
+        if (bounds->ymax() > container.ymax()) {
+            forceY -= boundaryForce * (bounds->ymax() - container.ymax());
         }
-        auto& component = mapComponents[componentOfElement[i]];
         component.force += Vec{forceX, forceY};
     }
 }
 
 bool ChoroplethMap::applyForces() {
     double largestMovement = 0.0;
+    constexpr double damping = 0.6;
+    constexpr double minVelocity = 1e-5;
+
     for (auto& component : mapComponents) {
-        double dx = forceStepSize * component.force.x();
-        double dy = forceStepSize * component.force.y();
+        double dx = damping * component.velocity.x() + forceStepSize * component.force.x();
+        double dy = damping * component.velocity.y() + forceStepSize * component.force.y();
 
         const double length = sqrt(dx * dx + dy * dy);
 
@@ -370,8 +469,13 @@ bool ChoroplethMap::applyForces() {
             dx *= factor;
             dy *= factor;
         }
-        largestMovement = max(largestMovement, hypot(dx, dy));
+        const double movement = hypot(dx, dy);
+        largestMovement = max(largestMovement, movement);
 
+        component.velocity = Vec{dx, dy};
+        if (movement < minVelocity) {
+            component.velocity = Vec{0.0, 0.0};
+        }
         translateComponent(component, Vec{dx, dy});
     }
 
@@ -447,11 +551,11 @@ void ChoroplethMap::translateRegion(MapElement& element, const Vec& translation)
 }
 
 void ChoroplethMap::translateComponent(const size_t componentIndex, const Vec &delta) {
-    const MapComponent& component = mapComponents.at(componentIndex);
+    MapComponent& component = mapComponents.at(componentIndex);
     translateComponent(component, delta);
 }
 
-void ChoroplethMap::translateComponent(MapComponent component, const Vec &delta) {
+void ChoroplethMap::translateComponent(MapComponent& component, const Vec &delta) {
     for (const size_t i : component.members) {
         translateRegion(mapElements[i], delta);
     }
@@ -497,6 +601,33 @@ optional<Rect> ChoroplethMap::mapBoundingBox() const {
     return result;
 }
 
+optional<Rect> ChoroplethMap::componentBoundingBox(const MapComponent& component) const {
+    optional<Rect> result;
+
+    for (const size_t elementIndex : component.members) {
+        const auto& element = mapElements[elementIndex];
+        if (!element.bb) continue;
+
+        if (!result) {
+            result = *element.bb;
+            continue;
+        }
+
+        result = Rect{
+            Pt{
+                std::min(result->xmin(), element.bb->xmin()),
+                std::min(result->ymin(), element.bb->ymin())
+            },
+            Pt{
+                std::max(result->xmax(), element.bb->xmax()),
+                std::max(result->ymax(), element.bb->ymax())
+            }
+        };
+    }
+
+    return result;
+}
+
 void ChoroplethPainting::paint(Renderer& renderer) const {
     if (!m_map) return;
 
@@ -506,8 +637,9 @@ void ChoroplethPainting::paint(Renderer& renderer) const {
     auto& mapElements = m_map->mapElements;
     for (size_t i = 4; i < relVertices.size(); i++) {
         if (!relVertices[i].isLandRegion) continue;
+        if (!mapElements[i].region) continue;
 
-        renderer.setFill(mapElements[i].color);
+        renderer.setFill(mapElements[i].fillColor);
         renderer.draw(mapElements[i].region->shape);
 
         // if (m_drawLabels) {
