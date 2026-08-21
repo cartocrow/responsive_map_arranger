@@ -19,6 +19,7 @@
 #include "library/geometry_types.h"
 
 #include "library/demers.h"
+#include "library/dorling.h"
 #include "library/choropleth_map.h"
 #include "library/centroid_vector_distortion.h"
 
@@ -35,6 +36,7 @@ using namespace layout_guide;
 enum CartogramType {
     RECTANGULAR_CARTOGRAM,
     DEMERS_CARTOGRAM,
+    DORLING_CARTOGRAM,
     CHOROPLETH_MAP
 };
 
@@ -50,12 +52,14 @@ class RectangularCartogramDemo : public QMainWindow {
     std::shared_ptr<LayoutGuide> m_layoutGuide;
     std::shared_ptr<RectangularDual> m_rectangularDual;
     std::shared_ptr<DemersCartogram> m_demers;
+    std::shared_ptr<DorlingCartogram> m_dorling;
     std::shared_ptr<ChoroplethMap> m_choroplethMap;
 
     GeometryWidget* m_renderer;
     std::shared_ptr<RELPainting> m_relPainting;
     std::shared_ptr<RectangularCartogramPainting> m_rectPainting;
     std::shared_ptr<DemersPainting> m_demersPainting;
+    std::shared_ptr<DorlingPainting> m_dorlingPainting;
     std::shared_ptr<ChoroplethPainting> m_choroplethPainting;
 
     CartogramType m_cartogramType;
@@ -92,6 +96,15 @@ class RectangularCartogramDemo : public QMainWindow {
     QDoubleSpinBox* boundaryForceSpinBox = nullptr;
     QCheckBox* m_useValueColorRamp = nullptr;
 
+    // dorling
+    QSpinBox* m_dorlingForceIterSpinBox = nullptr;
+    QDoubleSpinBox* m_dorlingAreaFractionSpinBox = nullptr;
+    QDoubleSpinBox* m_dorlingAdjacencyForceSpinBox = nullptr;
+    QDoubleSpinBox* m_dorlingOverlapForceSpinBox = nullptr;
+    QDoubleSpinBox* m_dorlingAnchorForceSpinBox = nullptr;
+    QDoubleSpinBox* m_dorlingAdjacencyPaddingSpinBox = nullptr;
+    QDoubleSpinBox* m_dorlingBoundaryPaddingSpinBox = nullptr;
+
     //video
     QDoubleSpinBox* m_cycleDuration = nullptr;
     QSpinBox* m_cycleCount = nullptr;
@@ -111,6 +124,7 @@ class RectangularCartogramDemo : public QMainWindow {
     static std::string mergeHeuristicLabel(MergeHeuristic heuristic);
 
     void addGeneralTab();
+    void addDorlingTab();
     void addChoroplethTab();
     void addVideoTab();
 public:

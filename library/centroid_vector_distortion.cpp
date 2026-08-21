@@ -111,6 +111,18 @@ RegionCentroidMap demersRegionCentroids(const DemersCartogram &cartogram) {
     return centroids;
 }
 
+RegionCentroidMap dorlingRegionCentroids(const DorlingCartogram &cartogram) {
+    RegionCentroidMap centroids;
+
+    for (const auto &position : cartogram.positions()) {
+        if (position.label.empty()) continue;
+        if (position.label.starts_with("sea_")) continue;
+        centroids[position.label] = position.center;
+    }
+
+    return centroids;
+}
+
 LocalDistortionMetrics localDistortionMetrics(
     const RegionCentroidMap &baselineCentroids,
     const RegionCentroidMap &adaptiveCentroids,

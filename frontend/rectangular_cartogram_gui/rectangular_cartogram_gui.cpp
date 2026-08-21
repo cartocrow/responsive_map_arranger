@@ -60,6 +60,28 @@ std::shared_ptr<RegularEdgeLabeling> makeSweepREL(
     return runRel;
 }
 
+void applyDorlingSettings(DorlingCartogram &cartogram,
+                          const QSpinBox *forceIterSpinBox,
+                          const QDoubleSpinBox *areaFractionSpinBox,
+                          const QDoubleSpinBox *adjacencyForceSpinBox,
+                          const QDoubleSpinBox *overlapForceSpinBox,
+                          const QDoubleSpinBox *anchorForceSpinBox,
+                          const QDoubleSpinBox *adjacencyPaddingSpinBox,
+                          const QDoubleSpinBox *boundaryPaddingSpinBox) {
+    if (!forceIterSpinBox || !areaFractionSpinBox || !adjacencyForceSpinBox || !overlapForceSpinBox ||
+        !anchorForceSpinBox || !adjacencyPaddingSpinBox || !boundaryPaddingSpinBox) {
+        return;
+    }
+
+    cartogram.forceIterationCount = forceIterSpinBox->value();
+    cartogram.targetAreaFraction = areaFractionSpinBox->value();
+    cartogram.adjacencyForce = adjacencyForceSpinBox->value();
+    cartogram.overlapForce = overlapForceSpinBox->value();
+    cartogram.anchorForce = anchorForceSpinBox->value();
+    cartogram.adjacencyPadding = adjacencyPaddingSpinBox->value();
+    cartogram.boundaryPadding = boundaryPaddingSpinBox->value();
+}
+
 }
 
 std::string RectangularCartogramDemo::mergeHeuristicLabel(MergeHeuristic heuristic) {
@@ -178,7 +200,7 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
     }
 
     if (m_cartogramType == CHOROPLETH_MAP) {
-        std::cerr << "Local distortion metrics are only implemented for rectangular and Demers cartograms." << std::endl;
+        std::cerr << "Local distortion metrics are not implemented for choropleth maps." << std::endl;
         return;
     }
 
@@ -215,7 +237,14 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
     }
 
     const auto samples = sweepSamples();
-    const auto cartogramTypeLabel = (m_cartogramType == RECTANGULAR_CARTOGRAM) ? "rectangular" : "demers";
+    std::string cartogramTypeLabel;
+    if (m_cartogramType == RECTANGULAR_CARTOGRAM) cartogramTypeLabel = "rectangular";
+    else if (m_cartogramType == DEMERS_CARTOGRAM) cartogramTypeLabel = "demers";
+    else if (m_cartogramType == DORLING_CARTOGRAM) cartogramTypeLabel = "dorling";
+    else {
+        std::cerr << "Unsupported cartogram type for local distortion export." << std::endl;
+        return;
+    }
     struct RunConfig {
         bool adaptiveLayout;
         MergeHeuristic heuristic;
@@ -277,10 +306,14 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
                 auto runDual = std::make_shared<RectangularDual>(runRel);
                 runDual->setFromREL();
                 runCentroids = rectangularRegionCentroids(*runDual, *runRel);
-            } else {
+            } else if (m_cartogramType == DEMERS_CARTOGRAM) {
                 DemersCartogram runDemers;
                 runDemers.setFromREL(*runRel);
                 runCentroids = demersRegionCentroids(runDemers);
+            } else {
+                DorlingCartogram runDorling;
+                runDorling.setFromREL(*runRel);
+                runCentroids = dorlingRegionCentroids(runDorling);
             }
 
             const auto metrics = localDistortionMetrics(
@@ -349,6 +382,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
 
         m_demers = nullptr;
+        m_dorling = nullptr;
     } else if (m_cartogramType == DEMERS_CARTOGRAM) {
         m_demers = std::make_shared<DemersCartogram>();
         m_demers->setFromREL(*m_relPtr);
@@ -358,6 +392,25 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
 
         m_rectangularDual = nullptr;
+        m_dorling = nullptr;
+    } else if (m_cartogramType == DORLING_CARTOGRAM) {
+        m_dorling = std::make_shared<DorlingCartogram>();
+        applyDorlingSettings(*m_dorling,
+                             m_dorlingForceIterSpinBox,
+                             m_dorlingAreaFractionSpinBox,
+                             m_dorlingAdjacencyForceSpinBox,
+                             m_dorlingOverlapForceSpinBox,
+                             m_dorlingAnchorForceSpinBox,
+                             m_dorlingAdjacencyPaddingSpinBox,
+                             m_dorlingBoundaryPaddingSpinBox);
+        m_dorling->setFromREL(*m_relPtr);
+
+        m_dorlingPainting = std::make_shared<DorlingPainting>(m_dorling, m_relPtr);
+        m_dorlingPainting->drawLabels(m_drawLabels->isChecked());
+        m_renderer->addPainting(m_dorlingPainting, "Dorling Cartogram");
+
+        m_rectangularDual = nullptr;
+        m_demers = nullptr;
     } else if (m_cartogramType == CHOROPLETH_MAP) {
         m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
         m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
@@ -381,7 +434,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
     relDrawingOptions.drawLabels = true;
     relDrawingOptions.drawREL = m_showREL->isChecked();
 
-    m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_choroplethMap);
+    m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_dorling, m_choroplethMap);
     m_relPainting->drawRel(m_showREL->isChecked());
 
     m_renderer->addPainting(m_relPainting, "REL");
@@ -462,6 +515,16 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
         m_rectangularDual->setFromREL();
     } else if (m_demers) {
         m_demers->setFromREL(*m_relPtr);
+    } else if (m_dorling) {
+        applyDorlingSettings(*m_dorling,
+                             m_dorlingForceIterSpinBox,
+                             m_dorlingAreaFractionSpinBox,
+                             m_dorlingAdjacencyForceSpinBox,
+                             m_dorlingOverlapForceSpinBox,
+                             m_dorlingAnchorForceSpinBox,
+                             m_dorlingAdjacencyPaddingSpinBox,
+                             m_dorlingBoundaryPaddingSpinBox);
+        m_dorling->setFromREL(*m_relPtr);
     } else if (m_choroplethMap && !m_regionMap.empty()) {
         m_choroplethMap->setFromRel();
     }
@@ -489,6 +552,7 @@ void RectangularCartogramDemo::addGeneralTab() {
     m_cartogramTypeComboBox = new QComboBox(vWidget);
     m_cartogramTypeComboBox->addItem("RectangularCartogram", CartogramType::RECTANGULAR_CARTOGRAM);
     m_cartogramTypeComboBox->addItem("DemersCartogram", CartogramType::DEMERS_CARTOGRAM);
+    m_cartogramTypeComboBox->addItem("DorlingCartogram", CartogramType::DORLING_CARTOGRAM);
     m_cartogramTypeComboBox->addItem("ChoroplethMap", CartogramType::CHOROPLETH_MAP);
     m_cartogramTypeComboBox->setCurrentIndex(0);
     m_mergeHeuristicComboBox = new QComboBox(vWidget);
@@ -659,6 +723,8 @@ void RectangularCartogramDemo::addGeneralTab() {
 
         if (m_demers)
             m_demersPainting->drawLabels(m_drawLabels->isChecked());
+        if (m_dorling)
+            m_dorlingPainting->drawLabels(m_drawLabels->isChecked());
 
         m_renderer->update();
     });
@@ -678,9 +744,11 @@ void RectangularCartogramDemo::addGeneralTab() {
         m_renderer->clear();
         m_rectPainting.reset();
         m_demersPainting.reset();
+        m_dorlingPainting.reset();
         m_choroplethPainting.reset();
         m_rectangularDual.reset();
         m_demers.reset();
+        m_dorling.reset();
         m_choroplethMap.reset();
 
         if (m_cartogramType == RECTANGULAR_CARTOGRAM) {
@@ -700,6 +768,23 @@ void RectangularCartogramDemo::addGeneralTab() {
             m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
             m_demersPainting->drawLabels(m_drawLabels->isChecked());
             m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
+        } else if (m_cartogramType == DORLING_CARTOGRAM) {
+            m_dorling = std::make_shared<DorlingCartogram>();
+            applyDorlingSettings(*m_dorling,
+                                 m_dorlingForceIterSpinBox,
+                                 m_dorlingAreaFractionSpinBox,
+                                 m_dorlingAdjacencyForceSpinBox,
+                                 m_dorlingOverlapForceSpinBox,
+                                 m_dorlingAnchorForceSpinBox,
+                                 m_dorlingAdjacencyPaddingSpinBox,
+                                 m_dorlingBoundaryPaddingSpinBox);
+            m_dorling->setFromREL(*m_relPtr);
+
+            m_dorlingPainting = std::make_shared<DorlingPainting>(m_dorling, m_relPtr);
+            m_dorlingPainting->drawLabels(m_drawLabels->isChecked());
+            m_renderer->addPainting(m_dorlingPainting, "Dorling Cartogram");
+
+            m_rectangularDual = nullptr;
         } else if (m_cartogramType == CHOROPLETH_MAP) {
             m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
             m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
@@ -725,7 +810,7 @@ void RectangularCartogramDemo::addGeneralTab() {
         relDrawingOptions.drawLabels = true;
         relDrawingOptions.drawREL = m_showREL->isChecked();
 
-        m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_choroplethMap);
+        m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_dorling, m_choroplethMap);
 
         m_renderer->addPainting(m_relPainting, "REL");
 
@@ -973,6 +1058,103 @@ void RectangularCartogramDemo::addGeneralTab() {
         if (!m_bboxDragging) return;
         m_bboxDragging = false;
     });
+}
+
+void RectangularCartogramDemo::addDorlingTab() {
+    auto* dorlingSettings = new QWidget();
+    m_tabs->addTab(dorlingSettings, "Dorling");
+    auto* vLayout = new QVBoxLayout(dorlingSettings);
+    vLayout->setAlignment(Qt::AlignTop);
+
+    auto iterationsLabel = new QLabel("Force iterations");
+    vLayout->addWidget(iterationsLabel);
+    m_dorlingForceIterSpinBox = new QSpinBox();
+    m_dorlingForceIterSpinBox->setSuffix(" iters");
+    m_dorlingForceIterSpinBox->setMinimum(0);
+    m_dorlingForceIterSpinBox->setMaximum(5000);
+    m_dorlingForceIterSpinBox->setValue(500);
+    vLayout->addWidget(m_dorlingForceIterSpinBox);
+
+    auto areaFractionLabel = new QLabel("Area fraction");
+    vLayout->addWidget(areaFractionLabel);
+    m_dorlingAreaFractionSpinBox = new QDoubleSpinBox();
+    m_dorlingAreaFractionSpinBox->setMinimum(0.0);
+    m_dorlingAreaFractionSpinBox->setMaximum(1.0);
+    m_dorlingAreaFractionSpinBox->setDecimals(3);
+    m_dorlingAreaFractionSpinBox->setSingleStep(0.05);
+    m_dorlingAreaFractionSpinBox->setValue(0.5);
+    vLayout->addWidget(m_dorlingAreaFractionSpinBox);
+
+    auto adjacencyForceLabel = new QLabel("Adjacency force");
+    vLayout->addWidget(adjacencyForceLabel);
+    m_dorlingAdjacencyForceSpinBox = new QDoubleSpinBox();
+    m_dorlingAdjacencyForceSpinBox->setMinimum(0.0);
+    m_dorlingAdjacencyForceSpinBox->setMaximum(10.0);
+    m_dorlingAdjacencyForceSpinBox->setDecimals(4);
+    m_dorlingAdjacencyForceSpinBox->setSingleStep(0.005);
+    m_dorlingAdjacencyForceSpinBox->setValue(0.004);
+    vLayout->addWidget(m_dorlingAdjacencyForceSpinBox);
+
+    auto overlapForceLabel = new QLabel("Overlap force");
+    vLayout->addWidget(overlapForceLabel);
+    m_dorlingOverlapForceSpinBox = new QDoubleSpinBox();
+    m_dorlingOverlapForceSpinBox->setMinimum(0.0);
+    m_dorlingOverlapForceSpinBox->setMaximum(10.0);
+    m_dorlingOverlapForceSpinBox->setDecimals(4);
+    m_dorlingOverlapForceSpinBox->setSingleStep(0.4);
+    m_dorlingOverlapForceSpinBox->setValue(1.15);
+    vLayout->addWidget(m_dorlingOverlapForceSpinBox);
+
+    auto anchorForceLabel = new QLabel("Anchor force");
+    vLayout->addWidget(anchorForceLabel);
+    m_dorlingAnchorForceSpinBox = new QDoubleSpinBox();
+    m_dorlingAnchorForceSpinBox->setMinimum(0.0);
+    m_dorlingAnchorForceSpinBox->setMaximum(10.0);
+    m_dorlingAnchorForceSpinBox->setDecimals(4);
+    m_dorlingAnchorForceSpinBox->setSingleStep(0.005);
+    m_dorlingAnchorForceSpinBox->setValue(0);
+    vLayout->addWidget(m_dorlingAnchorForceSpinBox);
+
+    auto adjacencyPaddingLabel = new QLabel("Adjacency padding");
+    vLayout->addWidget(adjacencyPaddingLabel);
+    m_dorlingAdjacencyPaddingSpinBox = new QDoubleSpinBox();
+    m_dorlingAdjacencyPaddingSpinBox->setMinimum(0.0);
+    m_dorlingAdjacencyPaddingSpinBox->setMaximum(100.0);
+    m_dorlingAdjacencyPaddingSpinBox->setDecimals(3);
+    m_dorlingAdjacencyPaddingSpinBox->setSingleStep(0.5);
+    m_dorlingAdjacencyPaddingSpinBox->setValue(0.01);
+    vLayout->addWidget(m_dorlingAdjacencyPaddingSpinBox);
+
+    auto boundaryPaddingLabel = new QLabel("Boundary padding");
+    vLayout->addWidget(boundaryPaddingLabel);
+    m_dorlingBoundaryPaddingSpinBox = new QDoubleSpinBox();
+    m_dorlingBoundaryPaddingSpinBox->setMinimum(0.0);
+    m_dorlingBoundaryPaddingSpinBox->setMaximum(10.0);
+    m_dorlingBoundaryPaddingSpinBox->setDecimals(6);
+    m_dorlingBoundaryPaddingSpinBox->setSingleStep(0.0001);
+    m_dorlingBoundaryPaddingSpinBox->setValue(0.000001);
+    vLayout->addWidget(m_dorlingBoundaryPaddingSpinBox);
+
+    auto updateDorling = [this]() {
+        if (!m_relPtr || !m_dorling) return;
+        applyDorlingSettings(*m_dorling,
+                             m_dorlingForceIterSpinBox,
+                             m_dorlingAreaFractionSpinBox,
+                             m_dorlingAdjacencyForceSpinBox,
+                             m_dorlingOverlapForceSpinBox,
+                             m_dorlingAnchorForceSpinBox,
+                             m_dorlingAdjacencyPaddingSpinBox,
+                             m_dorlingBoundaryPaddingSpinBox);
+        setCartogramFromREL();
+    };
+
+    connect(m_dorlingForceIterSpinBox, qOverload<int>(&QSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingAreaFractionSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingAdjacencyForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingOverlapForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingAnchorForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingAdjacencyPaddingSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingBoundaryPaddingSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
 }
 
 void RectangularCartogramDemo::addChoroplethTab() {
@@ -1302,6 +1484,7 @@ RectangularCartogramDemo::RectangularCartogramDemo() {
     dockWidget->setWidget(m_tabs);
 
     addGeneralTab();
+    addDorlingTab();
     addChoroplethTab();
     addVideoTab();
 }

@@ -17,15 +17,17 @@
 RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                          std::shared_ptr<RectangularDual> dual,
                          std::shared_ptr<DemersCartogram> demers,
+                         std::shared_ptr<DorlingCartogram> dorling,
                          std::shared_ptr<ChoroplethMap> choropleth)
-    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_choropleth(std::move(choropleth)), m_options() {}
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_dorling(std::move(dorling)), m_choropleth(std::move(choropleth)), m_options() {}
 
 RELPainting::RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                          std::shared_ptr<RectangularDual> dual,
                          std::shared_ptr<DemersCartogram> demers,
+                         std::shared_ptr<DorlingCartogram> dorling,
                          std::shared_ptr<ChoroplethMap> choropleth,
                          Options opts)
-    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_choropleth(std::move(choropleth)), m_options(std::move(opts)) {}
+    : m_rel(std::move(rel)), m_dual(std::move(dual)), m_demers(std::move(demers)), m_dorling(std::move(dorling)), m_choropleth(std::move(choropleth)), m_options(std::move(opts)) {}
 
 void RELPainting::setRegularEdgeLabeling(std::shared_ptr<RegularEdgeLabeling> rel) {
     m_rel = std::move(rel);
@@ -41,8 +43,8 @@ void RELPainting::paint(Renderer &renderer) const {
     if (nRegions == 0) return;
 
     // ---------- positions: ALWAYS use RectangularDual (user requested) ----------
-    if (!m_dual && !m_demers && !m_choropleth) {
-        std::cerr << "RELPainting::paint: expected RectangularDual, DemersCartogram or ChoroplethMap but m_dual, m_demers and m_choroplath are null\n";
+    if (!m_dual && !m_demers && !m_dorling && !m_choropleth) {
+        std::cerr << "RELPainting::paint: expected RectangularDual, DemersCartogram, DorlingCartogram or ChoroplethMap but all are null\n";
         return;
     }
     // if (m_dual->rectangles().size() != nRegions) {
@@ -74,9 +76,13 @@ void RELPainting::paint(Renderer &renderer) const {
     else if (m_demers) {
         for (size_t i = 0; i < nRegions - 4; ++i) {
             const auto &center = m_demers->getDemersPosition(static_cast<unsigned int>(i)).center;
-            //const double cx = center.x();// = 0.5 * (r.left + r.right);
-            //const double cy = 0.5 * (r.bottom + r.top);
             pos[i+4] = { center.x(), center.y() };
+        }
+    }
+    else if (m_dorling) {
+        for (size_t i = 0; i < m_dorling->positions().size(); ++i) {
+            const auto &center = m_dorling->getPosition(static_cast<unsigned int>(i)).center;
+            pos[i + 4] = { center.x(), center.y() };
         }
     }
     else if (m_choropleth) {

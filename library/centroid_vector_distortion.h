@@ -8,6 +8,7 @@
 #include <cartocrow/core/core.h>
 
 #include "demers.h"
+#include "dorling.h"
 #include "rectangular_dual.h"
 #include "regular_edge_labeling.h"
 
@@ -22,6 +23,7 @@ std::vector<GeographicAdjacency> geographicAdjacenciesFromREL(const RegularEdgeL
 RegionCentroidMap regionCentroids(const cartocrow::RegionMap &regionMap);
 RegionCentroidMap rectangularRegionCentroids(const RectangularDual &dual, const RegularEdgeLabeling &rel);
 RegionCentroidMap demersRegionCentroids(const DemersCartogram &cartogram);
+RegionCentroidMap dorlingRegionCentroids(const DorlingCartogram &cartogram);
 
 struct LocalDistortionMetrics {
     double deformK = std::numeric_limits<double>::quiet_NaN();

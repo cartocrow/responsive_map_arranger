@@ -5,6 +5,7 @@ set(SOURCES
 		regular_edge_labeling.cpp
         rel_painting.cpp
         demers.cpp
+        dorling.cpp
 		layout_guide.cpp
 		layout_arranger.cpp
 		choropleth_map.cpp
@@ -15,8 +16,9 @@ set(HEADERS
 		rectangular_cartogram_painting.h
 		rectangular_dual.h
 		regular_edge_labeling.h
-		rel_painting.h
+        rel_painting.h
         demers.h
+        dorling.h
 		layout_guide.h
 		layout_arranger.h
 		choropleth_map.h

@@ -14,6 +14,7 @@
 
 #include "choropleth_map.h"
 #include "demers.h"
+#include "dorling.h"
 
 using Inexact = CGAL::Exact_predicates_inexact_constructions_kernel;
 using PointI  = cartocrow::Point<Inexact>;
@@ -45,11 +46,13 @@ public:
     RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                 std::shared_ptr<RectangularDual> dual = nullptr,
                 std::shared_ptr<DemersCartogram> demers = nullptr,
+                std::shared_ptr<DorlingCartogram> dorling = nullptr,
                 std::shared_ptr<ChoroplethMap> choropleth = nullptr);
 
     RELPainting(std::shared_ptr<RegularEdgeLabeling> rel,
                 std::shared_ptr<RectangularDual> dual,
                 std::shared_ptr<DemersCartogram> demers,
+                std::shared_ptr<DorlingCartogram> dorling,
                 std::shared_ptr<ChoroplethMap> choropleth,
                 Options opts);
 
@@ -75,6 +78,7 @@ private:
     std::shared_ptr<RegularEdgeLabeling> m_rel;
     std::shared_ptr<RectangularDual> m_dual;
     std::shared_ptr<DemersCartogram> m_demers;
+    std::shared_ptr<DorlingCartogram> m_dorling;
     std::shared_ptr<ChoroplethMap> m_choropleth;
     Options m_options;
 
