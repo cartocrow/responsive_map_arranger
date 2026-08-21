@@ -1072,7 +1072,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingForceIterSpinBox->setSuffix(" iters");
     m_dorlingForceIterSpinBox->setMinimum(0);
     m_dorlingForceIterSpinBox->setMaximum(5000);
-    m_dorlingForceIterSpinBox->setValue(500);
+    m_dorlingForceIterSpinBox->setValue(600);
     vLayout->addWidget(m_dorlingForceIterSpinBox);
 
     auto areaFractionLabel = new QLabel("Area fraction");
@@ -1091,7 +1091,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingAdjacencyForceSpinBox->setMinimum(0.0);
     m_dorlingAdjacencyForceSpinBox->setMaximum(10.0);
     m_dorlingAdjacencyForceSpinBox->setDecimals(4);
-    m_dorlingAdjacencyForceSpinBox->setSingleStep(0.005);
+    m_dorlingAdjacencyForceSpinBox->setSingleStep(0.015);
     m_dorlingAdjacencyForceSpinBox->setValue(0.004);
     vLayout->addWidget(m_dorlingAdjacencyForceSpinBox);
 
@@ -1102,7 +1102,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingOverlapForceSpinBox->setMaximum(10.0);
     m_dorlingOverlapForceSpinBox->setDecimals(4);
     m_dorlingOverlapForceSpinBox->setSingleStep(0.4);
-    m_dorlingOverlapForceSpinBox->setValue(1.15);
+    m_dorlingOverlapForceSpinBox->setValue(2);
     vLayout->addWidget(m_dorlingOverlapForceSpinBox);
 
     auto anchorForceLabel = new QLabel("Anchor force");

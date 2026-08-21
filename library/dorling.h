@@ -33,6 +33,7 @@ public:
     int forceIterationCount = 250;
     double targetAreaFraction = 0.67;
     double adjacencyForce = 0.08;
+    double maxAdjacencyForce = 2.0;
     double overlapForce = 0.35;
     double anchorForce = 0.015;
     double adjacencyPadding = 6.0;
@@ -46,6 +47,36 @@ public:
 
 private:
     using Rect = cartocrow::Rectangle<cartocrow::Inexact>;
+
+    struct NodeState {
+        int vertexIndex = -1;
+        double x = 0.0;
+        double y = 0.0;
+        double anchorX = 0.0;
+        double anchorY = 0.0;
+        double radius = 0.0;
+    };
+
+    double baseRadiusOf(const Vertex &vertex) const;
+    void normalizedDirection(const NodeState &from, const NodeState &to, double &dx, double &dy, double &distance) const;
+    void applyAdjacencyForces(const std::vector<std::pair<int, int>> &adjacencyPairs,
+                              const std::vector<NodeState> &nodes,
+                              std::vector<double> &deltaX,
+                              std::vector<double> &deltaY) const;
+    void applyOverlapForces(const std::vector<NodeState> &nodes,
+                            std::vector<double> &deltaX,
+                            std::vector<double> &deltaY) const;
+    void applyAnchorForces(const std::vector<NodeState> &nodes,
+                           std::vector<double> &deltaX,
+                           std::vector<double> &deltaY) const;
+    double averageRadius(const std::vector<NodeState> &nodes) const;
+    double iterationStepScale(int iteration) const;
+    void applyForcesAndClamp(std::vector<NodeState> &nodes,
+                             const std::vector<double> &deltaX,
+                             const std::vector<double> &deltaY,
+                             const BoundingBox &bb,
+                             double maxStep,
+                             double stepScale) const;
 
     Rect m_box;
     std::vector<DorlingPosition> m_positions;

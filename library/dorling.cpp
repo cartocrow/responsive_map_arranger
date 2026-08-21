@@ -12,21 +12,18 @@ using Inexact = cartocrow::Inexact;
 
 constexpr double kPi = 3.14159265358979323846;
 
-struct NodeState {
-    int vertexIndex = -1;
-    double x = 0.0;
-    double y = 0.0;
-    double anchorX = 0.0;
-    double anchorY = 0.0;
-    double radius = 0.0;
-};
+}
 
-double baseRadiusOf(const Vertex &vertex) {
+double DorlingCartogram::baseRadiusOf(const Vertex &vertex) const {
     if (!vertex.isLandRegion || vertex.weight <= 0.0) return 0.0;
     return std::sqrt(vertex.weight / kPi);
 }
 
-void normalizedDirection(const NodeState &from, const NodeState &to, double &dx, double &dy, double &distance) {
+void DorlingCartogram::normalizedDirection(const NodeState &from,
+                                           const NodeState &to,
+                                           double &dx,
+                                           double &dy,
+                                           double &distance) const {
     dx = to.x - from.x;
     dy = to.y - from.y;
     distance = std::hypot(dx, dy);
@@ -37,12 +34,10 @@ void normalizedDirection(const NodeState &from, const NodeState &to, double &dx,
     }
 }
 
-void applyAdjacencyForces(const std::vector<std::pair<int, int>> &adjacencyPairs,
-                          const std::vector<NodeState> &nodes,
-                          std::vector<double> &deltaX,
-                          std::vector<double> &deltaY,
-                          const double adjacencyPadding,
-                          const double adjacencyForce) {
+void DorlingCartogram::applyAdjacencyForces(const std::vector<std::pair<int, int>> &adjacencyPairs,
+                                            const std::vector<NodeState> &nodes,
+                                            std::vector<double> &deltaX,
+                                            std::vector<double> &deltaY) const {
     for (const auto &[a, b] : adjacencyPairs) {
         const auto &first = nodes[a];
         const auto &second = nodes[b];
@@ -53,7 +48,7 @@ void applyAdjacencyForces(const std::vector<std::pair<int, int>> &adjacencyPairs
         const double targetDistance = first.radius + second.radius + adjacencyPadding;
         if (distance <= targetDistance) continue;
 
-        const double force = adjacencyForce * (distance - targetDistance);
+        const double force = std::min(adjacencyForce * (distance - targetDistance), maxAdjacencyForce);
         const double ux = dx / distance;
         const double uy = dy / distance;
 
@@ -64,10 +59,9 @@ void applyAdjacencyForces(const std::vector<std::pair<int, int>> &adjacencyPairs
     }
 }
 
-void applyOverlapForces(const std::vector<NodeState> &nodes,
-                        std::vector<double> &deltaX,
-                        std::vector<double> &deltaY,
-                        const double overlapForce) {
+void DorlingCartogram::applyOverlapForces(const std::vector<NodeState> &nodes,
+                                          std::vector<double> &deltaX,
+                                          std::vector<double> &deltaY) const {
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         for (std::size_t j = i + 1; j < nodes.size(); ++j) {
             const auto &first = nodes[i];
@@ -92,10 +86,9 @@ void applyOverlapForces(const std::vector<NodeState> &nodes,
     }
 }
 
-void applyAnchorForces(const std::vector<NodeState> &nodes,
-                       std::vector<double> &deltaX,
-                       std::vector<double> &deltaY,
-                       const double anchorForce) {
+void DorlingCartogram::applyAnchorForces(const std::vector<NodeState> &nodes,
+                                         std::vector<double> &deltaX,
+                                         std::vector<double> &deltaY) const {
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         const auto &node = nodes[i];
         deltaX[i] += (node.anchorX - node.x) * anchorForce;
@@ -103,7 +96,7 @@ void applyAnchorForces(const std::vector<NodeState> &nodes,
     }
 }
 
-double averageRadius(const std::vector<NodeState> &nodes) {
+double DorlingCartogram::averageRadius(const std::vector<NodeState> &nodes) const {
     if (nodes.empty()) return 0.0;
 
     double radiusSum = 0.0;
@@ -113,23 +106,19 @@ double averageRadius(const std::vector<NodeState> &nodes) {
     return radiusSum / static_cast<double>(nodes.size());
 }
 
-double iterationStepScale(const int iteration,
-                          const int forceIterationCount,
-                          const double initialStepScale,
-                          const double minimumStepScale) {
+double DorlingCartogram::iterationStepScale(const int iteration) const {
     if (forceIterationCount <= 1) return minimumStepScale;
 
     const double t = static_cast<double>(iteration) / static_cast<double>(forceIterationCount - 1);
     return initialStepScale + (minimumStepScale - initialStepScale) * t;
 }
 
-void applyForcesAndClamp(std::vector<NodeState> &nodes,
-                         const std::vector<double> &deltaX,
-                         const std::vector<double> &deltaY,
-                         const BoundingBox &bb,
-                         const double boundaryPadding,
-                         const double maxStep,
-                         const double stepScale) {
+void DorlingCartogram::applyForcesAndClamp(std::vector<NodeState> &nodes,
+                                           const std::vector<double> &deltaX,
+                                           const std::vector<double> &deltaY,
+                                           const BoundingBox &bb,
+                                           const double maxStep,
+                                           const double stepScale) const {
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         auto &node = nodes[i];
         double stepX = deltaX[i] * stepScale;
@@ -147,8 +136,6 @@ void applyForcesAndClamp(std::vector<NodeState> &nodes,
         node.x = std::clamp(node.x, bb.left + node.radius + boundaryPadding, bb.right - node.radius - boundaryPadding);
         node.y = std::clamp(node.y, bb.bottom + node.radius + boundaryPadding, bb.top - node.radius - boundaryPadding);
     }
-}
-
 }
 
 void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
@@ -239,12 +226,11 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
         std::fill(deltaX.begin(), deltaX.end(), 0.0);
         std::fill(deltaY.begin(), deltaY.end(), 0.0);
 
-        applyAdjacencyForces(adjacencyPairs, nodes, deltaX, deltaY, adjacencyPadding, adjacencyForce);
-        applyOverlapForces(nodes, deltaX, deltaY, overlapForce);
-        applyAnchorForces(nodes, deltaX, deltaY, anchorForce);
-        const double stepScale =
-            iterationStepScale(iteration, forceIterationCount, initialStepScale, minimumStepScale);
-        applyForcesAndClamp(nodes, deltaX, deltaY, bb, boundaryPadding, maxStep, stepScale);
+        applyAdjacencyForces(adjacencyPairs, nodes, deltaX, deltaY);
+        applyOverlapForces(nodes, deltaX, deltaY);
+        applyAnchorForces(nodes, deltaX, deltaY);
+        const double stepScale = iterationStepScale(iteration);
+        applyForcesAndClamp(nodes, deltaX, deltaY, bb, maxStep, stepScale);
     }
 
     m_positions.reserve(nodes.size());
