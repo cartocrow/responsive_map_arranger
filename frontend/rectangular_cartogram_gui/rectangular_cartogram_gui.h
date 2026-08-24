@@ -101,6 +101,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QSpinBox* m_dorlingForceIterSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingAreaFractionSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingAdjacencyForceSpinBox = nullptr;
+    QDoubleSpinBox* m_dorlingRELDirectionalForceSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingOverlapForceSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingAnchorForceSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingAdjacencyPaddingSpinBox = nullptr;

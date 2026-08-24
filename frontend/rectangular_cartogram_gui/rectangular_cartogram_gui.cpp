@@ -90,12 +90,13 @@ void applyDorlingSettings(DorlingCartogram &cartogram,
                           const QSpinBox *separationIterationsSpinBox,
                           const QDoubleSpinBox *areaFractionSpinBox,
                           const QDoubleSpinBox *adjacencyForceSpinBox,
+                          const QDoubleSpinBox *relDirectionalForceSpinBox,
                           const QDoubleSpinBox *overlapForceSpinBox,
                           const QDoubleSpinBox *anchorForceSpinBox,
                           const QDoubleSpinBox *adjacencyPaddingSpinBox,
                           const QDoubleSpinBox *boundaryPaddingSpinBox,
                           const QCheckBox *useMapCentroidInitializationCheckBox) {
-    if (!forceIterSpinBox || !separationIterationsSpinBox || !areaFractionSpinBox || !adjacencyForceSpinBox || !overlapForceSpinBox ||
+    if (!forceIterSpinBox || !separationIterationsSpinBox || !areaFractionSpinBox || !adjacencyForceSpinBox || !relDirectionalForceSpinBox || !overlapForceSpinBox ||
         !anchorForceSpinBox || !adjacencyPaddingSpinBox || !boundaryPaddingSpinBox ||
         !useMapCentroidInitializationCheckBox) {
         return;
@@ -105,6 +106,7 @@ void applyDorlingSettings(DorlingCartogram &cartogram,
     cartogram.separationIterationsPerAttraction = separationIterationsSpinBox->value();
     cartogram.targetAreaFraction = areaFractionSpinBox->value();
     cartogram.adjacencyForce = adjacencyForceSpinBox->value();
+    cartogram.relDirectionalForce = relDirectionalForceSpinBox->value();
     cartogram.overlapForce = overlapForceSpinBox->value();
     cartogram.anchorForce = anchorForceSpinBox->value();
     cartogram.adjacencyPadding = adjacencyPaddingSpinBox->value();
@@ -347,6 +349,7 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
                                      m_dorlingSeparationIterationsSpinBox,
                                      m_dorlingAreaFractionSpinBox,
                                      m_dorlingAdjacencyForceSpinBox,
+                                     m_dorlingRELDirectionalForceSpinBox,
                                      m_dorlingOverlapForceSpinBox,
                                      m_dorlingAnchorForceSpinBox,
                                      m_dorlingAdjacencyPaddingSpinBox,
@@ -441,6 +444,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
                              m_dorlingSeparationIterationsSpinBox,
                              m_dorlingAreaFractionSpinBox,
                              m_dorlingAdjacencyForceSpinBox,
+                             m_dorlingRELDirectionalForceSpinBox,
                              m_dorlingOverlapForceSpinBox,
                              m_dorlingAnchorForceSpinBox,
                              m_dorlingAdjacencyPaddingSpinBox,
@@ -566,6 +570,7 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
                              m_dorlingSeparationIterationsSpinBox,
                              m_dorlingAreaFractionSpinBox,
                              m_dorlingAdjacencyForceSpinBox,
+                             m_dorlingRELDirectionalForceSpinBox,
                              m_dorlingOverlapForceSpinBox,
                              m_dorlingAnchorForceSpinBox,
                              m_dorlingAdjacencyPaddingSpinBox,
@@ -823,6 +828,7 @@ void RectangularCartogramDemo::addGeneralTab() {
                                  m_dorlingSeparationIterationsSpinBox,
                                  m_dorlingAreaFractionSpinBox,
                                  m_dorlingAdjacencyForceSpinBox,
+                                 m_dorlingRELDirectionalForceSpinBox,
                                  m_dorlingOverlapForceSpinBox,
                                  m_dorlingAnchorForceSpinBox,
                                  m_dorlingAdjacencyPaddingSpinBox,
@@ -1155,6 +1161,16 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingAdjacencyForceSpinBox->setValue(0.004);
     vLayout->addWidget(m_dorlingAdjacencyForceSpinBox);
 
+    auto relDirectionalForceLabel = new QLabel("REL direction force");
+    vLayout->addWidget(relDirectionalForceLabel);
+    m_dorlingRELDirectionalForceSpinBox = new QDoubleSpinBox();
+    m_dorlingRELDirectionalForceSpinBox->setMinimum(0.0);
+    m_dorlingRELDirectionalForceSpinBox->setMaximum(10.0);
+    m_dorlingRELDirectionalForceSpinBox->setDecimals(4);
+    m_dorlingRELDirectionalForceSpinBox->setSingleStep(0.01);
+    m_dorlingRELDirectionalForceSpinBox->setValue(0.08);
+    vLayout->addWidget(m_dorlingRELDirectionalForceSpinBox);
+
     auto overlapForceLabel = new QLabel("Overlap force");
     vLayout->addWidget(overlapForceLabel);
     m_dorlingOverlapForceSpinBox = new QDoubleSpinBox();
@@ -1207,6 +1223,7 @@ void RectangularCartogramDemo::addDorlingTab() {
                              m_dorlingSeparationIterationsSpinBox,
                              m_dorlingAreaFractionSpinBox,
                              m_dorlingAdjacencyForceSpinBox,
+                             m_dorlingRELDirectionalForceSpinBox,
                              m_dorlingOverlapForceSpinBox,
                              m_dorlingAnchorForceSpinBox,
                              m_dorlingAdjacencyPaddingSpinBox,
@@ -1219,6 +1236,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     connect(m_dorlingSeparationIterationsSpinBox, qOverload<int>(&QSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingAreaFractionSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingAdjacencyForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingRELDirectionalForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingOverlapForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingAnchorForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingAdjacencyPaddingSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });

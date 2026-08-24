@@ -42,6 +42,7 @@ public:
     double maxAdjacencyForce = 2.0;
     double overlapForce = 0.35;
     double anchorForce = 0.015;
+    double relDirectionalForce = 0.08;
     double adjacencyPadding = 6.0;
     double boundaryPadding = 1e-6;
     double maxStepRadiusFraction = 0.35;
@@ -71,6 +72,11 @@ private:
                               const std::vector<NodeState> &nodes,
                               std::vector<double> &deltaX,
                               std::vector<double> &deltaY) const;
+    void applyRELDirectionalForces(const RegularEdgeLabeling &rel,
+                                   const std::vector<int> &vertexToNode,
+                                   const std::vector<NodeState> &nodes,
+                                   std::vector<double> &deltaX,
+                                   std::vector<double> &deltaY) const;
     void applyOverlapForces(const std::vector<NodeState> &nodes,
                             std::vector<double> &deltaX,
                             std::vector<double> &deltaY) const;

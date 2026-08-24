@@ -77,6 +77,45 @@ void DorlingCartogram::applyAdjacencyForces(const std::vector<std::pair<int, int
     }
 }
 
+void DorlingCartogram::applyRELDirectionalForces(const RegularEdgeLabeling &rel,
+                                                 const std::vector<int> &vertexToNode,
+                                                 const std::vector<NodeState> &nodes,
+                                                 std::vector<double> &deltaX,
+                                                 std::vector<double> &deltaY) const {
+    if (!rel.adaptiveLayoutEnabled() || relDirectionalForce <= 0.0) return;
+
+    const auto &halfEdges = rel.getHalfEdges();
+    const auto &vertices = rel.getVertices();
+
+    for (std::size_t halfEdgeIndex = 0; halfEdgeIndex < halfEdges.size(); ++halfEdgeIndex) {
+        const auto &halfEdge = halfEdges[halfEdgeIndex];
+        if (halfEdge.isDeleted || !halfEdge.outgoing || halfEdge.color == BLACK) continue;
+
+        const int source = halfEdge.vertex;
+        const int target = rel.neighborOfHalfEdge(static_cast<int>(halfEdgeIndex));
+        if (!rel.isValidVertex(source) || !rel.isValidVertex(target)) continue;
+        if (!rel.isInnerVertex(source) || !rel.isInnerVertex(target)) continue;
+        if (!vertices[source].isLandRegion || !vertices[target].isLandRegion) continue;
+
+        const int sourceNode = vertexToNode[source];
+        const int targetNode = vertexToNode[target];
+        if (sourceNode < 0 || targetNode < 0 || sourceNode == targetNode) continue;
+
+        const auto &sourceState = nodes[sourceNode];
+        const auto &targetState = nodes[targetNode];
+
+        if (halfEdge.color == BLUE) {
+            if (targetState.x - targetState.radius > sourceState.x + sourceState.radius) continue;
+            deltaX[sourceNode] -= relDirectionalForce;
+            deltaX[targetNode] += relDirectionalForce;
+        } else if (halfEdge.color == RED) {
+            if (targetState.y - targetState.radius > sourceState.y + sourceState.radius) continue;
+            deltaY[sourceNode] -= relDirectionalForce;
+            deltaY[targetNode] += relDirectionalForce;
+        }
+    }
+}
+
 void DorlingCartogram::applyOverlapForces(const std::vector<NodeState> &nodes,
                                           std::vector<double> &deltaX,
                                           std::vector<double> &deltaY) const {
@@ -276,6 +315,7 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
         std::fill(deltaY.begin(), deltaY.end(), 0.0);
 
         applyAdjacencyForces(adjacencyPairs, nodes, deltaX, deltaY);
+        applyRELDirectionalForces(rel, vertexToNode, nodes, deltaX, deltaY);
         applyOverlapForces(nodes, deltaX, deltaY);
         applyAnchorForces(nodes, deltaX, deltaY);
         applyForcesAndClamp(nodes, deltaX, deltaY, bb, maxStep, stepScale);
