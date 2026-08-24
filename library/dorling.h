@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <cartocrow/core/core.h>
@@ -26,9 +27,14 @@ struct DorlingPosition {
 
 class DorlingCartogram {
 public:
+    using Pt = cartocrow::Point<cartocrow::Inexact>;
+
     DorlingCartogram() = default;
 
     void setFromREL(RegularEdgeLabeling &rel);
+    void setInitializationFromMapCentroids(bool enable) { initializationFromMapCentroids = enable; }
+    void setSourceMapCentroids(const std::unordered_map<std::string, Pt> &centroids,
+                               const BoundingBox &boundingBox);
 
     int forceIterationCount = 250;
     double targetAreaFraction = 0.67;
@@ -41,6 +47,7 @@ public:
     double maxStepRadiusFraction = 0.35;
     double initialStepScale = 1.0;
     double minimumStepScale = 0.2;
+    bool initializationFromMapCentroids = true;
 
     const DorlingPosition &getPosition(int index) const { return m_positions.at(index); }
     const std::vector<DorlingPosition> &positions() const { return m_positions; }
@@ -80,6 +87,9 @@ private:
 
     Rect m_box;
     std::vector<DorlingPosition> m_positions;
+    std::unordered_map<std::string, Pt> m_sourceMapCentroids;
+    BoundingBox m_sourceMapBoundingBox{};
+    bool m_hasSourceMapBoundingBox = false;
 
     friend class DorlingPainting;
 };

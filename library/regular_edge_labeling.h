@@ -113,6 +113,7 @@ public:
     void setValuesFromRegionMap(const cartocrow::RegionMap& map);
     void setMergeHeuristic(const MergeHeuristic merge_heuristic) { m_mergeHeuristic = merge_heuristic; }
     void enableAdaptiveLayout(bool enable) { m_adaptiveLayoutEnabled = enable; };
+    bool adaptiveLayoutEnabled() const { return m_adaptiveLayoutEnabled; }
     void setThreshHoldRelaxation(double slack) { m_threshHoldRelaxation = slack; };
 
     bool isValidREL(bool debugging = false) const;

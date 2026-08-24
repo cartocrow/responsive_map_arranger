@@ -9,9 +9,27 @@
 namespace {
 
 using Inexact = cartocrow::Inexact;
+using Pt = cartocrow::Point<Inexact>;
 
 constexpr double kPi = 3.14159265358979323846;
 
+bool hasPositiveExtent(const BoundingBox &bb) {
+    return bb.width() > 0.0 && bb.height() > 0.0;
+}
+
+Pt stretchPointToBoundingBox(const Pt &point, const BoundingBox &from, const BoundingBox &to) {
+    const double xRatio = (point.x() - from.left) / from.width();
+    const double yRatio = (point.y() - from.bottom) / from.height();
+    return Pt(to.left + xRatio * to.width(), to.bottom + yRatio * to.height());
+}
+
+}
+
+void DorlingCartogram::setSourceMapCentroids(const std::unordered_map<std::string, Pt> &centroids,
+                                             const BoundingBox &boundingBox) {
+    m_sourceMapCentroids = centroids;
+    m_sourceMapBoundingBox = boundingBox;
+    m_hasSourceMapBoundingBox = hasPositiveExtent(boundingBox);
 }
 
 double DorlingCartogram::baseRadiusOf(const Vertex &vertex) const {
@@ -148,10 +166,19 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
     const auto &vertices = rel.getVertices();
     if (vertices.size() <= 4) return;
 
-    // Seed the circles at the centers of the rectangles of the rectangular cartogram.
-    auto relPtr = std::shared_ptr<RegularEdgeLabeling>(&rel, [](RegularEdgeLabeling *) {});
-    RectangularDual dual(relPtr);
-    dual.setFromREL();
+    const bool useMapCentroids =
+        initializationFromMapCentroids &&
+        !rel.adaptiveLayoutEnabled() &&
+        m_hasSourceMapBoundingBox &&
+        !m_sourceMapCentroids.empty();
+
+    std::shared_ptr<RegularEdgeLabeling> relPtr;
+    std::unique_ptr<RectangularDual> dual;
+    if (!useMapCentroids) {
+        relPtr = std::shared_ptr<RegularEdgeLabeling>(&rel, [](RegularEdgeLabeling *) {});
+        dual = std::make_unique<RectangularDual>(relPtr);
+        dual->setFromREL();
+    }
 
     std::vector<NodeState> nodes;
     std::vector<int> vertexToNode(vertices.size(), -1);
@@ -161,8 +188,19 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
     for (std::size_t i = 4; i < vertices.size(); ++i) {
         if (!rel.isValidVertex(static_cast<int>(i))) continue;
 
-        const auto &rect = dual.getRect(static_cast<std::uint32_t>(i));
-        const auto center = rect.center();
+        Pt center;
+        bool hasCenter = false;
+        if (useMapCentroids) {
+            const auto centroidIt = m_sourceMapCentroids.find(vertices[i].label);
+            if (centroidIt != m_sourceMapCentroids.end()) {
+                center = stretchPointToBoundingBox(centroidIt->second, m_sourceMapBoundingBox, bb);
+                hasCenter = true;
+            }
+        }
+        if (!hasCenter) {
+            const auto &rect = dual->getRect(static_cast<std::uint32_t>(i));
+            center = rect.center();
+        }
 
         NodeState node;
         node.vertexIndex = static_cast<int>(i);

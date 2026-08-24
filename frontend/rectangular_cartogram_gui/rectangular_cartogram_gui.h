@@ -47,6 +47,7 @@ class RectangularCartogramDemo : public QMainWindow {
     json m_weightData;
     RegionMap m_regionMap;
     RegionCentroidMap m_regionCentroids;
+    BoundingBox m_regionMapBoundingBox;
     RegularEdgeLabeling m_rel;
     std::shared_ptr<RegularEdgeLabeling> m_relPtr;
     std::shared_ptr<LayoutGuide> m_layoutGuide;
@@ -104,6 +105,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QDoubleSpinBox* m_dorlingAnchorForceSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingAdjacencyPaddingSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingBoundaryPaddingSpinBox = nullptr;
+    QCheckBox* m_dorlingUseMapCentroidInitializationCheckBox = nullptr;
 
     //video
     QDoubleSpinBox* m_cycleDuration = nullptr;

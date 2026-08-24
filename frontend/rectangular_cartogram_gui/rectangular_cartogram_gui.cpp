@@ -45,6 +45,31 @@ std::vector<SweepSample> sweepSamples() {
     };
 }
 
+BoundingBox regionMapBoundingBox(const RegionMap &regionMap) {
+    BoundingBox result{};
+    bool hasBounds = false;
+
+    for (const auto &[label, region] : regionMap) {
+        if (label.empty()) continue;
+        const auto bbox = boundingBox(region.shape);
+        if (!hasBounds) {
+            result.left = bbox.xmin();
+            result.right = bbox.xmax();
+            result.bottom = bbox.ymin();
+            result.top = bbox.ymax();
+            hasBounds = true;
+            continue;
+        }
+
+        result.left = std::min(result.left, bbox.xmin());
+        result.right = std::max(result.right, bbox.xmax());
+        result.bottom = std::min(result.bottom, bbox.ymin());
+        result.top = std::max(result.top, bbox.ymax());
+    }
+
+    return result;
+}
+
 std::shared_ptr<RegularEdgeLabeling> makeSweepREL(
     const std::shared_ptr<RegularEdgeLabeling> &sourceRel,
     bool adaptiveLayout,
@@ -67,9 +92,11 @@ void applyDorlingSettings(DorlingCartogram &cartogram,
                           const QDoubleSpinBox *overlapForceSpinBox,
                           const QDoubleSpinBox *anchorForceSpinBox,
                           const QDoubleSpinBox *adjacencyPaddingSpinBox,
-                          const QDoubleSpinBox *boundaryPaddingSpinBox) {
+                          const QDoubleSpinBox *boundaryPaddingSpinBox,
+                          const QCheckBox *useMapCentroidInitializationCheckBox) {
     if (!forceIterSpinBox || !areaFractionSpinBox || !adjacencyForceSpinBox || !overlapForceSpinBox ||
-        !anchorForceSpinBox || !adjacencyPaddingSpinBox || !boundaryPaddingSpinBox) {
+        !anchorForceSpinBox || !adjacencyPaddingSpinBox || !boundaryPaddingSpinBox ||
+        !useMapCentroidInitializationCheckBox) {
         return;
     }
 
@@ -80,6 +107,7 @@ void applyDorlingSettings(DorlingCartogram &cartogram,
     cartogram.anchorForce = anchorForceSpinBox->value();
     cartogram.adjacencyPadding = adjacencyPaddingSpinBox->value();
     cartogram.boundaryPadding = boundaryPaddingSpinBox->value();
+    cartogram.setInitializationFromMapCentroids(useMapCentroidInitializationCheckBox->isChecked());
 }
 
 }
@@ -312,6 +340,16 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
                 runCentroids = demersRegionCentroids(runDemers);
             } else {
                 DorlingCartogram runDorling;
+                applyDorlingSettings(runDorling,
+                                     m_dorlingForceIterSpinBox,
+                                     m_dorlingAreaFractionSpinBox,
+                                     m_dorlingAdjacencyForceSpinBox,
+                                     m_dorlingOverlapForceSpinBox,
+                                     m_dorlingAnchorForceSpinBox,
+                                     m_dorlingAdjacencyPaddingSpinBox,
+                                     m_dorlingBoundaryPaddingSpinBox,
+                                     m_dorlingUseMapCentroidInitializationCheckBox);
+                runDorling.setSourceMapCentroids(m_regionCentroids, m_regionMapBoundingBox);
                 runDorling.setFromREL(*runRel);
                 runCentroids = dorlingRegionCentroids(runDorling);
             }
@@ -402,7 +440,9 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
                              m_dorlingOverlapForceSpinBox,
                              m_dorlingAnchorForceSpinBox,
                              m_dorlingAdjacencyPaddingSpinBox,
-                             m_dorlingBoundaryPaddingSpinBox);
+                             m_dorlingBoundaryPaddingSpinBox,
+                             m_dorlingUseMapCentroidInitializationCheckBox);
+        m_dorling->setSourceMapCentroids(m_regionCentroids, m_regionMapBoundingBox);
         m_dorling->setFromREL(*m_relPtr);
 
         m_dorlingPainting = std::make_shared<DorlingPainting>(m_dorling, m_relPtr);
@@ -469,6 +509,7 @@ void RectangularCartogramDemo::loadMap(const std::filesystem::path &mapPath) {
 
     m_regionMap = ipeToRegionMap(mapPath);
     m_regionCentroids = regionCentroids(m_regionMap);
+    m_regionMapBoundingBox = regionMapBoundingBox(m_regionMap);
 
     if (m_relPtr) {
         m_relPtr->setValuesFromRegionMap(m_regionMap);
@@ -523,7 +564,9 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
                              m_dorlingOverlapForceSpinBox,
                              m_dorlingAnchorForceSpinBox,
                              m_dorlingAdjacencyPaddingSpinBox,
-                             m_dorlingBoundaryPaddingSpinBox);
+                             m_dorlingBoundaryPaddingSpinBox,
+                             m_dorlingUseMapCentroidInitializationCheckBox);
+        m_dorling->setSourceMapCentroids(m_regionCentroids, m_regionMapBoundingBox);
         m_dorling->setFromREL(*m_relPtr);
     } else if (m_choroplethMap && !m_regionMap.empty()) {
         m_choroplethMap->setFromRel();
@@ -777,7 +820,9 @@ void RectangularCartogramDemo::addGeneralTab() {
                                  m_dorlingOverlapForceSpinBox,
                                  m_dorlingAnchorForceSpinBox,
                                  m_dorlingAdjacencyPaddingSpinBox,
-                                 m_dorlingBoundaryPaddingSpinBox);
+                                 m_dorlingBoundaryPaddingSpinBox,
+                                 m_dorlingUseMapCentroidInitializationCheckBox);
+            m_dorling->setSourceMapCentroids(m_regionCentroids, m_regionMapBoundingBox);
             m_dorling->setFromREL(*m_relPtr);
 
             m_dorlingPainting = std::make_shared<DorlingPainting>(m_dorling, m_relPtr);
@@ -1135,6 +1180,11 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingBoundaryPaddingSpinBox->setValue(0.000001);
     vLayout->addWidget(m_dorlingBoundaryPaddingSpinBox);
 
+    m_dorlingUseMapCentroidInitializationCheckBox =
+        new QCheckBox("map centroids - non-adaptive");
+    m_dorlingUseMapCentroidInitializationCheckBox->setChecked(true);
+    vLayout->addWidget(m_dorlingUseMapCentroidInitializationCheckBox);
+
     auto updateDorling = [this]() {
         if (!m_relPtr || !m_dorling) return;
         applyDorlingSettings(*m_dorling,
@@ -1144,7 +1194,8 @@ void RectangularCartogramDemo::addDorlingTab() {
                              m_dorlingOverlapForceSpinBox,
                              m_dorlingAnchorForceSpinBox,
                              m_dorlingAdjacencyPaddingSpinBox,
-                             m_dorlingBoundaryPaddingSpinBox);
+                             m_dorlingBoundaryPaddingSpinBox,
+                             m_dorlingUseMapCentroidInitializationCheckBox);
         setCartogramFromREL();
     };
 
@@ -1155,6 +1206,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     connect(m_dorlingAnchorForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingAdjacencyPaddingSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingBoundaryPaddingSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingUseMapCentroidInitializationCheckBox, &QCheckBox::toggled, [updateDorling]() { updateDorling(); });
 }
 
 void RectangularCartogramDemo::addChoroplethTab() {
