@@ -105,6 +105,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QDoubleSpinBox* m_dorlingAnchorForceSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingAdjacencyPaddingSpinBox = nullptr;
     QDoubleSpinBox* m_dorlingBoundaryPaddingSpinBox = nullptr;
+    QSpinBox* m_dorlingSeparationIterationsSpinBox = nullptr;
     QCheckBox* m_dorlingUseMapCentroidInitializationCheckBox = nullptr;
 
     //video

@@ -260,14 +260,24 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
     std::vector<double> deltaX(nodes.size(), 0.0);
     std::vector<double> deltaY(nodes.size(), 0.0);
 
+    const int separationIterations = std::max(1, separationIterationsPerAttraction);
     for (int iteration = 0; iteration < forceIterationCount; ++iteration) {
+        const double stepScale = iterationStepScale(iteration);
+
+        for (int separationIteration = 0; separationIteration < separationIterations - 1; ++separationIteration) {
+            std::fill(deltaX.begin(), deltaX.end(), 0.0);
+            std::fill(deltaY.begin(), deltaY.end(), 0.0);
+
+            applyOverlapForces(nodes, deltaX, deltaY);
+            applyForcesAndClamp(nodes, deltaX, deltaY, bb, maxStep, stepScale);
+        }
+
         std::fill(deltaX.begin(), deltaX.end(), 0.0);
         std::fill(deltaY.begin(), deltaY.end(), 0.0);
 
         applyAdjacencyForces(adjacencyPairs, nodes, deltaX, deltaY);
         applyOverlapForces(nodes, deltaX, deltaY);
         applyAnchorForces(nodes, deltaX, deltaY);
-        const double stepScale = iterationStepScale(iteration);
         applyForcesAndClamp(nodes, deltaX, deltaY, bb, maxStep, stepScale);
     }
 

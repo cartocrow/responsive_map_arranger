@@ -47,6 +47,7 @@ public:
     double maxStepRadiusFraction = 0.35;
     double initialStepScale = 1.0;
     double minimumStepScale = 0.2;
+    int separationIterationsPerAttraction = 1;
     bool initializationFromMapCentroids = true;
 
     const DorlingPosition &getPosition(int index) const { return m_positions.at(index); }

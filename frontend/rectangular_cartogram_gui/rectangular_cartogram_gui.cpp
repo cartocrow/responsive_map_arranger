@@ -87,6 +87,7 @@ std::shared_ptr<RegularEdgeLabeling> makeSweepREL(
 
 void applyDorlingSettings(DorlingCartogram &cartogram,
                           const QSpinBox *forceIterSpinBox,
+                          const QSpinBox *separationIterationsSpinBox,
                           const QDoubleSpinBox *areaFractionSpinBox,
                           const QDoubleSpinBox *adjacencyForceSpinBox,
                           const QDoubleSpinBox *overlapForceSpinBox,
@@ -94,13 +95,14 @@ void applyDorlingSettings(DorlingCartogram &cartogram,
                           const QDoubleSpinBox *adjacencyPaddingSpinBox,
                           const QDoubleSpinBox *boundaryPaddingSpinBox,
                           const QCheckBox *useMapCentroidInitializationCheckBox) {
-    if (!forceIterSpinBox || !areaFractionSpinBox || !adjacencyForceSpinBox || !overlapForceSpinBox ||
+    if (!forceIterSpinBox || !separationIterationsSpinBox || !areaFractionSpinBox || !adjacencyForceSpinBox || !overlapForceSpinBox ||
         !anchorForceSpinBox || !adjacencyPaddingSpinBox || !boundaryPaddingSpinBox ||
         !useMapCentroidInitializationCheckBox) {
         return;
     }
 
     cartogram.forceIterationCount = forceIterSpinBox->value();
+    cartogram.separationIterationsPerAttraction = separationIterationsSpinBox->value();
     cartogram.targetAreaFraction = areaFractionSpinBox->value();
     cartogram.adjacencyForce = adjacencyForceSpinBox->value();
     cartogram.overlapForce = overlapForceSpinBox->value();
@@ -342,6 +344,7 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
                 DorlingCartogram runDorling;
                 applyDorlingSettings(runDorling,
                                      m_dorlingForceIterSpinBox,
+                                     m_dorlingSeparationIterationsSpinBox,
                                      m_dorlingAreaFractionSpinBox,
                                      m_dorlingAdjacencyForceSpinBox,
                                      m_dorlingOverlapForceSpinBox,
@@ -435,6 +438,7 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_dorling = std::make_shared<DorlingCartogram>();
         applyDorlingSettings(*m_dorling,
                              m_dorlingForceIterSpinBox,
+                             m_dorlingSeparationIterationsSpinBox,
                              m_dorlingAreaFractionSpinBox,
                              m_dorlingAdjacencyForceSpinBox,
                              m_dorlingOverlapForceSpinBox,
@@ -559,6 +563,7 @@ void RectangularCartogramDemo::setCartogramFromREL() const {
     } else if (m_dorling) {
         applyDorlingSettings(*m_dorling,
                              m_dorlingForceIterSpinBox,
+                             m_dorlingSeparationIterationsSpinBox,
                              m_dorlingAreaFractionSpinBox,
                              m_dorlingAdjacencyForceSpinBox,
                              m_dorlingOverlapForceSpinBox,
@@ -815,6 +820,7 @@ void RectangularCartogramDemo::addGeneralTab() {
             m_dorling = std::make_shared<DorlingCartogram>();
             applyDorlingSettings(*m_dorling,
                                  m_dorlingForceIterSpinBox,
+                                 m_dorlingSeparationIterationsSpinBox,
                                  m_dorlingAreaFractionSpinBox,
                                  m_dorlingAdjacencyForceSpinBox,
                                  m_dorlingOverlapForceSpinBox,
@@ -1120,6 +1126,15 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingForceIterSpinBox->setValue(600);
     vLayout->addWidget(m_dorlingForceIterSpinBox);
 
+    auto separationIterationsLabel = new QLabel("Separation iters per attraction");
+    vLayout->addWidget(separationIterationsLabel);
+    m_dorlingSeparationIterationsSpinBox = new QSpinBox();
+    m_dorlingSeparationIterationsSpinBox->setSuffix(" sep");
+    m_dorlingSeparationIterationsSpinBox->setMinimum(1);
+    m_dorlingSeparationIterationsSpinBox->setMaximum(100);
+    m_dorlingSeparationIterationsSpinBox->setValue(3);
+    vLayout->addWidget(m_dorlingSeparationIterationsSpinBox);
+
     auto areaFractionLabel = new QLabel("Area fraction");
     vLayout->addWidget(areaFractionLabel);
     m_dorlingAreaFractionSpinBox = new QDoubleSpinBox();
@@ -1189,6 +1204,7 @@ void RectangularCartogramDemo::addDorlingTab() {
         if (!m_relPtr || !m_dorling) return;
         applyDorlingSettings(*m_dorling,
                              m_dorlingForceIterSpinBox,
+                             m_dorlingSeparationIterationsSpinBox,
                              m_dorlingAreaFractionSpinBox,
                              m_dorlingAdjacencyForceSpinBox,
                              m_dorlingOverlapForceSpinBox,
@@ -1200,6 +1216,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     };
 
     connect(m_dorlingForceIterSpinBox, qOverload<int>(&QSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
+    connect(m_dorlingSeparationIterationsSpinBox, qOverload<int>(&QSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingAreaFractionSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingAdjacencyForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
     connect(m_dorlingOverlapForceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), [updateDorling]() { updateDorling(); });
