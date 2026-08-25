@@ -25,6 +25,12 @@ struct DorlingPosition {
         : color(vertex.color), label(vertex.label), center(x, y), radius(r) {}
 };
 
+enum class AdaptiveDorlingInitializationMode {
+    RectangularCartogramCenters = 0,
+    LayoutGuideOrder = 1,
+    LayoutGuideOrderWeighted = 2,
+};
+
 class DorlingCartogram {
 public:
     using Pt = cartocrow::Point<cartocrow::Inexact>;
@@ -33,23 +39,26 @@ public:
 
     void setFromREL(RegularEdgeLabeling &rel);
     void setInitializationFromMapCentroids(bool enable) { initializationFromMapCentroids = enable; }
+    void setAdaptiveInitializationMode(AdaptiveDorlingInitializationMode mode) { adaptiveInitializationMode = mode; }
     void setSourceMapCentroids(const std::unordered_map<std::string, Pt> &centroids,
                                const BoundingBox &boundingBox);
 
-    int forceIterationCount = 250;
+    int forceIterationCount = 2000;
     double targetAreaFraction = 0.67;
     double adjacencyForce = 0.08;
-    double maxAdjacencyForce = 2.0;
+    double maxAdjacencyForce = 20.0;
     double overlapForce = 0.35;
     double anchorForce = 0.015;
     double relDirectionalForce = 0.08;
-    double adjacencyPadding = 6.0;
+    double adjacencyPadding = 0;
     double boundaryPadding = 1e-6;
     double maxStepRadiusFraction = 0.35;
     double initialStepScale = 1.0;
-    double minimumStepScale = 0.2;
+    double minimumStepScale = 0.00001;
     int separationIterationsPerAttraction = 1;
     bool initializationFromMapCentroids = true;
+    AdaptiveDorlingInitializationMode adaptiveInitializationMode =
+        AdaptiveDorlingInitializationMode::RectangularCartogramCenters;
 
     const DorlingPosition &getPosition(int index) const { return m_positions.at(index); }
     const std::vector<DorlingPosition> &positions() const { return m_positions; }
@@ -85,6 +94,9 @@ private:
                            std::vector<double> &deltaY) const;
     double averageRadius(const std::vector<NodeState> &nodes) const;
     double iterationStepScale(int iteration) const;
+    std::unordered_map<int, Pt> computeGuideInitializationCenters(const RegularEdgeLabeling &rel,
+                                                                  const BoundingBox &bb,
+                                                                  bool weighted) const;
     void applyForcesAndClamp(std::vector<NodeState> &nodes,
                              const std::vector<double> &deltaX,
                              const std::vector<double> &deltaY,

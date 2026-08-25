@@ -108,6 +108,7 @@ class RectangularCartogramDemo : public QMainWindow {
     QDoubleSpinBox* m_dorlingBoundaryPaddingSpinBox = nullptr;
     QSpinBox* m_dorlingSeparationIterationsSpinBox = nullptr;
     QCheckBox* m_dorlingUseMapCentroidInitializationCheckBox = nullptr;
+    QComboBox* m_dorlingAdaptiveInitializationModeComboBox = nullptr;
 
     //video
     QDoubleSpinBox* m_cycleDuration = nullptr;

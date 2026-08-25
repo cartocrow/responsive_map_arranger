@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <unordered_set>
+#include <unordered_map>
+#include <queue>
 
 #include "rectangular_dual.h"
 
@@ -21,6 +24,178 @@ Pt stretchPointToBoundingBox(const Pt &point, const BoundingBox &from, const Bou
     const double xRatio = (point.x() - from.left) / from.width();
     const double yRatio = (point.y() - from.bottom) / from.height();
     return Pt(to.left + xRatio * to.width(), to.bottom + yRatio * to.height());
+}
+
+double clampPositiveSize(const double value) {
+    return (std::isfinite(value) && value > 0.0) ? value : 1.0;
+}
+
+template <typename SizeFn>
+std::unordered_map<int, double> computeAxisCoordinates(const std::vector<int> &vertexIds,
+                                                       const std::vector<Vertex> &vertices,
+                                                       const double axisMin,
+                                                       const double axisMax,
+                                                       SizeFn sizeOf) {
+    std::unordered_map<int, double> positions;
+    if (vertexIds.empty()) return positions;
+
+    const double span = axisMax - axisMin;
+    if (vertexIds.size() == 1 || span <= 0.0) {
+        positions[vertexIds.front()] = axisMin + 0.5 * span;
+        return positions;
+    }
+
+    double totalSize = 0.0;
+    for (const int vertexId : vertexIds) {
+        totalSize += clampPositiveSize(sizeOf(vertices[vertexId]));
+    }
+
+    if (totalSize <= 0.0) {
+        const double denom = static_cast<double>(vertexIds.size() - 1);
+        for (std::size_t i = 0; i < vertexIds.size(); ++i) {
+            positions[vertexIds[i]] = axisMin + span * (static_cast<double>(i) / denom);
+        }
+        return positions;
+    }
+
+    double consumed = 0.0;
+    for (const int vertexId : vertexIds) {
+        const double size = clampPositiveSize(sizeOf(vertices[vertexId]));
+        positions[vertexId] = axisMin + span * ((consumed + 0.5 * size) / totalSize);
+        consumed += size;
+    }
+
+    return positions;
+}
+
+struct WeightedEdge {
+    int target = -1;
+    double weight = 0.0;
+};
+
+bool topoSortWeighted(const std::vector<std::vector<WeightedEdge>> &adj, std::vector<int> &order) {
+    order.clear();
+    std::vector<int> indegree(adj.size(), 0);
+    for (const auto &neighbors : adj) {
+        for (const auto &edge : neighbors) {
+            if (edge.target >= 0 && edge.target < static_cast<int>(adj.size())) {
+                ++indegree[edge.target];
+            }
+        }
+    }
+
+    std::queue<int> queue;
+    for (int i = 0; i < static_cast<int>(adj.size()); ++i) {
+        if (indegree[i] == 0) queue.push(i);
+    }
+
+    while (!queue.empty()) {
+        const int node = queue.front();
+        queue.pop();
+        order.push_back(node);
+
+        for (const auto &edge : adj[node]) {
+            if (--indegree[edge.target] == 0) {
+                queue.push(edge.target);
+            }
+        }
+    }
+
+    return order.size() == adj.size();
+}
+
+template <typename EdgeWeightFn>
+std::unordered_map<int, double> computeSegmentCoordinates(const RegularEdgeLabeling &rel,
+                                                          const bool horizontalAxis,
+                                                          const double axisMin,
+                                                          const double axisMax,
+                                                          EdgeWeightFn edgeWeight) {
+    const auto &vertices = rel.getVertices();
+
+    std::vector<int> segmentIds;
+    segmentIds.reserve(vertices.size() * 2);
+    for (int v = 0; v < static_cast<int>(vertices.size()); ++v) {
+        if (!rel.isValidVertex(v)) continue;
+
+        const int first = horizontalAxis ? vertices[v].left_segment : vertices[v].bottom_segment;
+        const int second = horizontalAxis ? vertices[v].right_segment : vertices[v].top_segment;
+        if (first >= 0) segmentIds.push_back(first);
+        if (second >= 0) segmentIds.push_back(second);
+    }
+
+    std::sort(segmentIds.begin(), segmentIds.end());
+    segmentIds.erase(std::unique(segmentIds.begin(), segmentIds.end()), segmentIds.end());
+
+    std::unordered_map<int, int> segToNode;
+    segToNode.reserve(segmentIds.size());
+    for (std::size_t i = 0; i < segmentIds.size(); ++i) {
+        segToNode.emplace(segmentIds[i], static_cast<int>(i));
+    }
+
+    const int frameStart = static_cast<int>(segmentIds.size());
+    const int frameEnd = frameStart + 1;
+    std::vector<std::unordered_map<int, double>> edgeMap(segmentIds.size() + 2);
+
+    for (int v = 0; v < static_cast<int>(vertices.size()); ++v) {
+        if (!rel.isValidVertex(v)) continue;
+
+        const int firstSeg = horizontalAxis ? vertices[v].left_segment : vertices[v].bottom_segment;
+        const int secondSeg = horizontalAxis ? vertices[v].right_segment : vertices[v].top_segment;
+
+        const int from = firstSeg >= 0 ? segToNode.at(firstSeg) : frameStart;
+        const int to = secondSeg >= 0 ? segToNode.at(secondSeg) : frameEnd;
+        if (from == to) continue;
+
+        const double weight = rel.isInnerVertex(v) ? clampPositiveSize(edgeWeight(vertices[v])) : 0.0;
+        auto [it, inserted] = edgeMap[from].emplace(to, weight);
+        if (!inserted) {
+            it->second = std::max(it->second, weight);
+        }
+    }
+
+    std::vector<std::vector<WeightedEdge>> adjacency(edgeMap.size());
+    for (int node = 0; node < static_cast<int>(edgeMap.size()); ++node) {
+        adjacency[node].reserve(edgeMap[node].size());
+        for (const auto &[target, weight] : edgeMap[node]) {
+            adjacency[node].push_back(WeightedEdge{target, weight});
+        }
+    }
+
+    std::vector<int> topoOrder;
+    if (!topoSortWeighted(adjacency, topoOrder)) {
+        return {};
+    }
+
+    std::vector<double> distance(adjacency.size(), 0.0);
+    for (const int node : topoOrder) {
+        for (const auto &edge : adjacency[node]) {
+            distance[edge.target] = std::max(distance[edge.target], distance[node] + edge.weight);
+        }
+    }
+
+    double minValue = std::numeric_limits<double>::infinity();
+    double maxValue = -std::numeric_limits<double>::infinity();
+    for (int node = 0; node < static_cast<int>(segmentIds.size()); ++node) {
+        minValue = std::min(minValue, distance[node]);
+        maxValue = std::max(maxValue, distance[node]);
+    }
+
+    if (!std::isfinite(minValue) || !std::isfinite(maxValue)) {
+        minValue = 0.0;
+        maxValue = 1.0;
+    } else if (maxValue == minValue) {
+        maxValue = minValue + 1.0;
+    }
+
+    const double span = axisMax - axisMin;
+    std::unordered_map<int, double> coordinates;
+    coordinates.reserve(segmentIds.size());
+    for (std::size_t i = 0; i < segmentIds.size(); ++i) {
+        const double t = (distance[static_cast<int>(i)] - minValue) / (maxValue - minValue);
+        coordinates.emplace(segmentIds[i], axisMin + t * span);
+    }
+
+    return coordinates;
 }
 
 }
@@ -64,9 +239,9 @@ void DorlingCartogram::applyAdjacencyForces(const std::vector<std::pair<int, int
         normalizedDirection(first, second, dx, dy, distance);
 
         const double targetDistance = first.radius + second.radius + adjacencyPadding;
-        if (distance <= targetDistance) continue;
+        if (distance <= targetDistance*0.5) continue;
 
-        const double force = std::min(adjacencyForce * (distance - targetDistance), maxAdjacencyForce);
+        const double force = adjacencyForce * (distance-targetDistance);// std::min(adjacencyForce * (distance - targetDistance), maxAdjacencyForce);
         const double ux = dx / distance;
         const double uy = dy / distance;
 
@@ -129,7 +304,7 @@ void DorlingCartogram::applyOverlapForces(const std::vector<NodeState> &nodes,
 
             const double minimumDistance = first.radius + second.radius;
             const double overlap = minimumDistance - distance;
-            if (overlap <= 0.0001) continue;
+            if (overlap <= 0) continue;
 
             const double ux = dx / distance;
             const double uy = dy / distance;
@@ -146,6 +321,7 @@ void DorlingCartogram::applyOverlapForces(const std::vector<NodeState> &nodes,
 void DorlingCartogram::applyAnchorForces(const std::vector<NodeState> &nodes,
                                          std::vector<double> &deltaX,
                                          std::vector<double> &deltaY) const {
+    if (anchorForce <=0 ) return;
     for (std::size_t i = 0; i < nodes.size(); ++i) {
         const auto &node = nodes[i];
         deltaX[i] += (node.anchorX - node.x) * anchorForce;
@@ -168,6 +344,51 @@ double DorlingCartogram::iterationStepScale(const int iteration) const {
 
     const double t = static_cast<double>(iteration) / static_cast<double>(forceIterationCount - 1);
     return initialStepScale + (minimumStepScale - initialStepScale) * t;
+}
+
+std::unordered_map<int, DorlingCartogram::Pt> DorlingCartogram::computeGuideInitializationCenters(
+    const RegularEdgeLabeling &rel,
+    const BoundingBox &bb,
+    const bool weighted) const {
+    const auto &vertices = rel.getVertices();
+
+    const auto xSegments = computeSegmentCoordinates(
+        rel,
+        true,
+        bb.left,
+        bb.right,
+        [weighted](const Vertex &vertex) { return weighted ? vertex.preferred_width : 1.0; });
+    const auto ySegments = computeSegmentCoordinates(
+        rel,
+        false,
+        bb.bottom,
+        bb.top,
+        [weighted](const Vertex &vertex) { return weighted ? vertex.preferred_height : 1.0; });
+
+    std::unordered_map<int, Pt> centers;
+    centers.reserve(vertices.size());
+    const Pt fallbackCenter{0.5 * (bb.left + bb.right), 0.5 * (bb.bottom + bb.top)};
+
+    for (int i = 4; i < static_cast<int>(vertices.size()); ++i) {
+        if (!rel.isValidVertex(i)) continue;
+        if (!vertices[i].isLandRegion) continue;
+
+        const auto leftIt = xSegments.find(vertices[i].left_segment);
+        const auto rightIt = xSegments.find(vertices[i].right_segment);
+        const auto bottomIt = ySegments.find(vertices[i].bottom_segment);
+        const auto topIt = ySegments.find(vertices[i].top_segment);
+
+        const double left = leftIt != xSegments.end() ? leftIt->second : bb.left;
+        const double right = rightIt != xSegments.end() ? rightIt->second : bb.right;
+        const double bottom = bottomIt != ySegments.end() ? bottomIt->second : bb.bottom;
+        const double top = topIt != ySegments.end() ? topIt->second : bb.top;
+
+        const double x = std::isfinite(left) && std::isfinite(right) ? 0.5 * (left + right) : fallbackCenter.x();
+        const double y = std::isfinite(bottom) && std::isfinite(top) ? 0.5 * (bottom + top) : fallbackCenter.y();
+        centers.emplace(i, Pt{x, y});
+    }
+
+    return centers;
 }
 
 void DorlingCartogram::applyForcesAndClamp(std::vector<NodeState> &nodes,
@@ -213,7 +434,19 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
 
     std::shared_ptr<RegularEdgeLabeling> relPtr;
     std::unique_ptr<RectangularDual> dual;
-    if (!useMapCentroids) {
+    std::unordered_map<int, Pt> guideCenters;
+    if (rel.adaptiveLayoutEnabled() &&
+        adaptiveInitializationMode != AdaptiveDorlingInitializationMode::RectangularCartogramCenters) {
+        relPtr = std::shared_ptr<RegularEdgeLabeling>(&rel, [](RegularEdgeLabeling *) {});
+        dual = std::make_unique<RectangularDual>(relPtr);
+        dual->setFromREL();
+        guideCenters = computeGuideInitializationCenters(
+            rel,
+            bb,
+            adaptiveInitializationMode == AdaptiveDorlingInitializationMode::LayoutGuideOrderWeighted);
+    }
+
+    if (!useMapCentroids && !dual) {
         relPtr = std::shared_ptr<RegularEdgeLabeling>(&rel, [](RegularEdgeLabeling *) {});
         dual = std::make_unique<RectangularDual>(relPtr);
         dual->setFromREL();
@@ -233,6 +466,13 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
             const auto centroidIt = m_sourceMapCentroids.find(vertices[i].label);
             if (centroidIt != m_sourceMapCentroids.end()) {
                 center = stretchPointToBoundingBox(centroidIt->second, m_sourceMapBoundingBox, bb);
+                hasCenter = true;
+            }
+        }
+        if (!hasCenter) {
+            const auto guideIt = guideCenters.find(static_cast<int>(i));
+            if (guideIt != guideCenters.end()) {
+                center = guideIt->second;
                 hasCenter = true;
             }
         }
@@ -267,7 +507,7 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
         node.radius *= fitScale;
     }
 
-    const double maxStep = averageRadius(nodes) * maxStepRadiusFraction;
+    const double maxStep = averageRadius(nodes);// * maxStepRadiusFraction;
 
     std::vector<std::pair<int, int>> adjacencyPairs;
     std::unordered_set<std::uint64_t> seenPairs;
