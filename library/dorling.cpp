@@ -231,6 +231,9 @@ void DorlingCartogram::applyAdjacencyForces(const std::vector<std::pair<int, int
                                             const std::vector<NodeState> &nodes,
                                             std::vector<double> &deltaX,
                                             std::vector<double> &deltaY) const {
+    std::vector<double> adjacencyDeltaX(nodes.size(), 0.0);
+    std::vector<double> adjacencyDeltaY(nodes.size(), 0.0);
+
     for (const auto &[a, b] : adjacencyPairs) {
         const auto &first = nodes[a];
         const auto &second = nodes[b];
@@ -241,14 +244,28 @@ void DorlingCartogram::applyAdjacencyForces(const std::vector<std::pair<int, int
         const double targetDistance = first.radius + second.radius + adjacencyPadding;
         if (distance <= targetDistance*0.5) continue;
 
-        const double force = adjacencyForce * (distance-targetDistance);// std::min(adjacencyForce * (distance - targetDistance), maxAdjacencyForce);
+        const double force = adjacencyForce * (distance - targetDistance);
         const double ux = dx / distance;
         const double uy = dy / distance;
 
-        deltaX[a] += force * ux;
-        deltaY[a] += force * uy;
-        deltaX[b] -= force * ux;
-        deltaY[b] -= force * uy;
+        adjacencyDeltaX[a] += force * ux;
+        adjacencyDeltaY[a] += force * uy;
+        adjacencyDeltaX[b] -= force * ux;
+        adjacencyDeltaY[b] -= force * uy;
+    }
+
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        double ax = adjacencyDeltaX[i];
+        double ay = adjacencyDeltaY[i];
+        const double magnitude = std::hypot(ax, ay);
+        if (maxAdjacencyForce > 0.0 && magnitude > maxAdjacencyForce) {
+            const double scale = maxAdjacencyForce / magnitude;
+            ax *= scale;
+            ay *= scale;
+        }
+
+        deltaX[i] += ax;
+        deltaY[i] += ay;
     }
 }
 
@@ -308,7 +325,7 @@ void DorlingCartogram::applyOverlapForces(const std::vector<NodeState> &nodes,
 
             const double ux = dx / distance;
             const double uy = dy / distance;
-            const double push = overlapForce * overlap;
+            const double push = max(0.1, overlapForce * overlap);
 
             deltaX[i] -= push * ux;
             deltaY[i] -= push * uy;

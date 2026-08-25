@@ -54,7 +54,7 @@ public:
     double boundaryPadding = 1e-6;
     double maxStepRadiusFraction = 0.35;
     double initialStepScale = 1.0;
-    double minimumStepScale = 0.00001;
+    double minimumStepScale = 0.01;
     int separationIterationsPerAttraction = 1;
     bool initializationFromMapCentroids = true;
     AdaptiveDorlingInitializationMode adaptiveInitializationMode =
