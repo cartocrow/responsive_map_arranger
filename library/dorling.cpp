@@ -73,6 +73,37 @@ struct WeightedEdge {
     double weight = 0.0;
 };
 
+enum class DirectionalQuadrant {
+    East,
+    West,
+    North,
+    South,
+};
+
+double quadrantViolation(const double dx, const double dy, const DirectionalQuadrant quadrant) {
+    switch (quadrant) {
+        case DirectionalQuadrant::East:
+            return std::max(0.0, std::abs(dy) - dx);
+        case DirectionalQuadrant::West:
+            return std::max(0.0, std::abs(dy) + dx);
+        case DirectionalQuadrant::North:
+            return std::max(0.0, std::abs(dx) - dy);
+        case DirectionalQuadrant::South:
+            return std::max(0.0, std::abs(dx) + dy);
+    }
+    return 0.0;
+}
+
+DirectionalQuadrant oppositeQuadrant(const DirectionalQuadrant quadrant) {
+    switch (quadrant) {
+        case DirectionalQuadrant::East: return DirectionalQuadrant::West;
+        case DirectionalQuadrant::West: return DirectionalQuadrant::East;
+        case DirectionalQuadrant::North: return DirectionalQuadrant::South;
+        case DirectionalQuadrant::South: return DirectionalQuadrant::North;
+    }
+    return DirectionalQuadrant::East;
+}
+
 bool topoSortWeighted(const std::vector<std::vector<WeightedEdge>> &adj, std::vector<int> &order) {
     order.clear();
     std::vector<int> indegree(adj.size(), 0);
@@ -295,15 +326,37 @@ void DorlingCartogram::applyRELDirectionalForces(const RegularEdgeLabeling &rel,
 
         const auto &sourceState = nodes[sourceNode];
         const auto &targetState = nodes[targetNode];
+        const double dx = targetState.x - sourceState.x;
+        const double dy = targetState.y - sourceState.y;
 
         if (halfEdge.color == BLUE) {
-            if (targetState.x - targetState.radius > sourceState.x + sourceState.radius) continue;
-            deltaX[sourceNode] -= relDirectionalForce;
-            deltaX[targetNode] += relDirectionalForce;
+            const double forwardViolation = quadrantViolation(dx, dy, DirectionalQuadrant::East);
+            const double backwardViolation = quadrantViolation(-dx, -dy, oppositeQuadrant(DirectionalQuadrant::East));
+
+            if (forwardViolation > 0.0) {
+                const double push = relDirectionalForce * forwardViolation;
+                deltaX[sourceNode] -= push;
+                deltaX[targetNode] += push;
+            }
+            if (backwardViolation > 0.0) {
+                const double push = relDirectionalForce * backwardViolation;
+                deltaX[sourceNode] -= push;
+                deltaX[targetNode] += push;
+            }
         } else if (halfEdge.color == RED) {
-            if (targetState.y - targetState.radius > sourceState.y + sourceState.radius) continue;
-            deltaY[sourceNode] -= relDirectionalForce;
-            deltaY[targetNode] += relDirectionalForce;
+            const double forwardViolation = quadrantViolation(dx, dy, DirectionalQuadrant::North);
+            const double backwardViolation = quadrantViolation(-dx, -dy, oppositeQuadrant(DirectionalQuadrant::North));
+
+            if (forwardViolation > 0.0) {
+                const double push = relDirectionalForce * forwardViolation;
+                deltaY[sourceNode] -= push;
+                deltaY[targetNode] += push;
+            }
+            if (backwardViolation > 0.0) {
+                const double push = relDirectionalForce * backwardViolation;
+                deltaY[sourceNode] -= push;
+                deltaY[targetNode] += push;
+            }
         }
     }
 }

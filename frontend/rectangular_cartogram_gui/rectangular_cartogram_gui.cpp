@@ -1190,7 +1190,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingRELDirectionalForceSpinBox->setMaximum(100.0);
     m_dorlingRELDirectionalForceSpinBox->setDecimals(4);
     m_dorlingRELDirectionalForceSpinBox->setSingleStep(0.01);
-    m_dorlingRELDirectionalForceSpinBox->setValue(0.08);
+    m_dorlingRELDirectionalForceSpinBox->setValue(0.01);
     vLayout->addWidget(m_dorlingRELDirectionalForceSpinBox);
 
     auto overlapForceLabel = new QLabel("Overlap force");

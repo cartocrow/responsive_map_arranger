@@ -49,7 +49,7 @@ public:
     double maxAdjacencyForce = 20.0;
     double overlapForce = 0.35;
     double anchorForce = 0.015;
-    double relDirectionalForce = 0.08;
+    double relDirectionalForce = 0.01;
     double adjacencyPadding = 0;
     double boundaryPadding = 1e-6;
     double maxStepRadiusFraction = 0.35;
