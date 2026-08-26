@@ -125,6 +125,18 @@ void ChoroplethMap::setUseValueColors(const bool useValueColors) {
     updateFillColors();
 }
 
+std::unordered_map<std::string, Pt> ChoroplethMap::regionCentroids() const {
+    std::unordered_map<std::string, Pt> centroids;
+
+    for (const auto &element : mapElements) {
+        if (!element.region) continue;
+        if (element.region->name.empty()) continue;
+        centroids[element.region->name] = centroid(approximate(element.region->shape));
+    }
+
+    return centroids;
+}
+
 void ChoroplethMap::updateFillColors() {
     if (!m_useValueColors) {
         for (auto& element : mapElements) {

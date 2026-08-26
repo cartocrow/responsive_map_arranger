@@ -405,6 +405,22 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
     std::cout << "Local distortion sweep written to " << selectedPath.toStdString() << std::endl;
 }
 
+RegionCentroidMap RectangularCartogramDemo::currentVisualizationCentroids() const {
+    if (m_rectangularDual && m_relPtr) {
+        return rectangularRegionCentroids(*m_rectangularDual, *m_relPtr);
+    }
+    if (m_demers) {
+        return demersRegionCentroids(*m_demers);
+    }
+    if (m_dorling) {
+        return dorlingRegionCentroids(*m_dorling);
+    }
+    if (m_choroplethMap) {
+        return choroplethRegionCentroids(*m_choroplethMap);
+    }
+    return {};
+}
+
 
 void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath) {
     std::cout << "loading data from " << dataPath << std::endl;
@@ -676,6 +692,7 @@ void RectangularCartogramDemo::addGeneralTab() {
 
     auto *statsLabel = new QLabel("<h3>Stats</h3>", vWidget);
     auto *btnAspectRatioDeviation = new QPushButton("Aspect Ratio Deviation");
+    auto *btnOctantDistortion = new QPushButton("Octant Distortion");
     auto *btnExportAspectRatioDeviationSweep = new QPushButton("Export Aspect Ratio Sweep");
     auto *localMetricNeighborCountLabel = new QLabel("Local metric k", vWidget);
     m_localMetricNeighborCount = new QSpinBox(vWidget);
@@ -685,6 +702,7 @@ void RectangularCartogramDemo::addGeneralTab() {
     auto *btnMeasureCentroidVectorDistortion = new QPushButton("Measure local distortion metrics");
     vLayout->addWidget(statsLabel);
     vLayout->addWidget(btnAspectRatioDeviation);
+    vLayout->addWidget(btnOctantDistortion);
     vLayout->addWidget(btnExportAspectRatioDeviationSweep);
     vLayout->addWidget(localMetricNeighborCountLabel);
     vLayout->addWidget(m_localMetricNeighborCount);
@@ -900,6 +918,26 @@ void RectangularCartogramDemo::addGeneralTab() {
         if (!m_rectPainting) return;
 
         std::cout << "Total aspect ratio deviation = " << m_rectangularDual->averageAspectRatioDeviation() << std::endl;
+    });
+
+    connect(btnOctantDistortion, &QPushButton::clicked, [this]() {
+        if (m_regionCentroids.empty()) {
+            std::cerr << "Load an IPE map before measuring octant distortion." << std::endl;
+            return;
+        }
+
+        const auto currentCentroids = currentVisualizationCentroids();
+        if (currentCentroids.empty()) {
+            std::cerr << "No active cartogram centroids available for octant distortion." << std::endl;
+            return;
+        }
+
+        const auto metrics = octantDistortionMetrics(m_regionCentroids, currentCentroids);
+        std::cout << "Octant distortion total = " << metrics.totalCircularOctantShift
+                  << " across " << metrics.comparedPairCount
+                  << " ordered pairs; changed pairs = " << metrics.changedPairCount
+                  << "; average shift = " << metrics.averageCircularOctantShift
+                  << std::endl;
     });
 
     connect(btnExportAspectRatioDeviationSweep, &QPushButton::clicked, [this]() {

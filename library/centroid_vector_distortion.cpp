@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <set>
 #include <tuple>
 #include <utility>
@@ -29,6 +30,26 @@ double squaredDistance(
     const double dx = b.x() - a.x();
     const double dy = b.y() - a.y();
     return dx * dx + dy * dy;
+}
+
+std::optional<int> octantIndex(
+    const cartocrow::Point<cartocrow::Inexact> &from,
+    const cartocrow::Point<cartocrow::Inexact> &to) {
+    const double dx = to.x() - from.x();
+    const double dy = to.y() - from.y();
+    constexpr double kEpsilon = 1e-9;
+    if (std::abs(dx) <= kEpsilon && std::abs(dy) <= kEpsilon) return std::nullopt;
+
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kOctantAngle = kPi / 4.0;
+    const double angle = std::atan2(dy, dx);
+    const int octant = static_cast<int>(std::lround(angle / kOctantAngle));
+    return (octant % 8 + 8) % 8;
+}
+
+int circularOctantDistance(const int first, const int second) {
+    const int diff = std::abs(first - second);
+    return std::min(diff, 8 - diff);
 }
 
 }
@@ -123,6 +144,10 @@ RegionCentroidMap dorlingRegionCentroids(const DorlingCartogram &cartogram) {
     return centroids;
 }
 
+RegionCentroidMap choroplethRegionCentroids(const ChoroplethMap &cartogram) {
+    return cartogram.regionCentroids();
+}
+
 LocalDistortionMetrics localDistortionMetrics(
     const RegionCentroidMap &baselineCentroids,
     const RegionCentroidMap &adaptiveCentroids,
@@ -211,6 +236,50 @@ LocalDistortionMetrics localDistortionMetrics(
     if (metrics.orthogonalConstraintCount > 0) {
         metrics.orthoOrderK = static_cast<double>(metrics.orthogonalViolationCount) /
                               static_cast<double>(metrics.orthogonalConstraintCount);
+    }
+
+    return metrics;
+}
+
+OctantDistortionMetrics octantDistortionMetrics(
+    const RegionCentroidMap &baselineCentroids,
+    const RegionCentroidMap &adaptiveCentroids) {
+    OctantDistortionMetrics metrics;
+
+    std::vector<std::string> matchedLabels;
+    matchedLabels.reserve(baselineCentroids.size());
+    for (const auto &[label, baselinePoint] : baselineCentroids) {
+        const auto adaptiveIt = adaptiveCentroids.find(label);
+        if (adaptiveIt == adaptiveCentroids.end()) continue;
+        matchedLabels.push_back(label);
+    }
+
+    std::sort(matchedLabels.begin(), matchedLabels.end());
+    metrics.matchedRegionCount = matchedLabels.size();
+    if (metrics.matchedRegionCount < 2) return metrics;
+
+    for (const auto &anchorLabel : matchedLabels) {
+        const auto &baselineAnchor = baselineCentroids.at(anchorLabel);
+        const auto &adaptiveAnchor = adaptiveCentroids.at(anchorLabel);
+
+        for (const auto &otherLabel : matchedLabels) {
+            if (anchorLabel == otherLabel) continue;
+
+            const auto baselineOctant = octantIndex(baselineAnchor, baselineCentroids.at(otherLabel));
+            const auto adaptiveOctant = octantIndex(adaptiveAnchor, adaptiveCentroids.at(otherLabel));
+            if (!baselineOctant || !adaptiveOctant) continue;
+
+            ++metrics.comparedPairCount;
+            const int shift = circularOctantDistance(*baselineOctant, *adaptiveOctant);
+            metrics.totalCircularOctantShift += static_cast<std::size_t>(shift);
+            if (shift > 0) ++metrics.changedPairCount;
+        }
+    }
+
+    if (metrics.comparedPairCount > 0) {
+        metrics.averageCircularOctantShift =
+            static_cast<double>(metrics.totalCircularOctantShift) /
+            static_cast<double>(metrics.comparedPairCount);
     }
 
     return metrics;

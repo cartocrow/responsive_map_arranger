@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include <unordered_map>
 #include <utility>
 
 #include "regular_edge_labeling.h"
@@ -64,6 +65,7 @@ public:
     void setFromRel();
     void runLayout(const size_t iterations);
     void setUseValueColors(bool useValueColors);
+    std::unordered_map<std::string, Pt> regionCentroids() const;
 
     MapElement getMapElement(const size_t index) { return mapElements[index]; }
 

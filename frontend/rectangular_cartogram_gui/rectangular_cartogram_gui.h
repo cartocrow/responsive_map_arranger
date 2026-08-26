@@ -127,6 +127,7 @@ class RectangularCartogramDemo : public QMainWindow {
     void setCartogramFromREL() const;
     void exportAspectRatioDeviationSweep() const;
     void exportCentroidVectorDistortionSweep() const;
+    RegionCentroidMap currentVisualizationCentroids() const;
     static std::string mergeHeuristicLabel(MergeHeuristic heuristic);
 
     void addGeneralTab();
