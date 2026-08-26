@@ -1170,7 +1170,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingAdjacencyForceSpinBox->setMinimum(0.0);
     m_dorlingAdjacencyForceSpinBox->setDecimals(4);
     m_dorlingAdjacencyForceSpinBox->setSingleStep(0.01);
-    m_dorlingAdjacencyForceSpinBox->setValue(1);
+    m_dorlingAdjacencyForceSpinBox->setValue(0.9);
     vLayout->addWidget(m_dorlingAdjacencyForceSpinBox);
 
     auto maxAdjacencyForceLabel = new QLabel("Max adjacency force");
@@ -1189,7 +1189,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingRELDirectionalForceSpinBox->setMinimum(0.0);
     m_dorlingRELDirectionalForceSpinBox->setMaximum(100.0);
     m_dorlingRELDirectionalForceSpinBox->setDecimals(4);
-    m_dorlingRELDirectionalForceSpinBox->setSingleStep(0.01);
+    m_dorlingRELDirectionalForceSpinBox->setSingleStep(0.02);
     m_dorlingRELDirectionalForceSpinBox->setValue(0.01);
     vLayout->addWidget(m_dorlingRELDirectionalForceSpinBox);
 
