@@ -502,6 +502,11 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
         m_hasSourceMapBoundingBox &&
         !m_sourceMapCentroids.empty();
 
+    const bool useRectangularCartogramCenters =
+        !useMapCentroids &&
+        (!rel.adaptiveLayoutEnabled() ||
+         adaptiveInitializationMode == AdaptiveDorlingInitializationMode::RectangularCartogramCenters);
+
     std::shared_ptr<RegularEdgeLabeling> relPtr;
     std::unique_ptr<RectangularDual> dual;
     std::unordered_map<int, Pt> guideCenters;
@@ -509,14 +514,15 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
         adaptiveInitializationMode != AdaptiveDorlingInitializationMode::RectangularCartogramCenters) {
         relPtr = std::shared_ptr<RegularEdgeLabeling>(&rel, [](RegularEdgeLabeling *) {});
         dual = std::make_unique<RectangularDual>(relPtr);
-        dual->setFromREL();
+        dual->computeMaximalSegments();
         guideCenters = computeGuideInitializationCenters(
             rel,
             bb,
             adaptiveInitializationMode == AdaptiveDorlingInitializationMode::LayoutGuideOrderWeighted);
+        dual.reset();
     }
 
-    if (!useMapCentroids && !dual) {
+    if (useRectangularCartogramCenters) {
         relPtr = std::shared_ptr<RegularEdgeLabeling>(&rel, [](RegularEdgeLabeling *) {});
         dual = std::make_unique<RectangularDual>(relPtr);
         dual->setFromREL();
@@ -547,8 +553,12 @@ void DorlingCartogram::setFromREL(RegularEdgeLabeling &rel) {
             }
         }
         if (!hasCenter) {
-            const auto &rect = dual->getRect(static_cast<std::uint32_t>(i));
-            center = rect.center();
+            if (dual) {
+                const auto &rect = dual->getRect(static_cast<std::uint32_t>(i));
+                center = rect.center();
+            } else {
+                center = Pt{0.5 * (bb.left + bb.right), 0.5 * (bb.bottom + bb.top)};
+            }
         }
 
         NodeState node;
