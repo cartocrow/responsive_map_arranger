@@ -77,17 +77,20 @@ bool RectangularDual::hasValidSegmentCoords() const {
 }
 
 double RectangularDual::computeAreaDeviation() {
-    double total = 0;
+    double total = 0.0;
+    int count = 0;
     auto &vertices = m_REL->getVertices();
 
     for (size_t i = 4; i < vertices.size(); ++i) {
         if (rects[i].isDisabled) continue;
 
-        //double rectDeviation = vertices[i].weight / rects[i].area() - 1;
-        double rectDeviation = rects[i].area() - vertices[i].weight;
-        total += rectDeviation*rectDeviation;  // (rects[i].area() - vertices[i].weight) * (rects[i].area() - vertices[i].weight); //  rectDeviation * rectDeviation; // (rectArea - (targetArea) * (rectArea - targetArea);// / (rectArea);
+        double rectDeviation = vertices[i].weight / rects[i].area() - 1;
+        //double rectDeviation = (rects[i].area() - vertices[i].weight) / vertices[i].weight;
+        //double rectDeviation = rects[i].area() - vertices[i].weight;
+        total += rectDeviation * rectDeviation;  // (rects[i].area() - vertices[i].weight) * (rects[i].area() - vertices[i].weight); //  rectDeviation * rectDeviation; // (rectArea - (targetArea) * (rectArea - targetArea);// / (rectArea);
+        count++;
     }
-    return sqrt(total);// total; sqrt(total);
+    return sqrt(total / count);// total; sqrt(total);
 }
 
 void RectangularDual::fixRectangleAreas() {
@@ -102,7 +105,7 @@ void RectangularDual::fixRectangleAreas() {
     double deviation = computeAreaDeviation();
 
     int totalIters = 0;
-    while (deviation > 0.01 * frameArea){// > 0.1) {// * frameArea) {
+    while (deviation > 0.1){// * frameArea){// > 0.1) {// * frameArea) {
         totalIters++;
 
         for (Segment &segment : maximalSegments) {
@@ -121,8 +124,8 @@ void RectangularDual::fixRectangleAreas() {
             double area = width * height;
             double targetArea = v.weight;
 
-            //double gradientShift = targetArea * (targetArea / area - 1) / (area*area);
-            double gradientShift = (targetArea - area); // /(area*area);
+            double gradientShift = targetArea * (targetArea / area - 1) / (area*area);
+            //double gradientShift = (targetArea - area) / (targetArea * targetArea);// /(area*area);
 
             maximalSegments[v.top_segment].gradientValue +=    gradientShift * width; // (targetArea - area) / (area*area) * width;//
             maximalSegments[v.bottom_segment].gradientValue -= gradientShift * width; // (targetArea - area) / (area*area) * width;// width;
@@ -142,7 +145,7 @@ void RectangularDual::fixRectangleAreas() {
             for (int i = 4; i < vertices.size(); i++) {
                 auto v = vertices[i];
 
-                if (rects[i].right - rects[i].left < 0.2) {
+                if (rects[i].right - rects[i].left < 0.05) {
                     auto &leftSegment = maximalSegments[v.left_segment];
                     auto &rightSegment = maximalSegments[v.right_segment];
                     if (leftSegment.gradientValue > rightSegment.gradientValue) {
@@ -158,7 +161,7 @@ void RectangularDual::fixRectangleAreas() {
                     }
                 }
 
-                if (rects[i].top - rects[i].bottom < 0.2) {
+                if (rects[i].top - rects[i].bottom < 0.05) {
                     auto &bottomSegment = maximalSegments[v.bottom_segment];
                     auto &topSegment = maximalSegments[v.top_segment];
                     if (bottomSegment.gradientValue > topSegment.gradientValue) {
