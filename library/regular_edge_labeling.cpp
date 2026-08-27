@@ -673,6 +673,15 @@ void RegularEdgeLabeling::adjustToBB() {
     double horizontalStress = longestHorizontalPath.first - horizontalThreshHold;
     double verticalStress = longestVerticalPath.first - verticalThreshHold;
 
+    // std::cout
+    // << "W=" << m_boundingBox->width()
+    // << " LH=" << longestHorizontalPath.first
+    // << " LV=" << longestVerticalPath.first
+    // << " SH=" << horizontalStress
+    // << " SV=" << verticalStress
+    // << " direction=" << (verticalStress >= horizontalStress ? "V" : "H")
+    // << "\n";
+
     bool mergingVertically = false;
 
     if (verticalStress >= horizontalStress) {
@@ -693,8 +702,22 @@ void RegularEdgeLabeling::adjustToBB() {
 
     }
     else {
+        //int iteration = 0;
         while (horizontalStress > 0) {
+            // std::cout << "\nITERATION " << iteration++ << "\n";
+            //
+            // std::cout << "path cost = " << longestHorizontalPath.first << "\n";
+            // std::cout << "path: ";
+            // for (int v : longestHorizontalPath.second)
+            //     std::cout << m_vertices[v].label << " ";
+            // std::cout << "\n";
+            //
             auto merge = getLowestCostMerge(longestHorizontalPath.second);
+            //
+            // std::cout
+            //     << "merge edge = " << m_halfEdges[merge.first].id_str
+            //     << ", direction = " << (merge.second ? "source" : "target")
+            //     << "\n";
 
             if (merge.second)
                 mergeMaxVerticalSegmentFromBottom(merge.first);
@@ -940,6 +963,8 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
     std::pair lowestCostMerge(-1, false);
     HeuristicCost lowestCost({numeric_limits<double>::infinity()});
 
+    std::cout << std::setprecision(17);
+
     for (int i = 0; i < path.size() - 1; i++) {
         int edge = -1;
 
@@ -949,6 +974,16 @@ std::pair<int, bool> RegularEdgeLabeling::getLowestCostMerge(std::vector<int> co
         }
         HeuristicCost costFromSource = evaluateMergeHeuristic(edge, true);
         HeuristicCost costFromTarget = evaluateMergeHeuristic(edge, false);
+
+        // std::cout
+        //     << "candidate " << m_halfEdges[edge].id_str
+        //     << "\n  source: "
+        //     << costFromSource.component(0) << ", "
+        //     << costFromSource.component(1)
+        //     << "\n  target: "
+        //     << costFromTarget.component(0) << ", "
+        //     << costFromTarget.component(1)
+        //     << "\n";
 
         if (lowestOfTwoIsFirst(costFromSource, costFromTarget)) {
             if (!lowestOfTwoIsFirst(lowestCost, costFromSource)) {

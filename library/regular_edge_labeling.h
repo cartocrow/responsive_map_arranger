@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include <cmath>
 #include <cartocrow/core/core.h>
 #include <cartocrow/core/region_map.h>
 #include <nlohmann/json_fwd.hpp>
@@ -37,10 +38,36 @@ public:
     HeuristicCost(std::initializer_list<double> values) : m_values(values) {}
 
     bool operator<(const HeuristicCost &other) const {
-        return std::lexicographical_compare(
-            m_values.begin(), m_values.end(),
-            other.m_values.begin(), other.m_values.end()
-        );
+        constexpr double ABS_EPS = 1e-9;
+        constexpr double REL_EPS = 1e-12;
+
+        const size_t n = std::min(m_values.size(), other.m_values.size());
+
+        for (size_t i = 0; i < n; ++i) {
+            const double a = m_values[i];
+            const double b = other.m_values[i];
+
+            // Handles equal finite values and equal infinities.
+            if (a == b)
+                continue;
+
+            // Do not use epsilon comparison for infinity/NaN.
+            if (!std::isfinite(a) || !std::isfinite(b))
+                return a < b;
+
+            const double tolerance =
+                std::max(
+                    ABS_EPS,
+                    REL_EPS * std::max(std::abs(a), std::abs(b))
+                );
+
+            if (std::abs(a - b) <= tolerance)
+                continue;
+
+            return a < b;
+        }
+
+        return m_values.size() < other.m_values.size();
     }
 
     [[nodiscard]] bool empty() const { return m_values.empty(); }
