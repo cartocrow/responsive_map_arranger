@@ -33,6 +33,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
     m_vertices.clear();
     m_labelToIndex.clear();
     m_halfEdges.clear();
+    m_useSquareAspectRatios = useSquareAspectRatios;
 
     if (!j.contains("regions") || !j["regions"].is_array()) {
         throw runtime_error("JSON must contain 'regions' array");
@@ -67,9 +68,7 @@ void RegularEdgeLabeling::buildFromJson(const json &j, bool useSquareAspectRatio
                 v.isLandRegion = true;
             }
             i++;
-            if (useSquareAspectRatios)
-                v.preferred_aspect_ratio = 1.0;
-            else v.preferred_aspect_ratio = r["preferred_aspect"].get<double>();
+            v.preferred_aspect_ratio = r["preferred_aspect"].get<double>();
             m_vertices.push_back(std::move(v));
             m_labelToIndex[lbl] = idx;
         }
@@ -1168,7 +1167,7 @@ void RegularEdgeLabeling::normalizeVertexWeights() {
 
 void RegularEdgeLabeling::computePreferredSizes() {
     for (Vertex &v : m_vertices) {
-        double r = v.preferred_aspect_ratio;
+        double r = m_useSquareAspectRatios ? 1.0 : v.preferred_aspect_ratio;
 
         double w = sqrt(v.weight * r);
         double h = v.weight / w;

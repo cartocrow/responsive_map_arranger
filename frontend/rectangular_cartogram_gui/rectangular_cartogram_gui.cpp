@@ -421,25 +421,22 @@ RegionCentroidMap RectangularCartogramDemo::currentVisualizationCentroids() cons
     return {};
 }
 
-
-void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath) {
-    std::cout << "loading data from " << dataPath << std::endl;
-
-    auto ext = dataPath.extension();
-
-    if (ext != ".json") {
-        std::cerr << "Cannot load data from file type " << ext << std::endl;
-        return;
-    }
-    std::ifstream f(dataPath);
-    m_RELData = json::parse(f);
-    processData();
-
+void RectangularCartogramDemo::rebuildVisualization() {
     m_cartogramType = static_cast<CartogramType>(m_cartogramTypeComboBox->currentData().toInt());
+
+    m_renderer->clear();
+    m_rectPainting.reset();
+    m_demersPainting.reset();
+    m_dorlingPainting.reset();
+    m_choroplethPainting.reset();
+    m_rectangularDual.reset();
+    m_demers.reset();
+    m_dorling.reset();
+    m_choroplethMap.reset();
+    m_relPainting.reset();
 
     if (m_cartogramType == RECTANGULAR_CARTOGRAM) {
         m_rectangularDual = std::make_shared<RectangularDual>(m_relPtr);
-
         m_rectangularDual->setFromREL();
 
         RectangularCartogramPainting::Options rectCartogramOptions;
@@ -447,9 +444,6 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_rectPainting = std::make_shared<RectangularCartogramPainting>(m_rectangularDual, m_relPtr,
                                                                         rectCartogramOptions);
         m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
-
-        m_demers = nullptr;
-        m_dorling = nullptr;
     } else if (m_cartogramType == DEMERS_CARTOGRAM) {
         m_demers = std::make_shared<DemersCartogram>();
         m_demers->setFromREL(*m_relPtr);
@@ -457,9 +451,6 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
         m_demersPainting->drawLabels(m_drawLabels->isChecked());
         m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
-
-        m_rectangularDual = nullptr;
-        m_dorling = nullptr;
     } else if (m_cartogramType == DORLING_CARTOGRAM) {
         m_dorling = std::make_shared<DorlingCartogram>();
         applyDorlingSettings(*m_dorling,
@@ -481,9 +472,6 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
         m_dorlingPainting = std::make_shared<DorlingPainting>(m_dorling, m_relPtr);
         m_dorlingPainting->drawLabels(m_drawLabels->isChecked());
         m_renderer->addPainting(m_dorlingPainting, "Dorling Cartogram");
-
-        m_rectangularDual = nullptr;
-        m_demers = nullptr;
     } else if (m_cartogramType == CHOROPLETH_MAP) {
         m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
         m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
@@ -499,18 +487,40 @@ void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath
 
         m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
         m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
-
     }
-
-    // REL RENDERING
-    RELPainting::Options relDrawingOptions;
-    relDrawingOptions.drawLabels = true;
-    relDrawingOptions.drawREL = m_showREL->isChecked();
 
     m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_dorling, m_choroplethMap);
     m_relPainting->drawRel(m_showREL->isChecked());
-
     m_renderer->addPainting(m_relPainting, "REL");
+    m_renderer->update();
+}
+
+void RectangularCartogramDemo::rebuildRELFromCurrentInputs() {
+    if (m_RELData.is_null()) return;
+
+    processData();
+
+    if (!m_regionMap.empty()) {
+        m_relPtr->setValuesFromRegionMap(m_regionMap);
+    }
+
+    rebuildVisualization();
+}
+
+
+void RectangularCartogramDemo::loadRELData(const std::filesystem::path &dataPath) {
+    std::cout << "loading data from " << dataPath << std::endl;
+
+    auto ext = dataPath.extension();
+
+    if (ext != ".json") {
+        std::cerr << "Cannot load data from file type " << ext << std::endl;
+        return;
+    }
+    std::ifstream f(dataPath);
+    m_RELData = json::parse(f);
+    processData();
+    rebuildVisualization();
 }
 
 void RectangularCartogramDemo::loadWeightData(const std::filesystem::path &dataPath) {
@@ -792,6 +802,13 @@ void RectangularCartogramDemo::addGeneralTab() {
         setCartogramFromREL();
     });
 
+    connect(m_useSquareAspectRatios, &QCheckBox::toggled, [this](bool checked) {
+        if (!m_relPtr) return;
+
+        m_relPtr->setUseSquareAspectRatios(checked);
+        rebuildRELFromCurrentInputs();
+    });
+
     connect(m_showREL, &QCheckBox::toggled, [this]() {
         if (!m_relPainting) return;
 
@@ -822,87 +839,7 @@ void RectangularCartogramDemo::addGeneralTab() {
         m_cartogramType = static_cast<CartogramType>(m_cartogramTypeComboBox->itemData(index).toInt());
 
         if (!m_relPtr) return;
-
-        m_renderer->clear();
-        m_rectPainting.reset();
-        m_demersPainting.reset();
-        m_dorlingPainting.reset();
-        m_choroplethPainting.reset();
-        m_rectangularDual.reset();
-        m_demers.reset();
-        m_dorling.reset();
-        m_choroplethMap.reset();
-
-        if (m_cartogramType == RECTANGULAR_CARTOGRAM) {
-            m_rectangularDual = std::make_shared<RectangularDual>(m_relPtr);
-
-            m_rectangularDual->setFromREL();
-
-            RectangularCartogramPainting::Options rectCartogramOptions;
-            rectCartogramOptions.drawLabels = m_drawLabels->isChecked();
-            m_rectPainting = std::make_shared<RectangularCartogramPainting>(
-                m_rectangularDual, m_relPtr, rectCartogramOptions);
-            m_renderer->addPainting(m_rectPainting, "RectangularCartogram");
-        } else if (m_cartogramType == DEMERS_CARTOGRAM) {
-            m_demers = std::make_shared<DemersCartogram>();
-            m_demers->setFromREL(*m_relPtr);
-
-            m_demersPainting = std::make_shared<DemersPainting>(m_demers, m_relPtr);
-            m_demersPainting->drawLabels(m_drawLabels->isChecked());
-            m_renderer->addPainting(m_demersPainting, "Demer's Cartogram");
-        } else if (m_cartogramType == DORLING_CARTOGRAM) {
-            m_dorling = std::make_shared<DorlingCartogram>();
-            applyDorlingSettings(*m_dorling,
-                                 m_dorlingForceIterSpinBox,
-                                 m_dorlingSeparationIterationsSpinBox,
-                                 m_dorlingAreaFractionSpinBox,
-                                 m_dorlingAdjacencyForceSpinBox,
-                                 m_dorlingMaxAdjacencyForceSpinBox,
-                                 m_dorlingRELDirectionalForceSpinBox,
-                                 m_dorlingOverlapForceSpinBox,
-                                 m_dorlingAnchorForceSpinBox,
-                                 m_dorlingAdjacencyPaddingSpinBox,
-                                 m_dorlingBoundaryPaddingSpinBox,
-                                 m_dorlingUseMapCentroidInitializationCheckBox,
-                                 m_dorlingAdaptiveInitializationModeComboBox);
-            m_dorling->setSourceMapCentroids(m_regionCentroids, m_regionMapBoundingBox);
-            m_dorling->setFromREL(*m_relPtr);
-
-            m_dorlingPainting = std::make_shared<DorlingPainting>(m_dorling, m_relPtr);
-            m_dorlingPainting->drawLabels(m_drawLabels->isChecked());
-            m_renderer->addPainting(m_dorlingPainting, "Dorling Cartogram");
-
-            m_rectangularDual = nullptr;
-        } else if (m_cartogramType == CHOROPLETH_MAP) {
-            m_choroplethMap = std::make_shared<ChoroplethMap>(m_relPtr, m_regionMap);
-            m_choroplethMap->forceIterationCount = choroForceIterSpinBox->value();
-            m_choroplethMap->forceStepSize = forceStepSpinBox->value();
-            m_choroplethMap->forceMaxMovement = forceMaxMovementSpinBox->value();
-            m_choroplethMap->originalPosForce = originalPosForceSpinBox->value();
-            m_choroplethMap->cartogramPosForce = cartogramPosForceSpinBox->value();
-            m_choroplethMap->RELForce = RELForceSpinBox->value();
-            m_choroplethMap->overlapForce = overlapForceSpinBox->value();
-            m_choroplethMap->boundaryForce = boundaryForceSpinBox->value();
-            m_choroplethMap->setUseValueColors(m_useValueColorRamp->isChecked());
-
-            m_choroplethMap->setFromRel();
-
-            m_choroplethPainting = std::make_shared<ChoroplethPainting>(m_choroplethMap, m_relPtr);
-            m_renderer->addPainting(m_choroplethPainting, "Choropleth Painting");
-        }
-
-        m_relPainting.reset();
-
-        // REL RENDERING
-        RELPainting::Options relDrawingOptions;
-        relDrawingOptions.drawLabels = true;
-        relDrawingOptions.drawREL = m_showREL->isChecked();
-
-        m_relPainting = std::make_shared<RELPainting>(m_relPtr, m_rectangularDual, m_demers, m_dorling, m_choroplethMap);
-
-        m_renderer->addPainting(m_relPainting, "REL");
-
-        m_renderer->update();
+        rebuildVisualization();
     });
 
     connect(m_mergeHeuristicComboBox, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index) {
@@ -1189,7 +1126,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingSeparationIterationsSpinBox->setSuffix(" sep");
     m_dorlingSeparationIterationsSpinBox->setMinimum(1);
     m_dorlingSeparationIterationsSpinBox->setMaximum(100);
-    m_dorlingSeparationIterationsSpinBox->setValue(5);
+    m_dorlingSeparationIterationsSpinBox->setValue(4);
     vLayout->addWidget(m_dorlingSeparationIterationsSpinBox);
 
     auto areaFractionLabel = new QLabel("Area fraction");
@@ -1208,7 +1145,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingAdjacencyForceSpinBox->setMinimum(0.0);
     m_dorlingAdjacencyForceSpinBox->setDecimals(4);
     m_dorlingAdjacencyForceSpinBox->setSingleStep(0.01);
-    m_dorlingAdjacencyForceSpinBox->setValue(0.9);
+    m_dorlingAdjacencyForceSpinBox->setValue(0.01);
     vLayout->addWidget(m_dorlingAdjacencyForceSpinBox);
 
     auto maxAdjacencyForceLabel = new QLabel("Max adjacency force");

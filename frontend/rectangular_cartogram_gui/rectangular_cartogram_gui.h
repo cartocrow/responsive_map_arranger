@@ -124,6 +124,8 @@ class RectangularCartogramDemo : public QMainWindow {
     void loadWeightData(const std::filesystem::path &dataPath);
     void loadMap(const std::filesystem::path &mapPath);
     void processData();
+    void rebuildVisualization();
+    void rebuildRELFromCurrentInputs();
     void setCartogramFromREL() const;
     void exportAspectRatioDeviationSweep() const;
     void exportCentroidVectorDistortionSweep() const;

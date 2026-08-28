@@ -138,6 +138,7 @@ public:
 
     void setDataValuesFromJson(const json &j);
     void setValuesFromRegionMap(const cartocrow::RegionMap& map);
+    void setUseSquareAspectRatios(bool useSquareAspectRatios) { m_useSquareAspectRatios = useSquareAspectRatios; }
     void setMergeHeuristic(const MergeHeuristic merge_heuristic) { m_mergeHeuristic = merge_heuristic; }
     void enableAdaptiveLayout(bool enable) { m_adaptiveLayoutEnabled = enable; };
     bool adaptiveLayoutEnabled() const { return m_adaptiveLayoutEnabled; }
@@ -287,6 +288,7 @@ private:
     optional<BoundingBox> m_boundingBox;
 
     bool m_adaptiveLayoutEnabled = true;
+    bool m_useSquareAspectRatios = false;
     double m_threshHoldRelaxation = 0.5;
 
     MergeHeuristic m_mergeHeuristic = MIN_EDGE;
