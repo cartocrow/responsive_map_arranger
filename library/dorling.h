@@ -48,7 +48,7 @@ public:
     double adjacencyForce = 0.08;
     double maxAdjacencyForce = 20.0;
     double overlapForce = 0.35;
-    double anchorForce = 0.015;
+    double anchorForce = 0.0;
     double relDirectionalForce = 0.01;
     double adjacencyPadding = 0;
     double boundaryPadding = 1e-6;

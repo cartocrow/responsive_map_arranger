@@ -498,10 +498,16 @@ void RectangularCartogramDemo::rebuildVisualization() {
 void RectangularCartogramDemo::rebuildRELFromCurrentInputs() {
     if (m_RELData.is_null()) return;
 
+    const auto currentBoundingBox = m_relPtr ? m_relPtr->getBoundingBox() : std::optional<BoundingBox>{};
+
     processData();
 
     if (!m_regionMap.empty()) {
         m_relPtr->setValuesFromRegionMap(m_regionMap);
+    }
+
+    if (currentBoundingBox) {
+        m_relPtr->setBoundingBox(*currentBoundingBox);
     }
 
     rebuildVisualization();
@@ -1117,7 +1123,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingForceIterSpinBox->setSuffix(" iters");
     m_dorlingForceIterSpinBox->setMinimum(0);
     m_dorlingForceIterSpinBox->setMaximum(10000.0);
-    m_dorlingForceIterSpinBox->setValue(500);
+    m_dorlingForceIterSpinBox->setValue(1000);
     vLayout->addWidget(m_dorlingForceIterSpinBox);
 
     auto separationIterationsLabel = new QLabel("Separation iters per attraction");
@@ -1155,7 +1161,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingMaxAdjacencyForceSpinBox->setMaximum(1000.0);
     m_dorlingMaxAdjacencyForceSpinBox->setDecimals(4);
     m_dorlingMaxAdjacencyForceSpinBox->setSingleStep(0.1);
-    m_dorlingMaxAdjacencyForceSpinBox->setValue(0.5);
+    m_dorlingMaxAdjacencyForceSpinBox->setValue(2.5);
     vLayout->addWidget(m_dorlingMaxAdjacencyForceSpinBox);
 
     auto relDirectionalForceLabel = new QLabel("REL direction force");
@@ -1165,7 +1171,7 @@ void RectangularCartogramDemo::addDorlingTab() {
     m_dorlingRELDirectionalForceSpinBox->setMaximum(100.0);
     m_dorlingRELDirectionalForceSpinBox->setDecimals(4);
     m_dorlingRELDirectionalForceSpinBox->setSingleStep(0.02);
-    m_dorlingRELDirectionalForceSpinBox->setValue(0.01);
+    m_dorlingRELDirectionalForceSpinBox->setValue(0);
     vLayout->addWidget(m_dorlingRELDirectionalForceSpinBox);
 
     auto overlapForceLabel = new QLabel("Overlap force");
@@ -1527,6 +1533,8 @@ void RectangularCartogramDemo::addVideoTab() {
                 svg.addPainting(m_rectPainting, "cartogram");
             } else if (m_cartogramType == DEMERS_CARTOGRAM && m_demersPainting) {
                 svg.addPainting(m_demersPainting, "cartogram");
+            } else if (m_cartogramType == DORLING_CARTOGRAM && m_dorlingPainting) {
+                svg.addPainting(m_dorlingPainting, "cartogram");
             }
 
             if (m_showREL && m_showREL->isChecked() && m_relPainting) {
