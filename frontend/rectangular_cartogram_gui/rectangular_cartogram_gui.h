@@ -22,6 +22,7 @@
 #include "library/dorling.h"
 #include "library/choropleth_map.h"
 #include "library/centroid_vector_distortion.h"
+#include "library/dorling_stability.h"
 
 
 #include "persistent_settings.h"
@@ -129,6 +130,8 @@ class RectangularCartogramDemo : public QMainWindow {
     void setCartogramFromREL() const;
     void exportAspectRatioDeviationSweep() const;
     void exportCentroidVectorDistortionSweep() const;
+    void exportDorlingStabilitySweep() const;
+    void exportDorlingOctantStabilitySweep() const;
     RegionCentroidMap currentVisualizationCentroids() const;
     static std::string mergeHeuristicLabel(MergeHeuristic heuristic);
 

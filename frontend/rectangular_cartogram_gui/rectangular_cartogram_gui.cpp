@@ -31,17 +31,81 @@ namespace {
 struct SweepSample {
     double width;
     double height;
+    char squishAxis;
+    int squishPercent;
+    int signedSquishPercent;
 };
 
+struct SweepRunConfig {
+    bool adaptiveLayout;
+    MergeHeuristic heuristic;
+    std::string runLabel;
+    std::string variantLabel;
+    std::string heuristicLabel;
+};
+
+std::string mergeHeuristicName(MergeHeuristic heuristic) {
+    switch (heuristic) {
+        case MIN_EDGE:
+            return "min-edge";
+        case MIN_WEIGHT:
+            return "min-weight";
+        case MIN_EDGE_MIN_WEIGHT:
+            return "min-edge-min-weight";
+        case MIN_MAX_PATH:
+            return "min-max-path";
+        default:
+            return "unknown";
+    }
+}
+
 std::vector<SweepSample> sweepSamples() {
+    constexpr double baseSize = 100.0;
+    constexpr int maxSquishPercent = 70;
+
+    std::vector<SweepSample> samples;
+    samples.reserve(2 * maxSquishPercent + 1);
+
+    for (int squishPercent = maxSquishPercent; squishPercent >= 1; --squishPercent) {
+        const double preservedFraction = 1.0 - static_cast<double>(squishPercent) / 100.0;
+        samples.push_back({
+            baseSize * preservedFraction,
+            baseSize / preservedFraction,
+            'x',
+            squishPercent,
+            -squishPercent,
+        });
+    }
+
+    samples.push_back({
+        baseSize,
+        baseSize,
+        'n',
+        0,
+        0,
+    });
+
+    for (int squishPercent = 1; squishPercent <= maxSquishPercent; ++squishPercent) {
+        const double preservedFraction = 1.0 - static_cast<double>(squishPercent) / 100.0;
+        samples.push_back({
+            baseSize / preservedFraction,
+            baseSize * preservedFraction,
+            'y',
+            squishPercent,
+            squishPercent,
+        });
+    }
+
+    return samples;
+}
+
+std::vector<SweepRunConfig> sweepRunConfigs() {
     return {
-        {30.0, 333.0},
-        {50.0, 200.0},
-        {80.0, 125.0},
-        {100.0, 100.0},
-        {125.0, 80.0},
-        {200.0, 50.0},
-        {333.0, 30.0},
+        {false, MIN_EDGE, "adaptive-off", "non-adaptive", "none"},
+        {true, MIN_EDGE, "adaptive-on-min-edge", "adaptive-layout-guide", mergeHeuristicName(MIN_EDGE)},
+        {true, MIN_WEIGHT, "adaptive-on-min-weight", "adaptive-layout-guide", mergeHeuristicName(MIN_WEIGHT)},
+        {true, MIN_EDGE_MIN_WEIGHT, "adaptive-on-min-edge-min-weight", "adaptive-layout-guide", mergeHeuristicName(MIN_EDGE_MIN_WEIGHT)},
+        {true, MIN_MAX_PATH, "adaptive-on-min-max-path", "adaptive-layout-guide", mergeHeuristicName(MIN_MAX_PATH)},
     };
 }
 
@@ -97,6 +161,67 @@ void applyDorlingSettings(DorlingCartogram &cartogram,
                           const QDoubleSpinBox *adjacencyPaddingSpinBox,
                           const QDoubleSpinBox *boundaryPaddingSpinBox,
                           const QCheckBox *useMapCentroidInitializationCheckBox,
+                          const QComboBox *adaptiveInitializationModeComboBox);
+
+DorlingCartogram makeSweepDorling(
+    const std::shared_ptr<RegularEdgeLabeling> &sourceRel,
+    const SweepRunConfig &config,
+    double thresholdRelaxation,
+    double width,
+    double height,
+    const RegionCentroidMap &regionCentroids,
+    const BoundingBox &regionMapBoundingBox,
+    const QSpinBox *forceIterSpinBox,
+    const QSpinBox *separationIterationsSpinBox,
+    const QDoubleSpinBox *areaFractionSpinBox,
+    const QDoubleSpinBox *adjacencyForceSpinBox,
+    const QDoubleSpinBox *maxAdjacencyForceSpinBox,
+    const QDoubleSpinBox *relDirectionalForceSpinBox,
+    const QDoubleSpinBox *overlapForceSpinBox,
+    const QDoubleSpinBox *anchorForceSpinBox,
+    const QDoubleSpinBox *adjacencyPaddingSpinBox,
+    const QDoubleSpinBox *boundaryPaddingSpinBox,
+    const QCheckBox *useMapCentroidInitializationCheckBox,
+    const QComboBox *adaptiveInitializationModeComboBox) {
+    auto runRel = makeSweepREL(
+        sourceRel,
+        config.adaptiveLayout,
+        config.heuristic,
+        thresholdRelaxation,
+        width,
+        height);
+
+    DorlingCartogram runDorling;
+    applyDorlingSettings(runDorling,
+                         forceIterSpinBox,
+                         separationIterationsSpinBox,
+                         areaFractionSpinBox,
+                         adjacencyForceSpinBox,
+                         maxAdjacencyForceSpinBox,
+                         relDirectionalForceSpinBox,
+                         overlapForceSpinBox,
+                         anchorForceSpinBox,
+                         adjacencyPaddingSpinBox,
+                         boundaryPaddingSpinBox,
+                         useMapCentroidInitializationCheckBox,
+                         adaptiveInitializationModeComboBox);
+    runDorling.setSourceMapCentroids(regionCentroids, regionMapBoundingBox);
+    runDorling.setFromREL(*runRel);
+    return runDorling;
+}
+
+void applyDorlingSettings(DorlingCartogram &cartogram,
+                          const QSpinBox *forceIterSpinBox,
+                          const QSpinBox *separationIterationsSpinBox,
+                          const QDoubleSpinBox *areaFractionSpinBox,
+                          const QDoubleSpinBox *adjacencyForceSpinBox,
+                          const QDoubleSpinBox *maxAdjacencyForceSpinBox,
+                          const QDoubleSpinBox *relDirectionalForceSpinBox,
+                          const QDoubleSpinBox *overlapForceSpinBox,
+                          const QDoubleSpinBox *anchorForceSpinBox,
+                          const QDoubleSpinBox *adjacencyPaddingSpinBox,
+                          const QDoubleSpinBox *boundaryPaddingSpinBox,
+                          const QCheckBox *useMapCentroidInitializationCheckBox,
                           const QComboBox *adaptiveInitializationModeComboBox) {
     if (!forceIterSpinBox || !separationIterationsSpinBox || !areaFractionSpinBox || !adjacencyForceSpinBox || !maxAdjacencyForceSpinBox || !relDirectionalForceSpinBox || !overlapForceSpinBox ||
         !anchorForceSpinBox || !adjacencyPaddingSpinBox || !boundaryPaddingSpinBox ||
@@ -122,18 +247,7 @@ void applyDorlingSettings(DorlingCartogram &cartogram,
 }
 
 std::string RectangularCartogramDemo::mergeHeuristicLabel(MergeHeuristic heuristic) {
-    switch (heuristic) {
-        case MIN_EDGE:
-            return "min-edge";
-        case MIN_WEIGHT:
-            return "min-weight";
-        case MIN_EDGE_MIN_WEIGHT:
-            return "min-edge-min-weight";
-        case MIN_MAX_PATH:
-            return "min-max-path";
-        default:
-            return "unknown";
-    }
+    return mergeHeuristicName(heuristic);
 }
 
 void RectangularCartogramDemo::exportAspectRatioDeviationSweep() const {
@@ -167,22 +281,10 @@ void RectangularCartogramDemo::exportAspectRatioDeviationSweep() const {
 
     const auto samples = sweepSamples();
 
-    struct RunConfig {
-        bool adaptiveLayout;
-        MergeHeuristic heuristic;
-        std::string runLabel;
-    };
-
-    const std::vector<RunConfig> runConfigs = {
-        {false, static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentData().toInt()), "adaptive-off"},
-        {true, MIN_EDGE, "adaptive-on-min-edge"},
-        {true, MIN_WEIGHT, "adaptive-on-min-weight"},
-        {true, MIN_EDGE_MIN_WEIGHT, "adaptive-on-min-edge-min-weight"},
-        {true, MIN_MAX_PATH, "adaptive-on-min-max-path"},
-    };
+    const auto runConfigs = sweepRunConfigs();
 
     out << std::fixed << std::setprecision(8);
-    out << "run,adaptive_layout,merge_heuristic,sample_index,container_aspect_ratio,log_container_aspect_ratio,container_width,container_height,average_aspect_ratio_deviation\n";
+    out << "run,adaptive_layout,merge_heuristic,sample_index,container_aspect_ratio,log_container_aspect_ratio,container_width,container_height,squish_axis,squish_percent,signed_squish_percent,average_aspect_ratio_deviation\n";
 
     for (const auto &config : runConfigs) {
         for (std::size_t i = 0; i < samples.size(); ++i) {
@@ -202,12 +304,15 @@ void RectangularCartogramDemo::exportAspectRatioDeviationSweep() const {
             if (!runRel->isValidREL()) {
                 out << config.runLabel << ','
                     << (config.adaptiveLayout ? "true" : "false") << ','
-                    << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                    << (config.adaptiveLayout ? config.heuristicLabel : "n/a") << ','
                     << i << ','
                     << aspectRatio << ','
                     << logAspectRatio << ','
                     << width << ','
                     << height << ','
+                    << samples[i].squishAxis << ','
+                    << samples[i].squishPercent << ','
+                    << samples[i].signedSquishPercent << ','
                     << "nan\n";
                 continue;
             }
@@ -217,12 +322,15 @@ void RectangularCartogramDemo::exportAspectRatioDeviationSweep() const {
 
             out << config.runLabel << ','
                 << (config.adaptiveLayout ? "true" : "false") << ','
-                << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                << (config.adaptiveLayout ? config.heuristicLabel : "n/a") << ','
                 << i << ','
                 << aspectRatio << ','
                 << logAspectRatio << ','
                 << width << ','
                 << height << ','
+                << samples[i].squishAxis << ','
+                << samples[i].squishPercent << ','
+                << samples[i].signedSquishPercent << ','
                 << dual->averageAspectRatioDeviation() << '\n';
         }
     }
@@ -282,22 +390,10 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
         std::cerr << "Unsupported cartogram type for local distortion export." << std::endl;
         return;
     }
-    struct RunConfig {
-        bool adaptiveLayout;
-        MergeHeuristic heuristic;
-        std::string runLabel;
-    };
-
-    const std::vector<RunConfig> runConfigs = {
-        {false, static_cast<MergeHeuristic>(m_mergeHeuristicComboBox->currentData().toInt()), "adaptive-off"},
-        {true, MIN_EDGE, "adaptive-on-min-edge"},
-        {true, MIN_WEIGHT, "adaptive-on-min-weight"},
-        {true, MIN_EDGE_MIN_WEIGHT, "adaptive-on-min-edge-min-weight"},
-        {true, MIN_MAX_PATH, "adaptive-on-min-max-path"},
-    };
+    const auto runConfigs = sweepRunConfigs();
 
     out << std::fixed << std::setprecision(8);
-    out << "run,cartogram_type,adaptive_layout,merge_heuristic,k,sample_index,container_aspect_ratio,log_container_aspect_ratio,container_width,container_height,deform_k,ortho_order_k,distance_scale_factor,matched_region_count,neighbor_pair_count,ortho_violation_count,ortho_constraint_count\n";
+    out << "run,cartogram_type,adaptive_layout,merge_heuristic,k,sample_index,container_aspect_ratio,log_container_aspect_ratio,container_width,container_height,squish_axis,squish_percent,signed_squish_percent,deform_k,ortho_order_k,distance_scale_factor,matched_region_count,neighbor_pair_count,ortho_violation_count,ortho_constraint_count\n";
 
     for (std::size_t i = 0; i < samples.size(); ++i) {
         const double width = samples[i].width;
@@ -321,13 +417,16 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
                 out << config.runLabel << ','
                     << cartogramTypeLabel << ','
                     << (config.adaptiveLayout ? "true" : "false") << ','
-                    << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                    << (config.adaptiveLayout ? config.heuristicLabel : "n/a") << ','
                     << neighborCount << ','
                     << i << ','
                     << aspectRatio << ','
                     << logAspectRatio << ','
                     << width << ','
                     << height << ','
+                    << samples[i].squishAxis << ','
+                    << samples[i].squishPercent << ','
+                    << samples[i].signedSquishPercent << ','
                     << "nan,"
                     << "nan,"
                     << "nan,"
@@ -348,22 +447,26 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
                 runDemers.setFromREL(*runRel);
                 runCentroids = demersRegionCentroids(runDemers);
             } else {
-                DorlingCartogram runDorling;
-                applyDorlingSettings(runDorling,
-                                     m_dorlingForceIterSpinBox,
-                                     m_dorlingSeparationIterationsSpinBox,
-                                     m_dorlingAreaFractionSpinBox,
-                                     m_dorlingAdjacencyForceSpinBox,
-                                     m_dorlingMaxAdjacencyForceSpinBox,
-                                     m_dorlingRELDirectionalForceSpinBox,
-                                     m_dorlingOverlapForceSpinBox,
-                                     m_dorlingAnchorForceSpinBox,
-                                     m_dorlingAdjacencyPaddingSpinBox,
-                                     m_dorlingBoundaryPaddingSpinBox,
-                                     m_dorlingUseMapCentroidInitializationCheckBox,
-                                     m_dorlingAdaptiveInitializationModeComboBox);
-                runDorling.setSourceMapCentroids(m_regionCentroids, m_regionMapBoundingBox);
-                runDorling.setFromREL(*runRel);
+                DorlingCartogram runDorling = makeSweepDorling(
+                    m_relPtr,
+                    config,
+                    m_threshHoldRelaxation->value(),
+                    width,
+                    height,
+                    m_regionCentroids,
+                    m_regionMapBoundingBox,
+                    m_dorlingForceIterSpinBox,
+                    m_dorlingSeparationIterationsSpinBox,
+                    m_dorlingAreaFractionSpinBox,
+                    m_dorlingAdjacencyForceSpinBox,
+                    m_dorlingMaxAdjacencyForceSpinBox,
+                    m_dorlingRELDirectionalForceSpinBox,
+                    m_dorlingOverlapForceSpinBox,
+                    m_dorlingAnchorForceSpinBox,
+                    m_dorlingAdjacencyPaddingSpinBox,
+                    m_dorlingBoundaryPaddingSpinBox,
+                    m_dorlingUseMapCentroidInitializationCheckBox,
+                    m_dorlingAdaptiveInitializationModeComboBox);
                 runCentroids = dorlingRegionCentroids(runDorling);
             }
 
@@ -375,13 +478,16 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
             out << config.runLabel << ','
                 << cartogramTypeLabel << ','
                 << (config.adaptiveLayout ? "true" : "false") << ','
-                << (config.adaptiveLayout ? mergeHeuristicLabel(config.heuristic) : "n/a") << ','
+                << (config.adaptiveLayout ? config.heuristicLabel : "n/a") << ','
                 << neighborCount << ','
                 << i << ','
                 << aspectRatio << ','
                 << logAspectRatio << ','
                 << width << ','
-                << height << ',';
+                << height << ','
+                << samples[i].squishAxis << ','
+                << samples[i].squishPercent << ','
+                << samples[i].signedSquishPercent << ',';
 
             if (std::isnan(metrics.deformK)) out << "nan";
             else out << metrics.deformK;
@@ -403,6 +509,184 @@ void RectangularCartogramDemo::exportCentroidVectorDistortionSweep() const {
     }
 
     std::cout << "Local distortion sweep written to " << selectedPath.toStdString() << std::endl;
+}
+
+void RectangularCartogramDemo::exportDorlingStabilitySweep() const {
+    if (!m_relPtr) {
+        std::cerr << "Load a REL before generating Dorling stability statistics." << std::endl;
+        return;
+    }
+
+    std::filesystem::create_directories("data");
+    const QString defaultPath = QString::fromStdString((std::filesystem::path("data") / "dorling_stability.csv").string());
+    const QString selectedPath = QFileDialog::getSaveFileName(
+        const_cast<RectangularCartogramDemo*>(this),
+        tr("Save Dorling stability sweep"),
+        defaultPath,
+        tr("CSV files (*.csv);;All files (*)"));
+    if (selectedPath.isEmpty()) return;
+
+    std::ofstream out(selectedPath.toStdString());
+    if (!out) {
+        std::cerr << "Failed to open output file " << selectedPath.toStdString() << std::endl;
+        return;
+    }
+
+    const auto samples = sweepSamples();
+    if (samples.size() < 2) {
+        std::cerr << "Dorling stability sweep requires at least two samples." << std::endl;
+        return;
+    }
+
+    const auto runConfigs = sweepRunConfigs();
+    const double thresholdRelaxation = m_threshHoldRelaxation->value();
+
+    out << std::fixed << std::setprecision(12);
+    out << "variant,heuristic,step,from_width,from_height,to_width,to_height,aspect_ratio,to_squish_axis,to_squish_percent,to_signed_squish_percent,stability_rms,optimal_scale\n";
+
+    for (const auto &config : runConfigs) {
+        std::vector<DorlingCartogram> layouts;
+        layouts.reserve(samples.size());
+
+        for (const auto &sample : samples) {
+            layouts.push_back(makeSweepDorling(
+                m_relPtr,
+                config,
+                thresholdRelaxation,
+                sample.width,
+                sample.height,
+                m_regionCentroids,
+                m_regionMapBoundingBox,
+                m_dorlingForceIterSpinBox,
+                m_dorlingSeparationIterationsSpinBox,
+                m_dorlingAreaFractionSpinBox,
+                m_dorlingAdjacencyForceSpinBox,
+                m_dorlingMaxAdjacencyForceSpinBox,
+                m_dorlingRELDirectionalForceSpinBox,
+                m_dorlingOverlapForceSpinBox,
+                m_dorlingAnchorForceSpinBox,
+                m_dorlingAdjacencyPaddingSpinBox,
+                m_dorlingBoundaryPaddingSpinBox,
+                m_dorlingUseMapCentroidInitializationCheckBox,
+                m_dorlingAdaptiveInitializationModeComboBox));
+        }
+
+        for (std::size_t step = 0; step + 1 < samples.size(); ++step) {
+            const BoundingBox fromBox{0.0, samples[step].width, -samples[step].height, 0.0};
+            const BoundingBox toBox{0.0, samples[step + 1].width, -samples[step + 1].height, 0.0};
+            const auto stability = dorlingStability(layouts[step], fromBox, layouts[step + 1], toBox);
+
+            out << config.variantLabel << ','
+                << config.heuristicLabel << ','
+                << step << ','
+                << samples[step].width << ','
+                << samples[step].height << ','
+                << samples[step + 1].width << ','
+                << samples[step + 1].height << ','
+                << (samples[step + 1].width / samples[step + 1].height) << ','
+                << samples[step + 1].squishAxis << ','
+                << samples[step + 1].squishPercent << ','
+                << samples[step + 1].signedSquishPercent << ',';
+
+            if (std::isnan(stability.rms)) out << "nan";
+            else out << stability.rms;
+            out << ',';
+            if (std::isnan(stability.optimalScale)) out << "nan";
+            else out << stability.optimalScale;
+            out << '\n';
+        }
+    }
+
+    std::cout << "Dorling stability sweep written to " << selectedPath.toStdString() << std::endl;
+}
+
+void RectangularCartogramDemo::exportDorlingOctantStabilitySweep() const {
+    if (!m_relPtr) {
+        std::cerr << "Load a REL before generating Dorling octant stability statistics." << std::endl;
+        return;
+    }
+
+    std::filesystem::create_directories("data");
+    const QString defaultPath = QString::fromStdString((std::filesystem::path("data") / "dorling_octant_stability.csv").string());
+    const QString selectedPath = QFileDialog::getSaveFileName(
+        const_cast<RectangularCartogramDemo*>(this),
+        tr("Save Dorling octant stability sweep"),
+        defaultPath,
+        tr("CSV files (*.csv);;All files (*)"));
+    if (selectedPath.isEmpty()) return;
+
+    std::ofstream out(selectedPath.toStdString());
+    if (!out) {
+        std::cerr << "Failed to open output file " << selectedPath.toStdString() << std::endl;
+        return;
+    }
+
+    const auto samples = sweepSamples();
+    if (samples.size() < 2) {
+        std::cerr << "Dorling octant stability sweep requires at least two samples." << std::endl;
+        return;
+    }
+
+    const auto runConfigs = sweepRunConfigs();
+    const double thresholdRelaxation = m_threshHoldRelaxation->value();
+
+    out << std::fixed << std::setprecision(12);
+    out << "variant,heuristic,step,from_width,from_height,to_width,to_height,aspect_ratio,to_squish_axis,to_squish_percent,to_signed_squish_percent,matched_region_count,compared_pair_count,changed_pair_count,total_circular_octant_shift,average_circular_octant_shift\n";
+
+    for (const auto &config : runConfigs) {
+        std::vector<RegionCentroidMap> centroidLayouts;
+        centroidLayouts.reserve(samples.size());
+
+        for (const auto &sample : samples) {
+            const DorlingCartogram runDorling = makeSweepDorling(
+                m_relPtr,
+                config,
+                thresholdRelaxation,
+                sample.width,
+                sample.height,
+                m_regionCentroids,
+                m_regionMapBoundingBox,
+                m_dorlingForceIterSpinBox,
+                m_dorlingSeparationIterationsSpinBox,
+                m_dorlingAreaFractionSpinBox,
+                m_dorlingAdjacencyForceSpinBox,
+                m_dorlingMaxAdjacencyForceSpinBox,
+                m_dorlingRELDirectionalForceSpinBox,
+                m_dorlingOverlapForceSpinBox,
+                m_dorlingAnchorForceSpinBox,
+                m_dorlingAdjacencyPaddingSpinBox,
+                m_dorlingBoundaryPaddingSpinBox,
+                m_dorlingUseMapCentroidInitializationCheckBox,
+                m_dorlingAdaptiveInitializationModeComboBox);
+            centroidLayouts.push_back(dorlingRegionCentroids(runDorling));
+        }
+
+        for (std::size_t step = 0; step + 1 < samples.size(); ++step) {
+            const auto metrics = octantDistortionMetrics(centroidLayouts[step], centroidLayouts[step + 1]);
+
+            out << config.variantLabel << ','
+                << config.heuristicLabel << ','
+                << step << ','
+                << samples[step].width << ','
+                << samples[step].height << ','
+                << samples[step + 1].width << ','
+                << samples[step + 1].height << ','
+                << (samples[step + 1].width / samples[step + 1].height) << ','
+                << samples[step + 1].squishAxis << ','
+                << samples[step + 1].squishPercent << ','
+                << samples[step + 1].signedSquishPercent << ','
+                << metrics.matchedRegionCount << ','
+                << metrics.comparedPairCount << ','
+                << metrics.changedPairCount << ','
+                << metrics.totalCircularOctantShift << ',';
+
+            if (std::isnan(metrics.averageCircularOctantShift)) out << "nan";
+            else out << metrics.averageCircularOctantShift;
+            out << '\n';
+        }
+    }
+
+    std::cout << "Dorling octant stability sweep written to " << selectedPath.toStdString() << std::endl;
 }
 
 RegionCentroidMap RectangularCartogramDemo::currentVisualizationCentroids() const {
@@ -716,6 +1000,8 @@ void RectangularCartogramDemo::addGeneralTab() {
     m_localMetricNeighborCount->setMaximum(1000);
     m_localMetricNeighborCount->setValue(8);
     auto *btnMeasureCentroidVectorDistortion = new QPushButton("Measure local distortion metrics");
+    auto *btnGenerateDorlingStabilityStats = new QPushButton("Generate Dorling Stability Stats");
+    auto *btnGenerateDorlingOctantStabilityStats = new QPushButton("Generate Dorling Octant Stability Stats");
     vLayout->addWidget(statsLabel);
     vLayout->addWidget(btnAspectRatioDeviation);
     vLayout->addWidget(btnOctantDistortion);
@@ -723,6 +1009,8 @@ void RectangularCartogramDemo::addGeneralTab() {
     vLayout->addWidget(localMetricNeighborCountLabel);
     vLayout->addWidget(m_localMetricNeighborCount);
     vLayout->addWidget(btnMeasureCentroidVectorDistortion);
+    vLayout->addWidget(btnGenerateDorlingStabilityStats);
+    vLayout->addWidget(btnGenerateDorlingOctantStabilityStats);
 
     // EDGE SELECTION/MANIPULATION BUTTONS
     auto *selectionLabel = new QLabel("<h3>Selection Actions</h3>", vWidget);
@@ -889,6 +1177,14 @@ void RectangularCartogramDemo::addGeneralTab() {
 
     connect(btnMeasureCentroidVectorDistortion, &QPushButton::clicked, [this]() {
         exportCentroidVectorDistortionSweep();
+    });
+
+    connect(btnGenerateDorlingStabilityStats, &QPushButton::clicked, [this]() {
+        exportDorlingStabilitySweep();
+    });
+
+    connect(btnGenerateDorlingOctantStabilityStats, &QPushButton::clicked, [this]() {
+        exportDorlingOctantStabilitySweep();
     });
 
     connect(btnClearSelection, &QPushButton::clicked, [this]() {

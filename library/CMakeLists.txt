@@ -1,5 +1,6 @@
 set(SOURCES
 		centroid_vector_distortion.cpp
+		dorling_stability.cpp
 		rectangular_cartogram_painting.cpp
 		rectangular_dual.cpp
 		regular_edge_labeling.cpp
@@ -12,6 +13,7 @@ set(SOURCES
 )
 set(HEADERS
 		centroid_vector_distortion.h
+		dorling_stability.h
 		geometry_types.h
 		rectangular_cartogram_painting.h
 		rectangular_dual.h
